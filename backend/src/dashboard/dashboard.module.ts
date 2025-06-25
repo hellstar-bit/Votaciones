@@ -1,7 +1,8 @@
 // 📁 src/dashboard/dashboard.module.ts
 // ====================================================================
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
 import { DashboardService } from './dashboard.service';
 import { DashboardController } from './dashboard.controller';
 import { DashboardGateway } from './dashboard.gateway';
@@ -10,7 +11,6 @@ import { Voto } from '../votes/entities/voto.entity';
 import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 import { Candidato } from '../candidates/entities/candidato.entity';
 import { ElectionsModule } from '../elections/elections.module';
-import { VotesModule } from '../votes/votes.module';
 
 @Module({
   imports: [
@@ -20,11 +20,13 @@ import { VotesModule } from '../votes/votes.module';
       VotanteHabilitado,
       Candidato,
     ]),
-    ElectionsModule,
-    VotesModule,
+    // ✅ Usar forwardRef para evitar dependencia circular
+    forwardRef(() => ElectionsModule),
+    // ✅ Importar JwtModule explícitamente para el Gateway
+    JwtModule,
   ],
   controllers: [DashboardController],
   providers: [DashboardService, DashboardGateway],
-  exports: [DashboardGateway],
+  exports: [DashboardGateway, DashboardService],
 })
 export class DashboardModule {}

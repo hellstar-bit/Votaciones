@@ -1,6 +1,6 @@
 // 📁 src/votes/votes.service.ts
 // ====================================================================
-import { Injectable, BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
@@ -15,6 +15,8 @@ import { DashboardGateway } from '../dashboard/dashboard.gateway';
 @Injectable()
 export class VotesService {
   constructor(
+    // ✅ Usar forwardRef para evitar dependencia circular
+    @Inject(forwardRef(() => DashboardGateway))
     private dashboardGateway: DashboardGateway,
     @InjectRepository(Voto)
     private votoRepository: Repository<Voto>,
@@ -116,7 +118,12 @@ export class VotesService {
       dispositivo_voto: userAgent,
     });
 
-    await this.dashboardGateway.notifyNewVote(id_eleccion);
+    // ✅ Notificar solo si dashboardGateway está disponible
+    try {
+      await this.dashboardGateway?.notifyNewVote(id_eleccion);
+    } catch (error) {
+      console.warn('No se pudo notificar nuevo voto al dashboard:', error.message);
+    }
 
     return {
       message: 'Voto registrado exitosamente',
@@ -153,7 +160,8 @@ export class VotesService {
 
     return {
       eleccion: voto.eleccion.titulo,
-      candidato: voto.candidato ? voto.candidato.persona.nombreCompleto : 'VOTO EN BLANCO',
+      candidato: voto.candidato ? 
+        voto.candidato.persona.nombreCompleto : 'VOTO EN BLANCO',
       timestamp: voto.timestamp_voto,
       verificado: true,
     };

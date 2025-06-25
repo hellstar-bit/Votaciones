@@ -10,10 +10,9 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable, UseGuards } from '@nestjs/common';
+import { Injectable, UseGuards, Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ElectionsService } from '../elections/elections.service';
-import { VotesService } from '../votes/votes.service';
 
 @Injectable()
 @WebSocketGateway({
@@ -31,8 +30,9 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   constructor(
     private jwtService: JwtService,
+    // ✅ Usar forwardRef para evitar dependencia circular
+    @Inject(forwardRef(() => ElectionsService))
     private electionsService: ElectionsService,
-    private votesService: VotesService,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -86,8 +86,13 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     client.join(room);
     
     // Enviar estadísticas de la elección específica
-    const stats = await this.electionsService.getElectionStats(data.electionId);
-    client.emit('election-stats', stats);
+    try {
+      const stats = await this.electionsService.getElectionStats(data.electionId);
+      client.emit('election-stats', stats);
+    } catch (error) {
+      console.error('Error al obtener estadísticas:', error);
+      client.emit('error', { message: 'Error al obtener estadísticas' });
+    }
   }
 
   @SubscribeMessage('get-election-stats')
@@ -99,6 +104,7 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
       const stats = await this.electionsService.getElectionStats(data.electionId);
       client.emit('election-stats', stats);
     } catch (error) {
+      console.error('Error al obtener estadísticas:', error);
       client.emit('error', { message: 'Error al obtener estadísticas' });
     }
   }
@@ -106,6 +112,12 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
   // Método para notificar nuevo voto
   async notifyNewVote(electionId: number) {
     try {
+      // ✅ Verificar que el servicio esté disponible
+      if (!this.electionsService) {
+        console.warn('ElectionsService no disponible para notificación');
+        return;
+      }
+
       const stats = await this.electionsService.getElectionStats(electionId);
       
       // Enviar a sala específica de la elección
@@ -130,18 +142,33 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
   // Método para enviar estadísticas iniciales
   private async sendInitialStats(client: Socket) {
     try {
+      // ✅ Verificar que el servicio esté disponible
+      if (!this.electionsService) {
+        console.warn('ElectionsService no disponible para estadísticas iniciales');
+        return;
+      }
+
       const activeElections = await this.electionsService.getActiveElections();
       
       const initialData = {
         activeElections: activeElections.length,
         elections: await Promise.all(
           activeElections.map(async (election) => {
-            const stats = await this.electionsService.getElectionStats(election.id_eleccion);
-            return {
-              id: election.id_eleccion,
-              titulo: election.titulo,
-              stats: stats.estadisticas,
-            };
+            try {
+              const stats = await this.electionsService.getElectionStats(election.id_eleccion);
+              return {
+                id: election.id_eleccion,
+                titulo: election.titulo,
+                stats: stats.estadisticas,
+              };
+            } catch (error) {
+              console.error(`Error al obtener stats para elección ${election.id_eleccion}:`, error);
+              return {
+                id: election.id_eleccion,
+                titulo: election.titulo,
+                stats: null,
+              };
+            }
           })
         ),
       };
