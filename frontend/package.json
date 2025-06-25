@@ -1,31 +1,46 @@
-﻿{
-  "name": "sena-voting-frontend",
-  "version": "1.0.0",
-  "description": "Frontend Sistema Votaciones SENA",
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "next dev -p 3001",
-    "build": "next build",
-    "start": "next start -p 3001",
-    "lint": "next lint"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.2.6",
+    "@headlessui/react": "^2.2.4",
+    "@heroicons/react": "^2.2.0",
+    "axios": "^1.10.0",
+    "date-fns": "^4.1.0",
+    "framer-motion": "^12.19.1",
+    "html5-qrcode": "^2.3.8",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "next": "^15.1.0",
-    "tailwindcss": "^4.1.0",
+    "react-hook-form": "^7.58.1",
+    "react-hot-toast": "^2.5.2",
+    "react-router-dom": "^7.6.2",
     "recharts": "^3.0.0",
     "socket.io-client": "^4.8.1",
-    "axios": "^1.7.7",
-    "react-hook-form": "^7.53.2",
-    "react-hot-toast": "^2.4.1",
-    "lucide-react": "^0.263.1"
+    "zustand": "^5.0.5"
   },
   "devDependencies": {
-    "@types/node": "^22.8.7",
-    "@types/react": "^19.0.1",
-    "@types/react-dom": "^19.0.1",
-    "typescript": "^5.6.3",
-    "eslint": "^9.12.0",
-    "eslint-config-next": "^15.1.0"
+    "@eslint/js": "^9.29.0",
+    "@tailwindcss/postcss": "^4.1.10",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.29.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.2.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.10",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.34.1",
+    "vite": "^7.0.0"
   }
 }
