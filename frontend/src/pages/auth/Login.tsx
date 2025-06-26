@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
+import { useNavigate } from 'react-router-dom'
 import { EyeIcon, EyeSlashIcon, UserIcon, LockClosedIcon } from '@heroicons/react/24/outline'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
@@ -14,8 +15,10 @@ interface LoginForm {
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const { login } = useAuthStore()
+  const navigate = useNavigate()
+  
+  // 🔧 CORREGIR: Extraer correctamente login e isLoading del store
+  const { login, isLoading } = useAuthStore()
   
   const {
     register,
@@ -24,21 +27,18 @@ const Login = () => {
     setError
   } = useForm<LoginForm>()
 
+  // 🔧 FUNCIÓN CORREGIDA DE SUBMIT
   const onSubmit = async (data: LoginForm) => {
-  setIsLoading(true)
-  
-  try {
-    await login(data)
-    // Redirigir al dashboard después del login exitoso
-    window.location.href = '/dashboard'
-  } catch (error) {
-    setError('root', {
-      message: 'Credenciales incorrectas. Intenta de nuevo.'
-    })
-  } finally {
-    setIsLoading(false)
+    try {
+      await login(data)
+      // Redirigir al dashboard después del login exitoso
+      navigate('/dashboard')
+    } catch (error) {
+      setError('root', {
+        message: 'Credenciales incorrectas. Intenta de nuevo.'
+      })
+    }
   }
-}
 
   return (
     <AuthLayout>
@@ -124,9 +124,9 @@ const Login = () => {
             size="lg"
             loading={isLoading}
             className="w-full"
-            >
+          >
             {isLoading ? 'Verificando...' : 'Iniciar Sesión'}
-            </Button>
+          </Button>
         </form>
 
         {/* Información de prueba */}
@@ -156,12 +156,12 @@ const Login = () => {
           </div>
           
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <a 
-              href="#" 
+            <button 
+              onClick={() => navigate('/')}
               className="text-sm text-gray-500 hover:text-sena-600 transition-colors"
             >
               ← Volver al inicio
-            </a>
+            </button>
           </div>
         </div>
       </motion.div>

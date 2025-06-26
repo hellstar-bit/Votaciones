@@ -5,6 +5,7 @@ import { useAuthStore } from './stores/authStore'
 // Pages
 import Landing from './pages/public/Landing'
 import Login from './pages/auth/Login'
+import AdminDashboard from './pages/admin/AdminDashboard'
 
 // Protected Route Component
 const ProtectedRoute = ({ 
@@ -27,22 +28,7 @@ const ProtectedRoute = ({
   return <>{children}</>
 }
 
-// Placeholder components for different dashboards
-const AdminDashboard = () => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">Dashboard Administrativo</h1>
-      <p className="text-gray-600 mb-6">Bienvenido al panel de administración</p>
-      <button 
-        onClick={() => useAuthStore.getState().logout()}
-        className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
-      >
-        Cerrar Sesión
-      </button>
-    </div>
-  </div>
-)
-
+// Placeholder components for other dashboards
 const VotingDashboard = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
     <div className="text-center">
