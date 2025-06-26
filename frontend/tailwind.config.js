@@ -1,9 +1,18 @@
 /** @type {import('tailwindcss').Config} */
-export default {
-  content: [],
+module.exports = {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        sena: {
+          500: '#39A900',
+          600: '#2d8400',
+        },
+      },
+    },
   },
   plugins: [],
 }
-
