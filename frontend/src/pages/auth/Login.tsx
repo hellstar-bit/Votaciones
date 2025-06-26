@@ -15,6 +15,7 @@ interface LoginForm {
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const { login } = useAuthStore()
   
   const {
     register,

@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import Button from '../../components/ui/Button'
 import { 
   ShieldCheckIcon,
@@ -16,8 +17,19 @@ import {
   QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline'
 
-
 const Landing = () => {
+  const navigate = useNavigate()
+
+  // 🔧 FUNCIÓN PARA MANEJAR LA NAVEGACIÓN AL LOGIN
+  const handleAccessClick = () => {
+    navigate('/login')
+  }
+
+  // 🔧 FUNCIÓN PARA NAVEGACIÓN A OTRAS SECCIONES
+  const handleVoteClick = () => {
+    navigate('/login') // Por ahora redirige al login, luego puedes cambiar por una página específica
+  }
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -47,7 +59,13 @@ const Landing = () => {
               </a>
             </nav>
             
-            <Button variant="primary" size="sm" className="shadow-lg">
+            {/* 🎯 BOTÓN CORREGIDO CON ONCLICK */}
+            <Button 
+              variant="primary" 
+              size="sm" 
+              className="shadow-lg"
+              onClick={handleAccessClick}
+            >
               Acceder
             </Button>
           </div>
@@ -89,10 +107,20 @@ const Landing = () => {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-6 justify-center">
-                <Button size="lg" className="px-10 py-4 text-lg shadow-xl hover:shadow-2xl">
+                {/* 🎯 BOTONES CORREGIDOS CON ONCLICK */}
+                <Button 
+                  size="lg" 
+                  className="px-10 py-4 text-lg shadow-xl hover:shadow-2xl"
+                  onClick={handleVoteClick}
+                >
                   Iniciar Votación
                 </Button>
-                <Button variant="outline" size="lg" className="px-10 py-4 text-lg border-2">
+                <Button 
+                  variant="outline" 
+                  size="lg" 
+                  className="px-10 py-4 text-lg border-2"
+                  onClick={() => navigate('/login')}
+                >
                   Ver Resultados en Vivo
                 </Button>
               </div>
@@ -157,6 +185,55 @@ const Landing = () => {
         </motion.div>
       </section>
 
+      {/* How it Works Section */}
+      <section className="py-24 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-bold text-gray-900 mb-6">
+              Proceso de Votación
+            </h2>
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+              Simple, seguro y transparente en cada paso
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+            {[
+              {
+                step: "01",
+                title: "Autenticación",
+                description: "Escanea tu código QR único para acceder al sistema de votación."
+              },
+              {
+                step: "02", 
+                title: "Selección",
+                description: "Elige tu candidato preferido de forma privada y segura."
+              },
+              {
+                step: "03",
+                title: "Confirmación",
+                description: "Confirma tu voto y recibe tu comprobante de verificación."
+              }
+            ].map((item, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.2 }}
+                viewport={{ once: true }}
+                className="text-center"
+              >
+                <div className="w-16 h-16 bg-sena-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                  <span className="text-2xl font-bold text-sena-600">{item.step}</span>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">{item.title}</h3>
+                <p className="text-gray-600 leading-relaxed">{item.description}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* About Section */}
       <section className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -199,119 +276,6 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* How it Works Section */}
-      <section className="py-24 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-6">
-              Proceso de Votación
-            </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Simple, seguro y transparente en cada paso
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {[
-              {
-                step: "01",
-                title: "Autenticación",
-                description: "Escanea tu código QR único para acceder al sistema de votación."
-              },
-              {
-                step: "02", 
-                title: "Selección",
-                description: "Elige tu candidato preferido de forma privada y segura."
-              },
-              {
-                step: "03",
-                title: "Confirmación",
-                description: "Confirma tu voto y recibe tu comprobante de verificación."
-              }
-            ].map((item, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.2 }}
-                viewport={{ once: true }}
-                className="text-center"
-              >
-                <div className="relative mb-8">
-                  <div className="w-20 h-20 bg-gradient-to-br from-sena-500 to-sena-600 rounded-2xl flex items-center justify-center mx-auto shadow-xl">
-                    <span className="text-white font-bold text-xl">{item.step}</span>
-                  </div>
-                  {index < 2 && (
-                    <div className="hidden md:block absolute top-10 left-full w-full h-0.5 bg-gradient-to-r from-sena-200 to-gray-200"></div>
-                  )}
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-4">{item.title}</h3>
-                <p className="text-gray-600 leading-relaxed">{item.description}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Types of Elections Section */}
-      <section className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-6">
-              Tipos de Elecciones
-            </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Adaptado a los diferentes niveles de representación estudiantil en el SENA
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                title: "Representante de Centro",
-                description: "Elección de representantes estudiantiles a nivel de centro de formación",
-                scope: "Nivel Centro",
-                participants: "Todos los aprendices del centro"
-              },
-              {
-                title: "Líder de Sede",
-                description: "Selección de líderes estudiantiles para cada sede específica",
-                scope: "Nivel Sede",
-                participants: "Aprendices de la sede"
-              },
-              {
-                title: "Vocero de Ficha",
-                description: "Designación de voceros por programa de formación",
-                scope: "Nivel Ficha",
-                participants: "Aprendices del programa"
-              }
-            ].map((election, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                className="bg-white border border-gray-200 rounded-2xl p-8 hover:shadow-lg transition-shadow"
-              >
-                <div className="w-12 h-12 bg-sena-100 rounded-xl flex items-center justify-center mb-6">
-                  <span className="text-sena-600 text-xl font-bold">{index + 1}</span>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">{election.title}</h3>
-                <p className="text-gray-600 mb-4">{election.description}</p>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Alcance:</span>
-                    <span className="font-medium text-sena-600">{election.scope}</span>
-                  </div>
-                  <div className="text-sm text-gray-500">{election.participants}</div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Security Features */}
       <section className="py-24 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -343,22 +307,22 @@ const Landing = () => {
               },
               {
                 icon: <BoltIcon className="w-8 h-8 text-sena-600" />,
-                title: "Tiempo Real",
-                description: "Monitoreo instantáneo de participación y resultados"
+                title: "Rápido",
+                description: "Resultados instantáneos disponibles en tiempo real"
               }
             ].map((feature, index) => (
               <motion.div
                 key={index}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: index * 0.1 }}
                 viewport={{ once: true }}
-                className="text-center"
+                className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100 text-center"
               >
-                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <div className="w-16 h-16 bg-sena-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   {feature.icon}
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-2">{feature.title}</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">{feature.title}</h3>
                 <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
               </motion.div>
             ))}
@@ -366,27 +330,27 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-24 bg-gradient-to-br from-sena-500 to-sena-600 relative overflow-hidden">
-        <div className="absolute inset-0 bg-black/10"></div>
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      {/* Call to Action */}
+      <section className="py-24 bg-gradient-to-r from-sena-600 to-sena-700">
+        <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8 }}
             viewport={{ once: true }}
           >
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-8">
-              Tu Voz, Tu Voto, Tu Futuro
+            <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
+              Tu Voz, Tu Futuro
             </h2>
-            <p className="text-xl text-sena-100 mb-12 max-w-2xl mx-auto">
-              Participa en la construcción democrática de tu institución educativa. 
+            <p className="text-xl text-white/90 mb-12 leading-relaxed">
+              Participa en las decisiones que afectan tu formación académica y profesional. 
               Cada voto cuenta para el futuro del SENA.
             </p>
             <Button 
               size="lg" 
               variant="secondary"
               className="px-12 py-4 text-lg shadow-2xl hover:shadow-3xl bg-white text-sena-600 hover:bg-gray-50"
+              onClick={handleVoteClick}
             >
               Comenzar a Votar Ahora
             </Button>
@@ -426,10 +390,13 @@ const Landing = () => {
                 <HomeIcon className="w-4 h-4 mr-2" />
                 Inicio
               </a>
-              <a href="#" className="flex items-center text-gray-400 hover:text-sena-400 transition-colors">
+              <button 
+                onClick={handleVoteClick}
+                className="flex items-center text-gray-400 hover:text-sena-400 transition-colors"
+              >
                 <CheckBadgeIcon className="w-4 h-4 mr-2" />
                 Votar Ahora
-              </a>
+              </button>
               <a href="#" className="flex items-center text-gray-400 hover:text-sena-400 transition-colors">
                 <ChartBarIcon className="w-4 h-4 mr-2" />
                 Ver Resultados

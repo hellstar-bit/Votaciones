@@ -36,6 +36,19 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     
     const classes = `${baseClasses} ${variants[variant]} ${sizes[size]} ${className}`
     
+    // 🔧 SOLUCION: Filtrar solo las props problemáticas que causaban conflictos
+    // Removemos solo las props que NO son estándar de HTML button
+    const filteredProps = Object.fromEntries(
+      Object.entries(props).filter(([key]) => 
+        // Mantener todas las props estándar incluyendo onClick, onSubmit, etc.
+        !key.startsWith('while') && // Remover props de Framer Motion personalizadas
+        key !== 'initial' && 
+        key !== 'animate' && 
+        key !== 'exit' &&
+        key !== 'transition'
+      )
+    )
+    
     return (
       <motion.button
         ref={ref}
@@ -43,7 +56,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         disabled={disabled || loading}
         whileHover={{ scale: disabled || loading ? 1 : 1.02 }}
         whileTap={{ scale: disabled || loading ? 1 : 0.98 }}
-        {...Object.fromEntries(Object.entries(props).filter(([key]) => !key.startsWith('while') && !key.startsWith('on')))}
+        {...filteredProps} // 🎯 Ahora incluye onClick y otros event handlers
       >
         {loading && (
           <svg className="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
