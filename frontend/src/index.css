@@ -1,20 +1,14 @@
-@'
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --sena-green: #39A900;
+body {
+  font-family: Inter, sans-serif;
 }
 
-@layer base {
-  body {
-    @apply bg-gray-50 text-gray-900 font-sans antialiased;
-  }
-}
-
-@layer components {
-  .btn-sena {
-    @apply bg-sena-500 hover:bg-sena-600 text-white font-medium py-2.5 px-4 rounded-lg transition-colors duration-200;
-  }
+.btn-sena {
+  background-color: #39A900;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
 }
