@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { 
   ChartBarIcon,
   UsersIcon,
@@ -9,41 +10,14 @@ import {
   PlusIcon,
   ArrowRightOnRectangleIcon,
   Cog6ToothIcon,
-  EyeIcon,
   PlayIcon,
-  StopIcon,
   ChartPieIcon,
-  CalendarDaysIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline'
 import { useAuthStore } from '../../stores/authStore'
+import { dashboardApi, electionsApi,type Election,type  DashboardStats, handleApiError } from '../../services/api'
 import Button from '../../components/ui/Button'
-
-// Interfaces para tipos de datos
-interface ElectionStats {
-  id: number
-  titulo: string
-  estado: 'configuracion' | 'activa' | 'finalizada' | 'cancelada'
-  total_votantes: number
-  total_votos: number
-  porcentaje_participacion: number
-  fecha_inicio: string
-  fecha_fin: string
-}
-
-interface DashboardStats {
-  total_elections: number
-  active_elections: number
-  total_votes_today: number
-  participation_rate: number
-  recent_activity: Array<{
-    id: number
-    election: string
-    candidate: string
-    timestamp: string
-  }>
-}
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
@@ -51,72 +25,71 @@ const AdminDashboard = () => {
   
   // Estados para datos del dashboard
   const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [elections, setElections] = useState<ElectionStats[]>([])
+  const [elections, setElections] = useState<Election[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedElection, setSelectedElection] = useState<number | null>(null)
+  const [] = useState<number | null>(null)
 
-  // Simular datos del dashboard (reemplazar con API real)
+  // Cargar datos del dashboard desde la API
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Simular API call
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        setLoading(true)
         
-        // Datos simulados - reemplazar con llamadas reales al backend
-        setStats({
-          total_elections: 12,
-          active_elections: 3,
-          total_votes_today: 247,
-          participation_rate: 68.5,
-          recent_activity: [
-            { id: 1, election: "Representante Estudiantil TIC", candidate: "María González", timestamp: "2025-01-27T10:30:00Z" },
-            { id: 2, election: "Delegado de Sede", candidate: "VOTO EN BLANCO", timestamp: "2025-01-27T10:25:00Z" },
-            { id: 3, election: "Representante Estudiantil TIC", candidate: "Carlos López", timestamp: "2025-01-27T10:20:00Z" },
-          ]
-        })
-        
-        setElections([
-          {
-            id: 1,
-            titulo: "Representante Estudiantil TIC",
-            estado: "activa",
-            total_votantes: 150,
-            total_votos: 89,
-            porcentaje_participacion: 59.3,
-            fecha_inicio: "2025-01-27T08:00:00Z",
-            fecha_fin: "2025-01-27T18:00:00Z"
-          },
-          {
-            id: 2,
-            titulo: "Delegado de Sede Central",
-            estado: "activa",
-            total_votantes: 300,
-            total_votos: 210,
-            porcentaje_participacion: 70.0,
-            fecha_inicio: "2025-01-27T08:00:00Z",
-            fecha_fin: "2025-01-27T17:00:00Z"
-          },
-          {
-            id: 3,
-            titulo: "Representante Ficha 3037689",
-            estado: "configuracion",
-            total_votantes: 25,
-            total_votos: 0,
-            porcentaje_participacion: 0,
-            fecha_inicio: "2025-01-28T08:00:00Z",
-            fecha_fin: "2025-01-28T16:00:00Z"
-          }
+        // Cargar estadísticas del dashboard y elecciones en paralelo
+        const [dashboardStats, allElections] = await Promise.all([
+          dashboardApi.getStats(),
+          electionsApi.getAll()
         ])
         
-        setLoading(false)
+        setStats(dashboardStats)
+        setElections(allElections)
+        
       } catch (error) {
-        console.error('Error cargando datos:', error)
+        const errorMessage = handleApiError(error)
+        toast.error(`Error cargando datos: ${errorMessage}`)
+        console.error('Error cargando datos del dashboard:', error)
+      } finally {
         setLoading(false)
       }
     }
 
     fetchDashboardData()
+    
+    // Actualizar datos cada 30 segundos
+    const interval = setInterval(fetchDashboardData, 30000)
+    
+    return () => clearInterval(interval)
   }, [])
+
+  // Función para activar una elección
+  const handleActivateElection = async (electionId: number) => {
+    try {
+      await electionsApi.activate(electionId)
+      toast.success('Elección activada exitosamente')
+      
+      // Recargar datos
+      const updatedElections = await electionsApi.getAll()
+      setElections(updatedElections)
+    } catch (error) {
+      const errorMessage = handleApiError(error)
+      toast.error(`Error activando elección: ${errorMessage}`)
+    }
+  }
+
+  // Función para finalizar una elección
+  const handleFinalizeElection = async (electionId: number) => {
+    try {
+      await electionsApi.finalize(electionId)
+      toast.success('Elección finalizada exitosamente')
+      
+      // Recargar datos
+      const updatedElections = await electionsApi.getAll()
+      setElections(updatedElections)
+    } catch (error) {
+      const errorMessage = handleApiError(error)
+      toast.error(`Error finalizando elección: ${errorMessage}`)
+    }
+  }
 
   const handleLogout = () => {
     logout()
@@ -203,7 +176,7 @@ const AdminDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Elecciones</p>
-                <p className="text-3xl font-bold text-gray-900">{stats?.total_elections}</p>
+                <p className="text-3xl font-bold text-gray-900">{stats?.summary?.total_elections || 0}</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <ClipboardDocumentListIcon className="w-6 h-6 text-blue-600" />
@@ -220,7 +193,7 @@ const AdminDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Elecciones Activas</p>
-                <p className="text-3xl font-bold text-green-600">{stats?.active_elections}</p>
+                <p className="text-3xl font-bold text-green-600">{stats?.summary?.active_elections || 0}</p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                 <PlayIcon className="w-6 h-6 text-green-600" />
@@ -236,8 +209,8 @@ const AdminDashboard = () => {
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Votos Hoy</p>
-                <p className="text-3xl font-bold text-purple-600">{stats?.total_votes_today}</p>
+                <p className="text-sm font-medium text-gray-600">Total Votos</p>
+                <p className="text-3xl font-bold text-purple-600">{stats?.summary?.total_votes || 0}</p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                 <UsersIcon className="w-6 h-6 text-purple-600" />
@@ -254,7 +227,7 @@ const AdminDashboard = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Participación</p>
-                <p className="text-3xl font-bold text-sena-600">{stats?.participation_rate}%</p>
+                <p className="text-3xl font-bold text-sena-600">{stats?.summary?.participation_rate || 0}%</p>
               </div>
               <div className="w-12 h-12 bg-sena-100 rounded-lg flex items-center justify-center">
                 <ChartBarIcon className="w-6 h-6 text-sena-600" />
@@ -265,7 +238,7 @@ const AdminDashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* Elecciones Activas */}
+          {/* Elecciones */}
           <div className="lg:col-span-2">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -288,31 +261,59 @@ const AdminDashboard = () => {
               
               <div className="p-6">
                 <div className="space-y-4">
-                  {elections.map((election, index) => (
+                  {elections.length > 0 ? elections.map((election, index) => (
                     <motion.div
-                      key={election.id}
+                      key={election.id_eleccion}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.6 + index * 0.1 }}
-                      className="p-4 border border-gray-200 rounded-lg hover:border-sena-300 transition-colors cursor-pointer"
-                      onClick={() => setSelectedElection(election.id)}
+                      className="p-4 border border-gray-200 rounded-lg hover:border-sena-300 transition-colors"
                     >
                       <div className="flex items-center justify-between mb-3">
                         <h3 className="font-medium text-gray-900">{election.titulo}</h3>
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(election.estado)}`}>
-                          {getStatusIcon(election.estado)}
-                          {election.estado.charAt(0).toUpperCase() + election.estado.slice(1)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(election.estado)}`}>
+                            {getStatusIcon(election.estado)}
+                            {election.estado.charAt(0).toUpperCase() + election.estado.slice(1)}
+                          </span>
+                          
+                          {/* Botones de acción */}
+                          {election.estado === 'configuracion' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleActivateElection(election.id_eleccion)}
+                              className="text-xs"
+                            >
+                              Activar
+                            </Button>
+                          )}
+                          
+                          {election.estado === 'activa' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleFinalizeElection(election.id_eleccion)}
+                              className="text-xs"
+                            >
+                              Finalizar
+                            </Button>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                           <p className="text-gray-500">Participación</p>
-                          <p className="font-medium">{election.porcentaje_participacion.toFixed(1)}%</p>
+                          <p className="font-medium">
+                            {election.total_votantes_habilitados > 0 
+                              ? ((election.total_votos_emitidos / election.total_votantes_habilitados) * 100).toFixed(1)
+                              : 0}%
+                          </p>
                         </div>
                         <div>
                           <p className="text-gray-500">Votos</p>
-                          <p className="font-medium">{election.total_votos}/{election.total_votantes}</p>
+                          <p className="font-medium">{election.total_votos_emitidos}/{election.total_votantes_habilitados}</p>
                         </div>
                         <div>
                           <p className="text-gray-500">Finaliza</p>
@@ -330,19 +331,37 @@ const AdminDashboard = () => {
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div 
                             className="bg-sena-500 h-2 rounded-full transition-all duration-500"
-                            style={{ width: `${election.porcentaje_participacion}%` }}
+                            style={{ 
+                              width: `${election.total_votantes_habilitados > 0 
+                                ? (election.total_votos_emitidos / election.total_votantes_habilitados) * 100 
+                                : 0}%` 
+                            }}
                           />
                         </div>
                       </div>
+                      
+                      {/* Información adicional */}
+                      <div className="mt-2 text-xs text-gray-500">
+                        {election.tipoEleccion?.nombre_tipo} - {election.tipoEleccion?.nivel_aplicacion}
+                        {election.centro && ` | ${election.centro.nombre_centro}`}
+                        {election.sede && ` | ${election.sede.nombre_sede}`}
+                        {election.ficha && ` | Ficha ${election.ficha.numero_ficha}`}
+                      </div>
                     </motion.div>
-                  ))}
+                  )) : (
+                    <div className="text-center text-gray-500 py-8">
+                      <ClipboardDocumentListIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>No hay elecciones disponibles</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>
           </div>
 
-          {/* Actividad Reciente */}
+          {/* Sidebar derecho */}
           <div>
+            {/* Actividad Reciente */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -355,7 +374,7 @@ const AdminDashboard = () => {
               
               <div className="p-6">
                 <div className="space-y-4">
-                  {stats?.recent_activity.map((activity, index) => (
+                  {stats?.recent_activity && stats.recent_activity.length > 0 ? stats.recent_activity.map((activity, index) => (
                     <motion.div
                       key={activity.id}
                       initial={{ opacity: 0, x: 10 }}
@@ -379,7 +398,12 @@ const AdminDashboard = () => {
                         </p>
                       </div>
                     </motion.div>
-                  ))}
+                  )) : (
+                    <div className="text-center text-gray-500 py-4">
+                      <BellIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p className="text-sm">No hay actividad reciente</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

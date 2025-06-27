@@ -30,12 +30,14 @@ const Login = () => {
   // 🔧 FUNCIÓN CORREGIDA DE SUBMIT
   const onSubmit = async (data: LoginForm) => {
     try {
+      console.log('🔐 Iniciando proceso de login...')
       await login(data)
-      // Redirigir al dashboard después del login exitoso
+      console.log('✅ Login exitoso, redirigiendo...')
       navigate('/dashboard')
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Error en login:', error)
       setError('root', {
-        message: 'Credenciales incorrectas. Intenta de nuevo.'
+        message: error.message || 'Credenciales incorrectas. Intenta de nuevo.'
       })
     }
   }
