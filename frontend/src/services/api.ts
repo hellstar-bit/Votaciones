@@ -169,6 +169,16 @@ export const dashboardApi = {
 }
 
 export const electionsApi = {
+    cancel: async (id: number): Promise<{ message: string }> => {
+    const response = await api.patch(`/elections/${id}/cancel`)
+    return response.data
+    },
+
+    // Eliminar elección  
+    delete: async (id: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/elections/${id}`)
+    return response.data
+    },
   // Obtener todas las elecciones
   getAll: async (): Promise<Election[]> => {
     const response = await api.get('/elections')

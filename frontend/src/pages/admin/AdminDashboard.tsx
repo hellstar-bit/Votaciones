@@ -18,6 +18,9 @@ import {
 import { useAuthStore } from '../../stores/authStore'
 import { dashboardApi, electionsApi,type Election,type  DashboardStats, handleApiError } from '../../services/api'
 import Button from '../../components/ui/Button'
+import CreateElectionModal from '../../components/modals/CreateElectionModal'
+import CandidatesManagement from '../../components/candidates/CandidatesManagement'
+import ElectionSettings from '../../components/candidates/ElectionSettings'
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
@@ -28,68 +31,113 @@ const AdminDashboard = () => {
   const [elections, setElections] = useState<Election[]>([])
   const [loading, setLoading] = useState(true)
   const [] = useState<number | null>(null)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [currentView, setCurrentView] = useState<'dashboard' | 'candidates' | 'settings'>('dashboard')
+  const [selectedElectionId, setSelectedElectionId] = useState<number | null>(null)
 
   // Cargar datos del dashboard desde la API
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true)
-        
-        // Cargar estadísticas del dashboard y elecciones en paralelo
-        const [dashboardStats, allElections] = await Promise.all([
-          dashboardApi.getStats(),
-          electionsApi.getAll()
-        ])
-        
-        setStats(dashboardStats)
-        setElections(allElections)
-        
-      } catch (error) {
-        const errorMessage = handleApiError(error)
-        toast.error(`Error cargando datos: ${errorMessage}`)
-        console.error('Error cargando datos del dashboard:', error)
-      } finally {
-        setLoading(false)
-      }
+  fetchDashboardData()
+  
+  // Función para actualizar sin mostrar loading
+  const updateDataSilently = async () => {
+    try {
+      const [dashboardStats, allElections] = await Promise.all([
+        dashboardApi.getStats(),
+        electionsApi.getAll()
+      ])
+      
+      setStats(dashboardStats)
+      setElections(allElections)
+      // ✅ No cambia loading, por eso no se ve el refresh
+    } catch (error) {
+      console.error('Error actualizando datos:', error)
+      // No mostrar toast para no molestar al usuario
     }
+  }
+  
+  // Actualizar cada 1 minuto de forma silenciosa
+  const interval = setInterval(updateDataSilently, 30000)
+  
+  return () => clearInterval(interval)
+}, [])
 
-    fetchDashboardData()
+  useEffect(() => {
+  fetchDashboardData() // Carga inicial con loading
+}, [])
+
+// Función para la carga inicial (con loading)
+const fetchDashboardData = async () => {
+  try {
+    setLoading(true)
     
-    // Actualizar datos cada 30 segundos
-    const interval = setInterval(fetchDashboardData, 30000)
+    const [dashboardStats, allElections] = await Promise.all([
+      dashboardApi.getStats(),
+      electionsApi.getAll()
+    ])
     
-    return () => clearInterval(interval)
-  }, [])
+    setStats(dashboardStats)
+    setElections(allElections)
+    
+  } catch (error) {
+    const errorMessage = handleApiError(error)
+    toast.error(`Error cargando datos: ${errorMessage}`)
+    console.error('Error cargando datos del dashboard:', error)
+  } finally {
+    setLoading(false)
+  }
+}
+
 
   // Función para activar una elección
-  const handleActivateElection = async (electionId: number) => {
-    try {
-      await electionsApi.activate(electionId)
-      toast.success('Elección activada exitosamente')
-      
-      // Recargar datos
-      const updatedElections = await electionsApi.getAll()
-      setElections(updatedElections)
-    } catch (error) {
-      const errorMessage = handleApiError(error)
-      toast.error(`Error activando elección: ${errorMessage}`)
-    }
+  // Función para activar una elección
+const handleActivateElection = async (electionId: number) => {
+  try {
+    await electionsApi.activate(electionId)
+    toast.success('Elección activada exitosamente')
+    
+    // Recargar datos
+    await fetchDashboardData()
+  } catch (error) {
+    const errorMessage = handleApiError(error)
+    toast.error(`Error activando elección: ${errorMessage}`)
   }
+}
 
-  // Función para finalizar una elección
-  const handleFinalizeElection = async (electionId: number) => {
-    try {
-      await electionsApi.finalize(electionId)
-      toast.success('Elección finalizada exitosamente')
-      
-      // Recargar datos
-      const updatedElections = await electionsApi.getAll()
-      setElections(updatedElections)
-    } catch (error) {
-      const errorMessage = handleApiError(error)
-      toast.error(`Error finalizando elección: ${errorMessage}`)
-    }
+// Función para finalizar una elección
+const handleFinalizeElection = async (electionId: number) => {
+  try {
+    await electionsApi.finalize(electionId)
+    toast.success('Elección finalizada exitosamente')
+    
+    // Recargar datos
+    await fetchDashboardData()
+  } catch (error) {
+    const errorMessage = handleApiError(error)
+    toast.error(`Error finalizando elección: ${errorMessage}`)
   }
+}
+
+// Manejar creación exitosa de elección
+const handleElectionCreated = async () => {
+  await fetchDashboardData()
+  toast.success('Los datos se han actualizado')
+}
+
+const handleViewCandidates = (electionId: number) => {
+  setSelectedElectionId(electionId)
+  setCurrentView('candidates')
+}
+
+const handleElectionSettings = (electionId: number) => {
+  setSelectedElectionId(electionId)  
+  setCurrentView('settings')
+}
+
+const handleBackToDashboard = () => {
+  setCurrentView('dashboard')
+  setSelectedElectionId(null)
+}
 
   const handleLogout = () => {
     logout()
@@ -117,6 +165,24 @@ const AdminDashboard = () => {
   }
 
   if (loading) {
+    if (currentView === 'candidates' && selectedElectionId) {
+      return (
+        <CandidatesManagement
+          electionId={selectedElectionId}
+          onBack={handleBackToDashboard}
+        />
+      )
+    }
+
+    if (currentView === 'settings' && selectedElectionId) {
+      return (
+        <ElectionSettings
+          electionId={selectedElectionId}
+          onBack={handleBackToDashboard}
+        />
+      )
+    }
+
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <motion.div
@@ -127,6 +193,15 @@ const AdminDashboard = () => {
       </div>
     )
   }
+
+  if (currentView === 'candidates' && selectedElectionId) {
+  return (
+    <CandidatesManagement
+      electionId={selectedElectionId}
+      onBack={handleBackToDashboard}
+    />
+  )
+}
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -252,7 +327,7 @@ const AdminDashboard = () => {
                   <Button
                     size="sm"
                     icon={<PlusIcon className="w-4 h-4" />}
-                    onClick={() => {/* TODO: Navegar a crear elección */}}
+                    onClick={() => setIsCreateModalOpen(true)}
                   >
                     Nueva Elección
                   </Button>
@@ -278,27 +353,50 @@ const AdminDashboard = () => {
                           </span>
                           
                           {/* Botones de acción */}
-                          {election.estado === 'configuracion' && (
+                          <div className="flex space-x-2">
+                            {election.estado === 'configuracion' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleViewCandidates(election.id_eleccion)}
+                                  className="text-xs text-sena-600 border-sena-300 hover:bg-sena-50"
+                                >
+                                  Candidatos
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleActivateElection(election.id_eleccion)}
+                                  className="text-xs"
+                                >
+                                  Activar
+                                </Button>
+                              </>
+                            )}
+                            
+                            {election.estado === 'activa' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleFinalizeElection(election.id_eleccion)}
+                                className="text-xs"
+                              >
+                                Finalizar
+                              </Button>
+                            )}
+
+                            {/* ✅ AGREGAR ESTE BOTÓN */}
                             <Button
                               size="sm"
-                              variant="outline"
-                              onClick={() => handleActivateElection(election.id_eleccion)}
-                              className="text-xs"
+                              variant="ghost"
+                              onClick={() => handleElectionSettings(election.id_eleccion)}
+                              className="text-xs text-gray-600 hover:text-gray-800"
+                              icon={<Cog6ToothIcon className="w-4 h-4" />}
                             >
-                              Activar
+                              Configurar
                             </Button>
-                          )}
-                          
-                          {election.estado === 'activa' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleFinalizeElection(election.id_eleccion)}
-                              className="text-xs"
-                            >
-                              Finalizar
-                            </Button>
-                          )}
+                          </div>
                         </div>
                       </div>
                       
@@ -424,7 +522,7 @@ const AdminDashboard = () => {
                   variant="outline"
                   className="w-full justify-start"
                   icon={<PlusIcon className="w-4 h-4" />}
-                  onClick={() => {/* TODO: Navegar a crear elección */}}
+                  onClick={() => setIsCreateModalOpen(true)}
                 >
                   Crear Elección
                 </Button>
@@ -455,13 +553,19 @@ const AdminDashboard = () => {
                 >
                   Configuración
                 </Button>
+                
               </div>
             </motion.div>
           </div>
         </div>
       </main>
+      {/* Modal Crear Elección */}
+      <CreateElectionModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onElectionCreated={handleElectionCreated}
+      />
     </div>
   )
 }
-
 export default AdminDashboard
