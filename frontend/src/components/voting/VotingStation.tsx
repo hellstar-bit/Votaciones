@@ -103,18 +103,19 @@ const VotingStation = () => {
     try {
       setProcessing(true)
       
+      // ✅ Solo enviamos los campos que espera el DTO
       const voteData = {
         id_eleccion: selectedElection.id_eleccion,
         id_candidato: selectedCandidate,
-        qr_code: JSON.stringify(scannedData),
-        ip_address: '127.0.0.1', // En producción, obtener IP real
-        user_agent: navigator.userAgent
+        qr_code: JSON.stringify(scannedData)
+        // ❌ Removemos ip_address y user_agent - el backend los obtiene del request
       }
 
       const result = await votesApi.cast(voteData)
       setVoteResult(result)
       setCurrentStep('success')
       toast.success('¡Voto registrado exitosamente!')
+      
     } catch (error) {
       const errorMessage = handleApiError(error)
       toast.error(`Error registrando voto: ${errorMessage}`)

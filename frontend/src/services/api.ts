@@ -139,8 +139,6 @@ export interface VoteData {
   id_eleccion: number
   id_candidato?: number | null
   qr_code: string
-  ip_address: string
-  user_agent: string
 }
 
 export interface VoteResult {

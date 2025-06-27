@@ -21,7 +21,7 @@ import { VoteDto } from './dto/vote.dto';
 export class VotesController {
   constructor(private readonly votesService: VotesService) {}
 
-  @Post()
+  @Post('cast')  // ✅ Cambio: agregado 'cast' para que la ruta sea /votes/cast
   @UseGuards(RolesGuard)
   @Roles('MESA_VOTACION', 'INSTRUCTOR', 'ADMIN')
   async vote(@Body() voteDto: VoteDto, @Req() req: Request) {
