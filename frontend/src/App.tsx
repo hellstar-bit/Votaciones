@@ -6,6 +6,7 @@ import { useAuthStore } from './stores/authStore'
 import Landing from './pages/public/Landing'
 import Login from './pages/auth/Login'
 import AdminDashboard from './pages/admin/AdminDashboard'
+import VotingStation from './components/voting/VotingStation'
 
 // Protected Route Component
 const ProtectedRoute = ({ 
@@ -114,6 +115,12 @@ function App() {
               </ProtectedRoute>
             } 
           />
+
+          <Route path="/voting" element={
+            <ProtectedRoute allowedRoles={['MESA_VOTACION', 'ADMIN']}>
+              <VotingStation />
+            </ProtectedRoute>
+          } />
           
           <Route 
             path="/voting" 

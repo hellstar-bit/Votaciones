@@ -90,6 +90,7 @@ export interface Election {
   total_votantes_habilitados: number
   total_votos_emitidos: number
   jornada?: string
+  permite_voto_blanco?: boolean  // ← AGREGAR ESTA LÍNEA
   tipoEleccion: {
     id_tipo_eleccion: number
     nombre_tipo: string
@@ -132,6 +133,20 @@ export interface CreateElectionData {
   id_centro?: number
   id_sede?: number
   id_ficha?: number
+}
+
+export interface VoteData {
+  id_eleccion: number
+  id_candidato?: number | null
+  qr_code: string
+  ip_address: string
+  user_agent: string
+}
+
+export interface VoteResult {
+  message: string
+  hash_verificacion: string
+  timestamp: string
 }
 
 export interface Candidate {
@@ -251,6 +266,20 @@ export const handleApiError = (error: any) => {
     return error.message
   }
   return 'Ha ocurrido un error inesperado'
+}
+
+export const votesApi = {
+  // Emitir voto
+  cast: async (data: VoteData): Promise<VoteResult> => {
+    const response = await api.post('/votes/cast', data)
+    return response.data
+  },
+
+  // Verificar voto por hash
+  verify: async (hash: string): Promise<any> => {
+    const response = await api.get(`/votes/verify/${hash}`)
+    return response.data
+  },
 }
 
 export default api
