@@ -98,8 +98,9 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
     try {
       await candidatesApi.create({
         id_eleccion: electionId,
-        id_persona: selectedPerson.id_persona
-      })
+        numero_documento: selectedPerson.numero_documento,
+        numero_lista: 1 // O generar el siguiente número disponible
+        })
 
       toast.success('Candidato agregado exitosamente')
       onCandidateAdded()

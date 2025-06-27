@@ -67,15 +67,20 @@ const CandidatesManagement = ({ electionId, onBack }: CandidatesManagementProps)
 
   // Filtrar candidatos
   const filteredCandidates = candidates.filter(candidate => {
-    const matchesSearch = candidate.persona.nombreCompleto
-      .toLowerCase()
-      .includes(searchTerm.toLowerCase()) ||
-      candidate.persona.numero_documento.includes(searchTerm)
-    
-    const matchesStatus = filterStatus === 'all' || candidate.estado === filterStatus
-    
-    return matchesSearch && matchesStatus
-  })
+  // Validar que existan los campos antes de usar toLowerCase
+  const nombreCompleto = candidate.persona?.nombreCompleto || ''
+  const numeroDocumento = candidate.persona?.numero_documento || ''
+  const estado = candidate.estado || ''
+  
+  const matchesSearch = nombreCompleto
+    .toLowerCase()
+    .includes(searchTerm.toLowerCase()) ||
+    numeroDocumento.includes(searchTerm)
+  
+  const matchesStatus = filterStatus === 'all' || estado === filterStatus
+  
+  return matchesSearch && matchesStatus
+})
 
   // Obtener estadísticas
   const stats = {

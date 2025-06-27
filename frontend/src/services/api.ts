@@ -245,7 +245,11 @@ export const candidatesApi = {
   },
 
   // Crear candidato
-  create: async (data: { id_eleccion: number; id_persona: number }) => {
+  create: async (data: { 
+  id_eleccion: number; 
+  numero_documento: string;
+  numero_lista: number;
+}) => {
     const response = await api.post('/candidates', data)
     return response.data
   },

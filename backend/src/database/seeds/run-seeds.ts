@@ -1,5 +1,4 @@
-// 📁 src/database/seeds/run-seeds.ts
-// ====================================================================
+// run-seeds.ts - REEMPLAZAR CONTENIDO COMPLETO
 import { DataSource } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { config } from 'dotenv';
@@ -7,6 +6,7 @@ import { seedRoles } from './roles.seed';
 import { seedTiposEleccion } from './tipos-eleccion.seed';
 import { seedEstructuraOrganizacional } from './estructura-organizacional.seed';
 import { seedAdminUser } from './admin-user.seed';
+import { seedTestUsers } from './test-users.seed';
 
 // Cargar variables de entorno
 config();
@@ -36,8 +36,13 @@ async function runSeeds() {
     await seedTiposEleccion(dataSource);
     await seedEstructuraOrganizacional(dataSource);
     await seedAdminUser(dataSource);
+    await seedTestUsers(dataSource); // ← NUEVO SEED
 
     console.log('\n✅ Seeds ejecutados exitosamente');
+    console.log('\n🚀 Sistema listo para probar:');
+    console.log('   1. Crear elecciones como admin');
+    console.log('   2. Agregar aspirantes como candidatos');
+    console.log('   3. Votar desde mesa de votación');
 
   } catch (error) {
     console.error('❌ Error ejecutando seeds:', error);
