@@ -165,45 +165,38 @@ const handleBackToDashboard = () => {
   }
 
   if (loading) {
-    if (currentView === 'candidates' && selectedElectionId) {
-      return (
-        <CandidatesManagement
-          electionId={selectedElectionId}
-          onBack={handleBackToDashboard}
-        />
-      )
-    }
-
-    if (currentView === 'settings' && selectedElectionId) {
-      return (
-        <ElectionSettings
-          electionId={selectedElectionId}
-          onBack={handleBackToDashboard}
-        />
-      )
-    }
-
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-8 h-8 border-4 border-sena-500 border-t-transparent rounded-full"
-        />
-      </div>
-    )
-  }
-
-  if (currentView === 'candidates' && selectedElectionId) {
   return (
-    <CandidatesManagement
-      electionId={selectedElectionId}
-      onBack={handleBackToDashboard}
-    />
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+        className="w-8 h-8 border-4 border-sena-500 border-t-transparent rounded-full"
+      />
+    </div>
   )
 }
 
-  return (
+  // ✅ CORRECTO: Después las condiciones de navegación
+  if (currentView === 'candidates' && selectedElectionId) {
+    return (
+      <CandidatesManagement
+        electionId={selectedElectionId}
+        onBack={handleBackToDashboard}
+      />
+    )
+  }
+
+  if (currentView === 'settings' && selectedElectionId) {
+    return (
+      <ElectionSettings
+        electionId={selectedElectionId}
+        onBack={handleBackToDashboard}
+      />
+    )
+  }
+
+// ✅ CORRECTO: Finalmente el dashboard normal
+return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">

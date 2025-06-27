@@ -237,4 +237,43 @@ export class ElectionsService {
       candidatos: candidatosConVotos.sort((a, b) => b.votos - a.votos),
     };
   }
+  async cancel(id: number, userId: number) {
+  const eleccion = await this.findOne(id);
+
+  if (eleccion.created_by !== userId) {
+    throw new ForbiddenException('No tiene permisos para cancelar esta elección');
+  }
+
+  if (eleccion.estado === 'finalizada' || eleccion.estado === 'cancelada') {
+    throw new BadRequestException('No se puede cancelar una elección finalizada o ya cancelada');
+  }
+
+  await this.eleccionRepository.update(id, { estado: 'cancelada' });
+
+  return { message: 'Elección cancelada exitosamente' };
+}
+
+  async delete(id: number, userId: number) {
+    const eleccion = await this.findOne(id);
+
+    if (eleccion.created_by !== userId) {
+      throw new ForbiddenException('No tiene permisos para eliminar esta elección');
+    }
+
+    if (eleccion.estado !== 'configuracion') {
+      throw new BadRequestException('Solo se pueden eliminar elecciones en estado de configuración');
+    }
+
+    if (eleccion.total_votos_emitidos > 0) {
+      throw new BadRequestException('No se puede eliminar una elección con votos emitidos');
+    }
+
+    // Eliminar registros relacionados primero
+    await this.votanteHabilitadoRepository.delete({ id_eleccion: id });
+    
+    // Eliminar la elección
+    await this.eleccionRepository.delete(id);
+
+    return { message: 'Elección eliminada exitosamente' };
+  }
 }

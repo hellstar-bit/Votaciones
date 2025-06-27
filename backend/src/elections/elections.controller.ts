@@ -9,6 +9,7 @@ import {
   Patch, 
   UseGuards,
   Request,
+  Delete,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -70,5 +71,24 @@ export class ElectionsController {
     @CurrentUser('id') userId: number,
   ) {
     return this.electionsService.finalize(+id, userId);
+  }
+  @Patch(':id/cancel')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async cancel(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.electionsService.cancel(+id, userId);
+  }
+
+  @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async delete(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.electionsService.delete(+id, userId);
   }
 }
