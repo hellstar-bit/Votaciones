@@ -149,7 +149,7 @@ const AdminDashboard = () => {
       case 'activa': return 'bg-green-100 text-green-800'
       case 'configuracion': return 'bg-yellow-100 text-yellow-800'
       case 'finalizada': return 'bg-blue-100 text-blue-800'
-      case 'cancelada': return 'bg-red-100 text-red-800'
+      case 'cancelada': return 'bg-red-100 text-red-800' // ✅ AGREGADO
       default: return 'bg-gray-100 text-gray-800'
     }
   }
@@ -159,7 +159,7 @@ const AdminDashboard = () => {
       case 'activa': return <PlayIcon className="w-4 h-4" />
       case 'configuracion': return <Cog6ToothIcon className="w-4 h-4" />
       case 'finalizada': return <CheckCircleIcon className="w-4 h-4" />
-      case 'cancelada': return <ExclamationTriangleIcon className="w-4 h-4" />
+      case 'cancelada': return <ExclamationTriangleIcon className="w-4 h-4" /> // ✅ AGREGADO
       default: return null
     }
   }
@@ -379,7 +379,19 @@ const AdminDashboard = () => {
                               </Button>
                             )}
 
-                            {/* ✅ AGREGAR ESTE BOTÓN */}
+                            {/* ✅ NUEVO: Botón para elecciones canceladas */}
+                            {election.estado === 'cancelada' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleElectionSettings(election.id_eleccion)}
+                                className="text-xs text-red-600 border-red-300 hover:bg-red-50"
+                              >
+                                Gestionar
+                              </Button>
+                            )}
+
+                            {/* Botón de configuración (para todos los estados) */}
                             <Button
                               size="sm"
                               variant="ghost"

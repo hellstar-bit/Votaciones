@@ -1,12 +1,13 @@
-// 📁 src/candidates/candidates.service.ts
+// 📁 src/candidates/candidates.service.ts - ACTUALIZADO
 // ====================================================================
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Candidato } from './entities/candidato.entity';
 import { Persona } from '../users/entities/persona.entity';
 import { Eleccion } from '../elections/entities/eleccion.entity';
 import { CreateCandidateDto } from './dto/create-candidate.dto';
+import { PersonasService } from '../personas/personas.service';
 
 @Injectable()
 export class CandidatesService {
@@ -17,36 +18,23 @@ export class CandidatesService {
     private personaRepository: Repository<Persona>,
     @InjectRepository(Eleccion)
     private eleccionRepository: Repository<Eleccion>,
+    private personasService: PersonasService, // Inyectar PersonasService
   ) {}
 
   async create(createCandidateDto: CreateCandidateDto) {
-    const { numero_documento, id_eleccion, numero_lista, ...candidateData } = createCandidateDto;
+    const { id_eleccion, numero_documento, numero_lista, nombres, apellidos, email, telefono } = createCandidateDto;
 
-    // Verificar que la elección existe
+    // Verificar que la elección existe y está en configuración
     const eleccion = await this.eleccionRepository.findOne({
-      where: { id_eleccion, estado: 'configuracion' },
+      where: { id_eleccion },
     });
 
     if (!eleccion) {
-      throw new NotFoundException('Elección no encontrada o no está en configuración');
+      throw new BadRequestException('Elección no encontrada');
     }
 
-    // Buscar la persona
-    const persona = await this.personaRepository.findOne({
-      where: { numero_documento, estado: 'activo' },
-    });
-
-    if (!persona) {
-      throw new NotFoundException('Persona no encontrada');
-    }
-
-    // Verificar que no esté ya registrado como candidato en esta elección
-    const existingCandidate = await this.candidatoRepository.findOne({
-      where: { id_eleccion, id_persona: persona.id_persona },
-    });
-
-    if (existingCandidate) {
-      throw new BadRequestException('La persona ya está registrada como candidato en esta elección');
+    if (eleccion.estado !== 'configuracion') {
+      throw new BadRequestException('No se pueden agregar candidatos a una elección que no está en configuración');
     }
 
     // Verificar que el número de lista no esté ocupado
@@ -58,15 +46,51 @@ export class CandidatesService {
       throw new BadRequestException('El número de lista ya está ocupado');
     }
 
+    // Buscar o crear la persona
+    let persona = await this.personaRepository.findOne({
+      where: { numero_documento, estado: 'activo' },
+    });
+
+    if (!persona) {
+      // Si no existe la persona y se proporcionaron datos, crearla
+      if (nombres && apellidos) {
+        persona = await this.personasService.createPersonaFromCandidate({
+          numero_documento,
+          nombres,
+          apellidos,
+          email,
+          telefono
+        });
+        console.log(`✅ Persona creada para candidato: ${nombres} ${apellidos}`);
+      } else {
+        throw new BadRequestException('Persona no encontrada. Debe proporcionar nombres y apellidos para crear un nuevo candidato.');
+      }
+    }
+
+    // Verificar que la persona no sea ya candidato en esta elección
+    const existingCandidate = await this.candidatoRepository.findOne({
+      where: { id_eleccion, id_persona: persona.id_persona },
+    });
+
+    if (existingCandidate) {
+      throw new BadRequestException('Esta persona ya es candidata en esta elección');
+    }
+
     // Crear candidato
     const candidato = this.candidatoRepository.create({
       id_eleccion,
       id_persona: persona.id_persona,
       numero_lista,
-      ...candidateData,
+      estado: 'pendiente', // Por defecto pendiente de validación
     });
 
-    return this.candidatoRepository.save(candidato);
+    const savedCandidate = await this.candidatoRepository.save(candidato);
+
+    // Retornar candidato con información de la persona
+    return await this.candidatoRepository.findOne({
+      where: { id_candidato: savedCandidate.id_candidato },
+      relations: ['persona', 'eleccion'],
+    });
   }
 
   async findByElection(electionId: number) {
@@ -80,19 +104,84 @@ export class CandidatesService {
   async validate(id: number, userId: number) {
     const candidato = await this.candidatoRepository.findOne({
       where: { id_candidato: id },
+      relations: ['eleccion']
     });
 
     if (!candidato) {
       throw new NotFoundException('Candidato no encontrado');
     }
 
+    // Verificar que la elección esté en configuración
+    if (candidato.eleccion.estado !== 'configuracion') {
+      throw new BadRequestException('No se pueden validar candidatos en una elección que no está en configuración');
+    }
+
     await this.candidatoRepository.update(id, {
+      estado: 'validado',
       validado: true,
       validado_por: userId,
       validado_at: new Date(),
-      estado: 'validado',
     });
 
     return { message: 'Candidato validado exitosamente' };
+  }
+
+  async reject(id: number, userId: number, motivo?: string) {
+    const candidato = await this.candidatoRepository.findOne({
+      where: { id_candidato: id },
+      relations: ['eleccion']
+    });
+
+    if (!candidato) {
+      throw new NotFoundException('Candidato no encontrado');
+    }
+
+    // Verificar que la elección esté en configuración
+    if (candidato.eleccion.estado !== 'configuracion') {
+      throw new BadRequestException('No se pueden rechazar candidatos en una elección que no está en configuración');
+    }
+
+    await this.candidatoRepository.update(id, {
+      estado: 'rechazado',
+      validado: false,
+      validado_por: userId,
+      validado_at: new Date(),
+      motivo_rechazo: motivo,
+    });
+
+    return { message: 'Candidato rechazado exitosamente' };
+  }
+
+  async remove(id: number) {
+    const candidato = await this.candidatoRepository.findOne({
+      where: { id_candidato: id },
+      relations: ['eleccion']
+    });
+
+    if (!candidato) {
+      throw new NotFoundException('Candidato no encontrado');
+    }
+
+    // Verificar que la elección esté en configuración
+    if (candidato.eleccion.estado !== 'configuracion') {
+      throw new BadRequestException('No se pueden eliminar candidatos de una elección que no está en configuración');
+    }
+
+    await this.candidatoRepository.remove(candidato);
+
+    return { message: 'Candidato eliminado exitosamente' };
+  }
+
+  async findOne(id: number) {
+    const candidato = await this.candidatoRepository.findOne({
+      where: { id_candidato: id },
+      relations: ['persona', 'eleccion'],
+    });
+
+    if (!candidato) {
+      throw new NotFoundException('Candidato no encontrado');
+    }
+
+    return candidato;
   }
 }

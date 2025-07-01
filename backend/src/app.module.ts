@@ -4,6 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { getDatabaseConfig } from './config/database.config';
+import { PersonasModule } from './personas/personas.module';
+import { FichasModule } from './fichas/fichas.module';
 
 // Módulos de la aplicación
 import { AuthModule } from './auth/auth.module';
@@ -19,6 +21,9 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 @Module({
   imports: [
+
+    PersonasModule,     // ✅ AGREGAR
+    FichasModule,
     // Configuración global
     ConfigModule.forRoot({
       isGlobal: true,

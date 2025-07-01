@@ -1,4 +1,4 @@
-// CreateElectionModal.tsx
+// CreateElectionModal.tsx - ACTUALIZADO para permitir mismo día y horarios extendidos
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { XMarkIcon, CalendarIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline'
@@ -36,16 +36,17 @@ interface FormErrors {
 }
 
 const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElectionModalProps) => {
+  // ✅ CORREGIDO: Horarios por defecto extendidos
   const [formData, setFormData] = useState<FormData>({
-  titulo: '',
-  descripcion: '',
-  tipo_eleccion: '',
-  fecha_inicio: '',
-  hora_inicio: '08:00',
-  fecha_fin: '',
-  hora_fin: '18:00',
-  jornadas: ['mixta', 'nocturna', 'madrugada'],
-})
+    titulo: '',
+    descripcion: '',
+    tipo_eleccion: '',
+    fecha_inicio: '',
+    hora_inicio: '06:00', // ✅ Hora temprana por defecto
+    fecha_fin: '',
+    hora_fin: '23:59',    // ✅ Hora tardía por defecto
+    jornadas: ['mixta', 'nocturna', 'madrugada'],
+  })
 
   const [errors, setErrors] = useState<FormErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -57,11 +58,11 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
     { value: 'REPRESENTANTE_CENTRO', label: 'Representante de Centro', nivel: 'CENTRO' },
   ]
 
-  // Jornadas disponibles
+  // Jornadas disponibles con horarios sugeridos
   const jornadasDisponibles = [
-    { value: 'mixta', label: 'Mixta (Diurna)' },
-    { value: 'nocturna', label: 'Nocturna' },
-    { value: 'madrugada', label: 'Madrugada' },
+    { value: 'mixta', label: 'Mixta (Diurna)', horario: '6:00 AM - 6:00 PM' },
+    { value: 'nocturna', label: 'Nocturna', horario: '6:00 PM - 10:00 PM' },
+    { value: 'madrugada', label: 'Madrugada', horario: '10:00 PM - 11:59 PM' },
   ]
 
   // Manejar cambios en los inputs
@@ -80,16 +81,64 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
     }
   }
 
-  // Manejar cambio en jornadas (checkbox)
-  const handleJornadaChange = (jornada: string, checked: boolean) => {
+  // ✅ CORREGIDO: Obtener fecha mínima para el input (HOY, no mañana)
+  const getMinDate = () => {
+    const today = new Date()
+    return today.toISOString().split('T')[0]
+  }
+
+  // ✅ CORREGIDO: Obtener hora mínima cuando es el mismo día
+  const getMinTime = () => {
+    const now = new Date()
+    const hours = now.getHours().toString().padStart(2, '0')
+    const minutes = now.getMinutes().toString().padStart(2, '0')
+    return `${hours}:${minutes}`
+  }
+
+  // ✅ CAMBIO: Función para sugerir horarios automáticamente según jornadas
+  const handleJornadaChangeWithSuggestion = (jornada: string, checked: boolean) => {
     const newJornadas = checked 
       ? [...formData.jornadas, jornada]
       : formData.jornadas.filter(j => j !== jornada)
     
     handleInputChange('jornadas', newJornadas)
+
+    // Sugerir horarios automáticamente basado en jornadas seleccionadas
+    if (newJornadas.length > 0) {
+      let horaInicio = '06:00'
+      let horaFin = '23:59'
+
+      // Determinar rango de horarios según jornadas seleccionadas
+      if (newJornadas.includes('mixta') && newJornadas.includes('nocturna') && newJornadas.includes('madrugada')) {
+        // Todas las jornadas: todo el día
+        horaInicio = '06:00'
+        horaFin = '23:59'
+      } else if (newJornadas.includes('mixta') && newJornadas.includes('nocturna')) {
+        horaInicio = '06:00'
+        horaFin = '22:00'
+      } else if (newJornadas.includes('nocturna') && newJornadas.includes('madrugada')) {
+        horaInicio = '18:00'
+        horaFin = '23:59'
+      } else if (newJornadas.includes('mixta')) {
+        horaInicio = '06:00'
+        horaFin = '18:00'
+      } else if (newJornadas.includes('nocturna')) {
+        horaInicio = '18:00'
+        horaFin = '22:00'
+      } else if (newJornadas.includes('madrugada')) {
+        horaInicio = '22:00'
+        horaFin = '23:59'
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        hora_inicio: horaInicio,
+        hora_fin: horaFin
+      }))
+    }
   }
 
-  // Validar formulario
+  // ✅ CORREGIDO: Validación completamente reescrita para mismo día
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {}
 
@@ -127,24 +176,43 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
       newErrors.jornadas = 'Debe seleccionar al menos una jornada'
     }
 
-    // Validar lógica de fechas
+    // ✅ CORREGIDO: Validar lógica de fechas de forma más precisa
     if (formData.fecha_inicio && formData.fecha_fin && formData.hora_inicio && formData.hora_fin) {
       const fechaInicioCompleta = new Date(`${formData.fecha_inicio}T${formData.hora_inicio}`)
       const fechaFinCompleta = new Date(`${formData.fecha_fin}T${formData.hora_fin}`)
       const ahora = new Date()
 
-      if (fechaInicioCompleta <= ahora) {
-        newErrors.fecha_inicio = 'La fecha y hora de inicio debe ser futura'
+      // Crear fechas solo con día (sin horas) para comparación
+      const fechaInicioSolo = formData.fecha_inicio
+      const fechaHoy = ahora.toISOString().split('T')[0]
+
+      console.log('🔍 Debug fechas:', {
+        fechaInicioSolo,
+        fechaHoy,
+        fechaInicioCompleta: fechaInicioCompleta.toISOString(),
+        ahora: ahora.toISOString()
+      })
+
+      // ✅ CORREGIDO: Verificar si la fecha es anterior a hoy (NO el mismo día)
+      if (fechaInicioSolo < fechaHoy) {
+        newErrors.fecha_inicio = 'La fecha de inicio no puede ser anterior a hoy'
+      } else if (fechaInicioSolo === fechaHoy) {
+        // Es el mismo día, verificar que la hora sea futura (con margen de 5 minutos)
+        const margenMinutos = 5 * 60 * 1000 // 5 minutos en millisegundos
+        if (fechaInicioCompleta.getTime() <= (ahora.getTime() + margenMinutos)) {
+          newErrors.fecha_inicio = 'La hora de inicio debe ser al menos 5 minutos en el futuro'
+        }
       }
+      // Si fechaInicioSolo > fechaHoy (fecha futura), está perfectamente bien
 
       if (fechaInicioCompleta >= fechaFinCompleta) {
         newErrors.fecha_fin = 'La fecha y hora de fin debe ser posterior a la de inicio'
       }
 
-      // Validar que la duración mínima sea de 1 hora
-      const duracionHoras = (fechaFinCompleta.getTime() - fechaInicioCompleta.getTime()) / (1000 * 60 * 60)
-      if (duracionHoras < 1) {
-        newErrors.hora_fin = 'La votación debe durar al menos 1 hora'
+      // ✅ CORREGIDO: Duración mínima más flexible (30 minutos)
+      const duracionMinutos = (fechaFinCompleta.getTime() - fechaInicioCompleta.getTime()) / (1000 * 60)
+      if (duracionMinutos < 30) {
+        newErrors.hora_fin = 'La votación debe durar al menos 30 minutos'
       }
     }
 
@@ -195,15 +263,15 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
         toast.success('¡Elección creada exitosamente!')
       }
       
-      // Resetear formulario
+      // Resetear formulario con nuevos valores por defecto
       setFormData({
         titulo: '',
         descripcion: '',
         tipo_eleccion: '',
         fecha_inicio: '',
-        hora_inicio: '08:00',
+        hora_inicio: '06:00', // ✅ Hora temprana por defecto
         fecha_fin: '',
-        hora_fin: '18:00',
+        hora_fin: '23:59',    // ✅ Hora tardía por defecto
         jornadas: ['mixta', 'nocturna', 'madrugada'],
       })
 
@@ -235,21 +303,14 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
         descripcion: '',
         tipo_eleccion: '',
         fecha_inicio: '',
-        hora_inicio: '08:00',
+        hora_inicio: '06:00', // ✅ Valores por defecto actualizados
         fecha_fin: '',
-        hora_fin: '18:00',
+        hora_fin: '23:59',
         jornadas: ['mixta', 'nocturna', 'madrugada'],
       })
       setErrors({})
       onClose()
     }
-  }
-
-  // Obtener fecha mínima para el input (mañana)
-  const getMinDate = () => {
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    return tomorrow.toISOString().split('T')[0]
   }
 
   // Verificar si debe mostrar selector de jornadas
@@ -277,7 +338,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
             onClick={handleClose}
           >
             <motion.div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
@@ -295,32 +356,27 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                   <button
                     onClick={handleClose}
                     disabled={isSubmitting}
-                    className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                    className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
                   >
-                    <XMarkIcon className="w-5 h-5" />
+                    <XMarkIcon className="w-4 h-4 text-gray-600" />
                   </button>
                 </div>
               </div>
 
               {/* Content */}
-              <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
-                <form onSubmit={handleSubmit} className="p-6 space-y-6">
+              <div className="px-6 py-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Error general */}
                   {errors.general && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-4 bg-red-50 border border-red-200 rounded-lg"
-                    >
-                      <p className="text-red-600 text-sm">{errors.general}</p>
-                    </motion.div>
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-600">{errors.general}</p>
+                    </div>
                   )}
 
                   {/* Información básica */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-900">Información Básica</h3>
                     
-                    {/* Título */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Título de la Elección *
@@ -329,7 +385,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                         type="text"
                         value={formData.titulo}
                         onChange={(e) => handleInputChange('titulo', e.target.value)}
-                        placeholder="Ej: Elección de Representante de Centro 2025"
+                        placeholder="Ej: Elección de Representante Estudiantil 2025"
                         className={errors.titulo ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}
                         disabled={isSubmitting}
                       />
@@ -338,7 +394,6 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                       )}
                     </div>
 
-                    {/* Descripción */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Descripción
@@ -348,21 +403,20 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                         onChange={(e) => handleInputChange('descripcion', e.target.value)}
                         placeholder="Descripción opcional de la elección..."
                         rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-500 focus:border-sena-500 transition-colors resize-none"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-500 focus:border-sena-500 transition-colors"
                         disabled={isSubmitting}
                       />
                     </div>
 
-                    {/* Tipo de elección */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Tipo de Elección/Aspiración *
+                        Tipo de Elección *
                       </label>
                       <select
                         value={formData.tipo_eleccion}
                         onChange={(e) => handleInputChange('tipo_eleccion', e.target.value)}
-                        className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-500 focus:border-sena-500 transition-colors ${
-                          errors.tipo_eleccion ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-sena-500 focus:border-sena-500 transition-colors ${
+                          errors.tipo_eleccion ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : 'border-gray-300'
                         }`}
                         disabled={isSubmitting}
                       >
@@ -384,17 +438,20 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           Jornadas de Votación *
                         </label>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {jornadasDisponibles.map((jornada) => (
-                            <label key={jornada.value} className="flex items-center space-x-3">
+                            <label key={jornada.value} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                               <input
                                 type="checkbox"
                                 checked={formData.jornadas.includes(jornada.value)}
-                                onChange={(e) => handleJornadaChange(jornada.value, e.target.checked)}
+                                onChange={(e) => handleJornadaChangeWithSuggestion(jornada.value, e.target.checked)}
                                 className="w-4 h-4 text-sena-600 bg-gray-100 border-gray-300 rounded focus:ring-sena-500 focus:ring-2"
                                 disabled={isSubmitting}
                               />
-                              <span className="text-sm text-gray-700">{jornada.label}</span>
+                              <div className="flex-1">
+                                <span className="text-sm font-medium text-gray-700">{jornada.label}</span>
+                                <p className="text-xs text-gray-500">{jornada.horario}</p>
+                              </div>
                             </label>
                           ))}
                         </div>
@@ -403,15 +460,15 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                         )}
                         <div className="mt-2 p-3 bg-sena-50 border border-sena-200 rounded-lg">
                           <p className="text-sm text-sena-700">
-                            <strong>Nota:</strong> Se creará una elección independiente para cada jornada seleccionada. 
-                            Cada jornada tendrá su propio representante.
+                            <strong>Nota:</strong> Los horarios se ajustarán automáticamente según las jornadas seleccionadas. 
+                            Se creará una elección independiente para cada jornada.
                           </p>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Configuración de tiempo */}
+                  {/* ✅ CORREGIDO: Configuración de tiempo actualizada */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                       <CalendarIcon className="w-5 h-5 mr-2 text-gray-600" />
@@ -429,7 +486,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                             type="date"
                             value={formData.fecha_inicio}
                             onChange={(e) => handleInputChange('fecha_inicio', e.target.value)}
-                            min={getMinDate()}
+                            min={getMinDate()} // ✅ CORREGIDO: Permite HOY
                             className={errors.fecha_inicio ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}
                             disabled={isSubmitting}
                           />
@@ -437,6 +494,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                             type="time"
                             value={formData.hora_inicio}
                             onChange={(e) => handleInputChange('hora_inicio', e.target.value)}
+                            min={formData.fecha_inicio === getMinDate() ? getMinTime() : undefined} // ✅ CORREGIDO: Hora mínima solo para hoy
                             className={errors.hora_inicio ? 'border-red-300 focus:border-red-500 focus:ring-red-200' : ''}
                             disabled={isSubmitting}
                           />
@@ -478,11 +536,51 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                       </div>
                     </div>
 
-                    {/* Información de fechas */}
+                    {/* ✅ CAMBIO: Botones para configurar horarios rápidamente */}
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, hora_inicio: '06:00', hora_fin: '23:59' }))
+                        }}
+                        disabled={isSubmitting}
+                      >
+                        Horario Completo (6:00 - 23:59)
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, hora_inicio: '08:00', hora_fin: '18:00' }))
+                        }}
+                        disabled={isSubmitting}
+                      >
+                        Horario Tradicional (8:00 - 18:00)
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, hora_inicio: '18:00', hora_fin: '23:59' }))
+                        }}
+                        disabled={isSubmitting}
+                      >
+                        Nocturna + Madrugada (18:00 - 23:59)
+                      </Button>
+                    </div>
+
+                    {/* ✅ CAMBIO: Información actualizada sobre horarios */}
                     <div className="bg-sena-50 border border-sena-200 rounded-lg p-4">
-                      <p className="text-sm text-sena-700">
-                        <strong>Recomendación:</strong> Las votaciones tradicionalmente se realizan de 8:00 AM a 6:00 PM. 
-                        Asegúrate de que el horario permita la máxima participación de la comunidad académica.
+                      <p className="text-sm text-sena-700 space-y-1">
+                        <strong>Horarios recomendados por jornada:</strong><br/>
+                        • <strong>Mixta (Diurna):</strong> 6:00 AM - 6:00 PM<br/>
+                        • <strong>Nocturna:</strong> 6:00 PM - 10:00 PM<br/>
+                        • <strong>Madrugada:</strong> 10:00 PM - 11:59 PM<br/>
+                        • <strong>Todas las jornadas:</strong> 6:00 AM - 11:59 PM (Recomendado)
                       </p>
                     </div>
                   </div>

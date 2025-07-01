@@ -91,4 +91,13 @@ export class ElectionsController {
   ) {
     return this.electionsService.delete(+id, userId);
   }
+  @Get(':id/can-delete')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async canDelete(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.electionsService.canDeleteElection(+id, userId);
+  }
 }

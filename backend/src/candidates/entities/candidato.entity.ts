@@ -1,4 +1,4 @@
-// 📁 src/candidates/entities/candidato.entity.ts
+// 📁 src/candidates/entities/candidato.entity.ts - ACTUALIZADO
 // ====================================================================
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { Eleccion } from '../../elections/entities/eleccion.entity';
@@ -37,10 +37,15 @@ export class Candidato {
   @Column({ type: 'timestamp', nullable: true })
   validado_at: Date;
 
+  // ✅ NUEVO CAMPO: Motivo de rechazo
+  @Column({ type: 'text', nullable: true })
+  motivo_rechazo: string;
+
   @Column({ default: 0 })
   votos_recibidos: number;
 
-  @Column({ type: 'enum', enum: ['registrado', 'validado', 'rechazado', 'retirado'], default: 'registrado' })
+  // ✅ ACTUALIZADO: Estados más específicos y consistentes con el frontend
+  @Column({ type: 'enum', enum: ['pendiente', 'validado', 'rechazado', 'retirado'], default: 'pendiente' })
   estado: string;
 
   @CreateDateColumn()
