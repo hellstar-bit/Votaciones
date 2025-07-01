@@ -19,6 +19,8 @@ interface DeleteInfo {
     votos_a_eliminar: number
     candidatos_a_eliminar: number
     votantes_a_eliminar: number
+    estado_actual?: string
+    estado_requerido?: string
   }
 }
 
@@ -127,10 +129,14 @@ const DeleteConfirmationModal = ({
                       <p className="text-sm text-yellow-700 mt-1">
                         {deleteInfo.reason}
                       </p>
-                      {deleteInfo.details && (
+                      {deleteInfo.details && (deleteInfo.details.estado_actual || deleteInfo.details.estado_requerido) && (
                         <div className="mt-2 text-xs text-yellow-600">
-                          <p>Estado actual: {deleteInfo.details.estado_actual}</p>
-                          <p>Estado requerido: {deleteInfo.details.estado_requerido}</p>
+                          {deleteInfo.details.estado_actual && (
+                            <p>Estado actual: {deleteInfo.details.estado_actual}</p>
+                          )}
+                          {deleteInfo.details.estado_requerido && (
+                            <p>Estado requerido: {deleteInfo.details.estado_requerido}</p>
+                          )}
                         </div>
                       )}
                     </div>

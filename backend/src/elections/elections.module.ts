@@ -1,5 +1,4 @@
-// 📁 src/elections/elections.module.ts
-// ====================================================================
+// elections.module.ts - Corregido
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ElectionsService } from './elections.service';
@@ -8,6 +7,8 @@ import { Eleccion } from './entities/eleccion.entity';
 import { TipoEleccion } from './entities/tipo-eleccion.entity';
 import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 import { Persona } from '../users/entities/persona.entity';
+import { Voto } from '../votes/entities/voto.entity';
+import { Candidato } from '../candidates/entities/candidato.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,8 @@ import { Persona } from '../users/entities/persona.entity';
       TipoEleccion,
       VotanteHabilitado,
       Persona,
+      Voto,
+      Candidato,
     ]),
   ],
   controllers: [ElectionsController],

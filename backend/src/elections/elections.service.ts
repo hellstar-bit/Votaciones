@@ -7,6 +7,8 @@ import { Eleccion } from './entities/eleccion.entity';
 import { TipoEleccion } from './entities/tipo-eleccion.entity';
 import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 import { Persona } from '../users/entities/persona.entity';
+import { Voto } from '../votes/entities/voto.entity';
+import { Candidato } from '../candidates/entities/candidato.entity';
 import { CreateElectionDto } from './dto/create-election.dto';
 
 @Injectable()
@@ -20,6 +22,10 @@ export class ElectionsService {
     private votanteHabilitadoRepository: Repository<VotanteHabilitado>,
     @InjectRepository(Persona)
     private personaRepository: Repository<Persona>,
+    @InjectRepository(Voto)
+    private votoRepository: Repository<Voto>,
+    @InjectRepository(Candidato)
+    private candidatoRepository: Repository<Candidato>,
   ) {}
 
   async create(createElectionDto: CreateElectionDto, userId: number) {
@@ -51,60 +57,46 @@ export class ElectionsService {
       const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
       
       if (fechaInicioSolo.getTime() === hoy.getTime()) {
-        // Es el mismo día, verificar que la hora sea futura (con margen de 5 minutos)
-        const margenMinutos = 5 * 60 * 1000; // 5 minutos en millisegundos
-        if (fechaInicio.getTime() <= (ahora.getTime() + margenMinutos)) {
-          throw new BadRequestException('La hora de inicio debe ser al menos 5 minutos en el futuro para elecciones de hoy');
+        // Es el mismo día, verificar que la hora no haya pasado mucho (permitir crear hasta 1 hora antes)
+        const horasHastaInicio = (fechaInicio.getTime() - ahora.getTime()) / (1000 * 60 * 60);
+        if (horasHastaInicio < -1) {
+          throw new BadRequestException('No se puede crear una elección con más de 1 hora de retraso en el mismo día');
         }
-      } else if (fechaInicioSolo < hoy) {
-        // Es una fecha pasada
-        throw new BadRequestException('La fecha de inicio no puede ser en el pasado');
+      } else {
+        // Es un día anterior, no permitir
+        throw new BadRequestException('La fecha de inicio no puede ser anterior a hoy');
       }
     }
 
-    // ✅ CAMBIO: Validar duración mínima más flexible (30 minutos en lugar de horas)
-    const duracionMinutos = (fechaFin.getTime() - fechaInicio.getTime()) / (1000 * 60);
-    if (duracionMinutos < 30) {
-      throw new BadRequestException('La votación debe durar al menos 30 minutos');
-    }
-
-    // ✅ CAMBIO: Validar que el horario sea razonable para votaciones (opcional)
-    const horaInicio = fechaInicio.getHours();
-    const horaFin = fechaFin.getHours();
-    
-    // Permitir votaciones desde las 6:00 AM hasta las 23:59 PM
-    if (horaInicio < 6) {
-      console.warn(`Elección programada muy temprano: ${horaInicio}:00. Considere un horario después de las 6:00 AM`);
-    }
-
-    // Crear elección
-    const eleccion = this.eleccionRepository.create({
+    // Crear la elección
+    const nuevaEleccion = this.eleccionRepository.create({
       ...electionData,
       id_tipo_eleccion: tipoEleccionEntity.id_tipo_eleccion,
-      fecha_inicio: fechaInicio,
-      fecha_fin: fechaFin,
       created_by: userId,
+      estado: 'configuracion',
+      total_votantes_habilitados: 0,
+      total_votos_emitidos: 0,
     });
 
-    const savedElection = await this.eleccionRepository.save(eleccion);
+    const eleccionGuardada = await this.eleccionRepository.save(nuevaEleccion);
 
     // Generar votantes habilitados
-    await this.generateEligibleVoters(savedElection);
+    await this.generateEligibleVoters(eleccionGuardada);
 
-    return savedElection;
+    return this.findOne(eleccionGuardada.id_eleccion);
   }
 
   async findAll(userId: number, userRole: string) {
-    const where: FindOptionsWhere<Eleccion> = {};
+    const whereClause: FindOptionsWhere<Eleccion> = {};
 
-    // Filtrar por permisos del usuario
+    // Si no es admin, solo ver sus propias elecciones
     if (userRole !== 'ADMIN') {
-      where.created_by = userId;
+      whereClause.created_by = userId;
     }
 
     return this.eleccionRepository.find({
-      where,
-      relations: ['tipoEleccion', 'centro', 'sede', 'ficha', 'createdBy'],
+      where: whereClause,
+      relations: ['tipoEleccion', 'centro', 'sede', 'ficha'],
       order: { created_at: 'DESC' },
     });
   }
@@ -112,15 +104,7 @@ export class ElectionsService {
   async findOne(id: number) {
     const eleccion = await this.eleccionRepository.findOne({
       where: { id_eleccion: id },
-      relations: [
-        'tipoEleccion',
-        'centro',
-        'sede',
-        'ficha',
-        'candidatos',
-        'candidatos.persona',
-        'votos',
-      ],
+      relations: ['tipoEleccion', 'centro', 'sede', 'ficha', 'candidatos', 'candidatos.persona'],
     });
 
     if (!eleccion) {
@@ -164,6 +148,80 @@ export class ElectionsService {
     await this.eleccionRepository.update(id, { estado: 'finalizada' });
 
     return { message: 'Elección finalizada exitosamente' };
+  }
+
+  async cancel(id: number, userId: number) {
+    const eleccion = await this.findOne(id);
+
+    if (eleccion.created_by !== userId) {
+      throw new ForbiddenException('No tiene permisos para cancelar esta elección');
+    }
+
+    if (!['configuracion', 'activa'].includes(eleccion.estado)) {
+      throw new BadRequestException('Solo se pueden cancelar elecciones en configuración o activas');
+    }
+
+    await this.eleccionRepository.update(id, { estado: 'cancelada' });
+
+    return { message: 'Elección cancelada exitosamente' };
+  }
+
+  async canDeleteElection(id: number, userId: number) {
+    const eleccion = await this.findOne(id);
+
+    if (eleccion.created_by !== userId) {
+      throw new ForbiddenException('No tiene permisos para eliminar esta elección');
+    }
+
+    // Solo se pueden eliminar elecciones canceladas
+    if (eleccion.estado !== 'cancelada') {
+      return {
+        canDelete: false,
+        reason: 'Solo se pueden eliminar elecciones en estado cancelada',
+        details: {
+          estado_actual: eleccion.estado,
+          estado_requerido: 'cancelada',
+          votos_a_eliminar: 0,
+          candidatos_a_eliminar: 0,
+          votantes_a_eliminar: 0
+        }
+      };
+    }
+
+    // Contar datos que se eliminarán
+    const [totalVotos, totalCandidatos, totalVotantes] = await Promise.all([
+      this.votoRepository.count({ where: { id_eleccion: id } }),
+      this.candidatoRepository.count({ where: { id_eleccion: id } }),
+      this.votanteHabilitadoRepository.count({ where: { id_eleccion: id } })
+    ]);
+
+    return {
+      canDelete: true,
+      details: {
+        votos_a_eliminar: totalVotos,
+        candidatos_a_eliminar: totalCandidatos,
+        votantes_a_eliminar: totalVotantes
+      }
+    };
+  }
+
+  async delete(id: number, userId: number) {
+    const canDeleteResult = await this.canDeleteElection(id, userId);
+    
+    if (!canDeleteResult.canDelete) {
+      throw new BadRequestException(canDeleteResult.reason);
+    }
+
+    // Eliminar en orden: votos -> candidatos -> votantes habilitados -> elección
+    await this.votoRepository.delete({ id_eleccion: id });
+    await this.candidatoRepository.delete({ id_eleccion: id });
+    await this.votanteHabilitadoRepository.delete({ id_eleccion: id });
+    await this.eleccionRepository.delete(id);
+
+    return {
+      message: 'Elección eliminada exitosamente',
+      details: canDeleteResult.details
+    };
   }
 
   private async generateEligibleVoters(eleccion: Eleccion) {
@@ -242,14 +300,17 @@ export class ElectionsService {
     const totalVotos = eleccion.total_votos_emitidos;
     const porcentajeParticipacion = totalVotantes > 0 ? (totalVotos / totalVotantes) * 100 : 0;
     
+    // Obtener votos en blanco
+    const votosBlanco = await this.votoRepository.count({
+      where: { id_eleccion: id, id_candidato: null },
+    });
+    
     const candidatosConVotos = eleccion.candidatos.map(candidato => ({
       id: candidato.id_candidato,
       nombre: candidato.persona.nombreCompleto,
       votos: candidato.votos_recibidos,
-      porcentaje: totalVotos > 0 ? (candidato.votos_recibidos / totalVotos) * 100 : 0,
+      porcentaje: totalVotos > 0 ? Math.round((candidato.votos_recibidos / totalVotos) * 10000) / 100 : 0,
     }));
-
-    const votosBlanco = eleccion.votos.filter(voto => voto.id_candidato === null).length;
 
     return {
       eleccion: {
@@ -267,123 +328,5 @@ export class ElectionsService {
       },
       candidatos: candidatosConVotos.sort((a, b) => b.votos - a.votos),
     };
-  }
-  async cancel(id: number, userId: number) {
-  const eleccion = await this.findOne(id);
-
-  if (eleccion.created_by !== userId) {
-    throw new ForbiddenException('No tiene permisos para cancelar esta elección');
-  }
-
-  if (eleccion.estado === 'finalizada' || eleccion.estado === 'cancelada') {
-    throw new BadRequestException('No se puede cancelar una elección finalizada o ya cancelada');
-  }
-
-  await this.eleccionRepository.update(id, { estado: 'cancelada' });
-
-  return { message: 'Elección cancelada exitosamente' };
-}
-
-  async delete(id: number, userId: number) {
-    const eleccion = await this.findOne(id);
-
-    if (eleccion.created_by !== userId) {
-      throw new ForbiddenException('No tiene permisos para eliminar esta elección');
-    }
-
-    // ✅ CAMBIO PRINCIPAL: Solo se pueden eliminar elecciones canceladas
-    if (eleccion.estado !== 'cancelada') {
-      throw new BadRequestException('Solo se pueden eliminar elecciones que han sido canceladas previamente');
-    }
-
-    try {
-      // ✅ MEJORADO: Eliminar en orden para evitar problemas de foreign keys
-      
-      // 1. Eliminar votos primero (si los hay)
-      if (eleccion.votos && eleccion.votos.length > 0) {
-        await this.votoRepository.delete({ id_eleccion: id });
-        console.log(`✅ Eliminados ${eleccion.votos.length} votos de la elección ${id}`);
-      }
-
-      // 2. Eliminar votantes habilitados
-      const votantesHabilitados = await this.votanteHabilitadoRepository.find({ 
-        where: { id_eleccion: id } 
-      });
-      if (votantesHabilitados.length > 0) {
-        await this.votanteHabilitadoRepository.delete({ id_eleccion: id });
-        console.log(`✅ Eliminados ${votantesHabilitados.length} votantes habilitados`);
-      }
-
-      // 3. Eliminar candidatos
-      if (eleccion.candidatos && eleccion.candidatos.length > 0) {
-        await this.candidatoRepository.delete({ id_eleccion: id });
-        console.log(`✅ Eliminados ${eleccion.candidatos.length} candidatos`);
-      }
-      
-      // 4. Finalmente eliminar la elección
-      await this.eleccionRepository.delete(id);
-      console.log(`✅ Elección ${id} eliminada exitosamente`);
-
-      return { 
-        message: 'Elección eliminada exitosamente',
-        details: {
-          votos_eliminados: eleccion.votos?.length || 0,
-          candidatos_eliminados: eleccion.candidatos?.length || 0,
-          votantes_eliminados: votantesHabilitados.length
-        }
-      };
-
-    } catch (error) {
-      console.error('Error eliminando elección:', error);
-      throw new BadRequestException('Error eliminando la elección. Verifique las dependencias del sistema.');
-    }
-  }
-
-  async canDeleteElection(id: number, userId: number): Promise<{
-    canDelete: boolean;
-    reason?: string;
-    details?: any;
-  }> {
-    try {
-      const eleccion = await this.findOne(id);
-
-      if (eleccion.created_by !== userId) {
-        return {
-          canDelete: false,
-          reason: 'No tiene permisos para eliminar esta elección'
-        };
-      }
-
-      if (eleccion.estado !== 'cancelada') {
-        return {
-          canDelete: false,
-          reason: 'Solo se pueden eliminar elecciones canceladas',
-          details: { 
-            estado_actual: eleccion.estado,
-            estado_requerido: 'cancelada'
-          }
-        };
-      }
-
-      // Obtener información de los datos que serían eliminados
-      const votantesHabilitados = await this.votanteHabilitadoRepository.count({ 
-        where: { id_eleccion: id } 
-      });
-
-      return {
-        canDelete: true,
-        details: {
-          votos_a_eliminar: eleccion.total_votos_emitidos,
-          candidatos_a_eliminar: eleccion.candidatos?.length || 0,
-          votantes_a_eliminar: votantesHabilitados
-        }
-      };
-
-    } catch (error) {
-      return {
-        canDelete: false,
-        reason: 'Error verificando si se puede eliminar la elección'
-      };
-    }
   }
 }

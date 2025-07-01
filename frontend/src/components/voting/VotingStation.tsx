@@ -1,4 +1,4 @@
-// VotingStation.tsx
+// VotingStation.tsx - Actualizado para el nuevo formato de QR y voto por documento
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
@@ -26,6 +26,7 @@ const VotingStation = () => {
   const [voteResult, setVoteResult] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
+  const [isProcessingQR, setIsProcessingQR] = useState(false)
 
   // Cargar elecciones activas
   useEffect(() => {
@@ -60,24 +61,80 @@ const VotingStation = () => {
     }
   }
 
-  // Manejar QR escaneado
-  const handleQRScanned = (data: any) => {
+  // Manejar QR escaneado o documento ingresado
+  const handleIdentificationData = (data: any) => {
+    // ⭐ PREVENIR EJECUCIONES MÚLTIPLES
+    if (isProcessingQR) {
+      console.log('🚫 Ya procesando QR, ignorando...')
+      return
+    }
+    
+    setIsProcessingQR(true) // ⭐ MARCAR COMO PROCESANDO
+    
     try {
-      // El QR debe contener el documento de la persona
-      const qrData = typeof data === 'string' ? JSON.parse(data) : data
+      console.log('🔍 Datos de identificación recibidos:', data)
       
-      if (!qrData.numero_documento) {
-        toast.error('QR inválido: no contiene número de documento')
+      let parsedData = data;
+      
+      if (typeof data === 'string') {
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          const match = data.match(/\d{8,12}/);
+          if (match) {
+            parsedData = { doc: match[0], type: 'QR_DIRECT' };
+          } else {
+            toast.error('Formato de QR no válido');
+            setIsProcessingQR(false) // ⭐ RESET EN ERROR
+            return;
+          }
+        }
+      }
+      
+      const numeroDocumento = parsedData.doc || 
+                             parsedData.numero_documento || 
+                             parsedData.documento || 
+                             parsedData.cedula || 
+                             parsedData.id;
+      
+      if (!numeroDocumento) {
+        toast.error(`No se encontró número de documento`)
+        setIsProcessingQR(false) // ⭐ RESET EN ERROR
         return
       }
 
-      setScannedData(qrData)
+      const processedData = {
+        doc: numeroDocumento,
+        numero_documento: numeroDocumento,
+        type: parsedData.type || 'QR_UNKNOWN',
+        id: parsedData.id,
+        timestamp: parsedData.timestamp,
+        raw_data: data
+      }
+      
+      setScannedData(processedData)
       setCurrentStep('voting')
-      toast.success(`QR escaneado: ${qrData.numero_documento}`)
+      
+      const metodo = parsedData.type === 'ACCESUM_SENA_LEARNER' ? 'QR SENA' : 'QR genérico'
+      toast.success(`Identificación por ${metodo}: ${numeroDocumento}`)
+      
     } catch (error) {
-      toast.error('Error leyendo código QR')
+      console.error('Error procesando datos:', error)
+      toast.error('Error procesando datos de identificación')
+    } finally {
+      // ⭐ RESET DESPUÉS DE UN DELAY PARA PREVENIR REBOTES
+      setTimeout(() => {
+        setIsProcessingQR(false)
+      }, 1000)
     }
   }
+
+  // ⭐ RESET el flag cuando cambies de paso
+  useEffect(() => {
+    if (currentStep !== 'qr-scan') {
+      setIsProcessingQR(false)
+    }
+  }, [currentStep])
 
   // Seleccionar candidato o voto en blanco
   const handleCandidateSelection = (candidateId: number | null) => {
@@ -103,35 +160,44 @@ const VotingStation = () => {
     try {
       setProcessing(true)
       
-      // ✅ Solo enviamos los campos que espera el DTO
+      console.log('📤 Enviando voto:', {
+        id_eleccion: selectedElection.id_eleccion,
+        id_candidato: selectedCandidate,
+        datos_identificacion: scannedData
+      })
+      
+      // Preparar datos para el backend
       const voteData = {
         id_eleccion: selectedElection.id_eleccion,
         id_candidato: selectedCandidate,
-        qr_code: JSON.stringify(scannedData)
-        // ❌ Removemos ip_address y user_agent - el backend los obtiene del request
+        qr_code: typeof scannedData === 'string' ? scannedData : JSON.stringify(scannedData)
       }
 
       const result = await votesApi.cast(voteData)
+      console.log('✅ Voto registrado:', result)
+      
       setVoteResult(result)
       setCurrentStep('success')
       toast.success('¡Voto registrado exitosamente!')
       
     } catch (error) {
+      console.error('❌ Error procesando voto:', error)
       const errorMessage = handleApiError(error)
-      toast.error(`Error registrando voto: ${errorMessage}`)
+      toast.error(`Error: ${errorMessage}`)
     } finally {
       setProcessing(false)
     }
   }
 
   // Reiniciar proceso
-  const handleNewVote = () => {
+  const handleRestart = () => {
     setCurrentStep('elections')
     setSelectedElection(null)
     setCandidates([])
     setScannedData(null)
     setSelectedCandidate(null)
     setVoteResult(null)
+    loadActiveElections()
   }
 
   // Volver al paso anterior
@@ -154,334 +220,338 @@ const VotingStation = () => {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-sena-50 to-green-50 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-sena-500 border-t-transparent rounded-full"
-        />
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sena-50 to-green-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              {currentStep !== 'elections' && currentStep !== 'success' && (
-                <Button
-                  variant="ghost"
-                  onClick={handleGoBack}
-                  icon={<ArrowLeftIcon className="w-4 h-4" />}
-                >
-                  Volver
-                </Button>
-              )}
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-sena-500 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold text-lg">S</span>
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">Mesa de Votación</h1>
-                  <p className="text-sm text-gray-500">Sistema SENA</p>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Mesa de Votación</h1>
+          <p className="text-lg text-gray-600">Sistema de Votación Electrónica SENA</p>
+        </div>
 
-            {/* Indicador de paso actual */}
-            <div className="flex items-center space-x-2 bg-gray-100 rounded-lg px-3 py-1">
-              <div className={`w-2 h-2 rounded-full ${
-                currentStep === 'elections' ? 'bg-sena-500' : 'bg-gray-300'
-              }`} />
-              <div className={`w-2 h-2 rounded-full ${
-                currentStep === 'qr-scan' ? 'bg-sena-500' : 'bg-gray-300'
-              }`} />
-              <div className={`w-2 h-2 rounded-full ${
-                currentStep === 'voting' ? 'bg-sena-500' : 'bg-gray-300'
-              }`} />
-              <div className={`w-2 h-2 rounded-full ${
-                currentStep === 'confirmation' ? 'bg-sena-500' : 'bg-gray-300'
-              }`} />
-              <div className={`w-2 h-2 rounded-full ${
-                currentStep === 'success' ? 'bg-green-500' : 'bg-gray-300'
-              }`} />
-            </div>
+        {/* Indicador de progreso */}
+        <div className="mb-8">
+          <div className="flex items-center justify-center space-x-4">
+            {['elections', 'qr-scan', 'voting', 'confirmation', 'success'].map((step, index) => {
+              const stepNames = ['Elecciones', 'Identificación', 'Votación', 'Confirmación', 'Resultado']
+              const isActive = currentStep === step
+              const isCompleted = ['elections', 'qr-scan', 'voting', 'confirmation', 'success'].indexOf(currentStep) > index
+              
+              return (
+                <div key={step} className="flex items-center">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                    isActive 
+                      ? 'bg-sena-500 text-white' 
+                      : isCompleted 
+                        ? 'bg-green-500 text-white' 
+                        : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {isCompleted ? (
+                      <CheckCircleIcon className="w-5 h-5" />
+                    ) : (
+                      index + 1
+                    )}
+                  </div>
+                  <span className={`ml-2 text-sm ${isActive ? 'text-sena-600 font-medium' : 'text-gray-500'}`}>
+                    {stepNames[index]}
+                  </span>
+                  {index < 4 && (
+                    <div className={`ml-4 w-8 h-0.5 ${isCompleted ? 'bg-green-500' : 'bg-gray-200'}`} />
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <AnimatePresence mode="wait">
-          
-          {/* Paso 1: Seleccionar Elección */}
-          {currentStep === 'elections' && (
-            <motion.div
-              key="elections"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
+        {/* Botón de retroceso */}
+        {currentStep !== 'elections' && currentStep !== 'success' && (
+          <div className="mb-6">
+            <Button
+              onClick={handleGoBack}
+              variant="outline"
+              className="flex items-center"
             >
-              <div className="text-center">
-                <ClipboardDocumentListIcon className="w-16 h-16 text-sena-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Seleccionar Elección</h2>
-                <p className="text-gray-600">Elige la elección en la que deseas participar</p>
-              </div>
+              <ArrowLeftIcon className="w-4 h-4 mr-2" />
+              Atrás
+            </Button>
+          </div>
+        )}
 
-              {activeElections.length > 0 ? (
-                <div className="grid gap-4">
-                  {activeElections.map((election, index) => (
+        {/* Contenido principal */}
+        <div className="bg-white rounded-2xl shadow-lg p-8">
+          <AnimatePresence mode="wait">
+            {/* Paso 1: Seleccionar Elección */}
+            {currentStep === 'elections' && (
+              <motion.div
+                key="elections"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <div className="text-center">
+                  <ClipboardDocumentListIcon className="w-16 h-16 text-sena-500 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Seleccionar Elección</h2>
+                  <p className="text-gray-600">Elige la elección en la que deseas participar</p>
+                </div>
+
+                {loading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sena-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Cargando elecciones...</p>
+                  </div>
+                ) : activeElections.length > 0 ? (
+                  <div className="grid gap-4">
+                    {activeElections.map((election) => (
+                      <motion.div
+                        key={election.id_eleccion}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="border border-gray-200 rounded-xl p-6 cursor-pointer hover:border-sena-300 hover:shadow-md transition-all"
+                        onClick={() => handleSelectElection(election)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                              {election.titulo}
+                            </h3>
+                            <p className="text-gray-600 mb-3">{election.descripcion}</p>
+                            <div className="flex items-center space-x-4 text-sm text-gray-500">
+                              <span>🗳️ {election.tipoEleccion.nombre_tipo}</span>
+                              <span>📅 {new Date(election.fecha_inicio).toLocaleDateString()}</span>
+                              <span>👥 {election.total_votantes_habilitados} habilitados</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                              Activa
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <ExclamationTriangleIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No hay elecciones activas</h3>
+                    <p className="text-gray-500">No hay elecciones disponibles para votar en este momento</p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {/* Paso 2: Identificación (QR o Documento) */}
+            {currentStep === 'qr-scan' && (
+              <motion.div
+                key="qr-scan"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <div className="text-center">
+                  <UserIcon className="w-16 h-16 text-sena-500 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Identificación del Votante</h2>
+                  <p className="text-gray-600">Escanea tu QR o ingresa tu número de documento</p>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                  <div className="text-center">
+                    <h3 className="font-semibold text-blue-900 mb-2">Elección seleccionada:</h3>
+                    <p className="text-blue-700">{selectedElection?.titulo}</p>
+                    <p className="text-sm text-blue-600 mt-1">
+                      {selectedElection?.tipoEleccion.nombre_tipo}
+                    </p>
+                  </div>
+                </div>
+
+                <QRScanner 
+                  onScanSuccess={handleIdentificationData}
+                  onClose={() => setCurrentStep('elections')} // o la lógica que necesites
+                />
+              </motion.div>
+            )}
+
+            {/* Paso 3: Votación */}
+            {currentStep === 'voting' && (
+              <motion.div
+                key="voting"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <div className="text-center">
+                  <QrCodeIcon className="w-16 h-16 text-sena-500 mx-auto mb-4" />
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Emitir Voto</h2>
+                  <p className="text-gray-600">Selecciona tu candidato preferido</p>
+                </div>
+
+                {/* Información del votante */}
+                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                  <div className="flex items-center">
+                    <CheckCircleIcon className="w-6 h-6 text-green-600 mr-3" />
+                    <div>
+                      <p className="text-green-800 font-medium">Votante identificado</p>
+                      <p className="text-green-700 text-sm">
+                        Documento: {scannedData?.doc || scannedData?.numero_documento}
+                        {scannedData?.type && (
+                          <span className="ml-2 text-xs bg-green-200 px-2 py-1 rounded">
+                            {scannedData.type === 'ACCESUM_SENA_LEARNER' ? 'QR SENA' : 
+                             scannedData.type === 'MANUAL_INPUT' ? 'Manual' : 'QR'}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Lista de candidatos */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Candidatos disponibles:</h3>
+                  
+                  {candidates.map((candidate) => (
                     <motion.div
-                      key={election.id_eleccion}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="bg-white rounded-xl border-2 border-gray-200 hover:border-sena-300 transition-all cursor-pointer p-6"
-                      onClick={() => handleSelectElection(election)}
+                      key={candidate.id_candidato}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${
+                        selectedCandidate === candidate.id_candidato
+                          ? 'border-sena-500 bg-sena-50'
+                          : 'border-gray-200 hover:border-sena-300'
+                      }`}
+                      onClick={() => handleCandidateSelection(candidate.id_candidato)}
                     >
                       <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">{election.titulo}</h3>
-                          <p className="text-sm text-gray-600 mt-1">{election.descripcion}</p>
-                          <div className="flex items-center space-x-4 mt-3 text-sm text-gray-500">
-                            <span>Tipo: {election.tipoEleccion?.nombre_tipo}</span>
-                            <span>•</span>
-                            <span>Termina: {new Date(election.fecha_fin).toLocaleString()}</span>
+                        <div className="flex items-center">
+                          <div className="w-12 h-12 bg-sena-100 rounded-full flex items-center justify-center mr-4">
+                            <span className="text-sena-600 font-bold text-lg">
+                              {candidate.numero_lista}
+                            </span>
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">
+                              {candidate.persona.nombreCompleto}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              Lista #{candidate.numero_lista}
+                            </p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium mb-2">
-                            Activa
-                          </div>
-                          <p className="text-sm text-gray-500">
-                            {election.total_votos_emitidos}/{election.total_votantes_habilitados} votos
-                          </p>
-                        </div>
+                        {selectedCandidate === candidate.id_candidato && (
+                          <CheckCircleIcon className="w-6 h-6 text-sena-500" />
+                        )}
                       </div>
                     </motion.div>
                   ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <ExclamationTriangleIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No hay elecciones activas</h3>
-                  <p className="text-gray-500">No hay elecciones disponibles para votar en este momento</p>
-                </div>
-              )}
-            </motion.div>
-          )}
 
-          {/* Paso 2: Escanear QR */}
-          {currentStep === 'qr-scan' && (
-            <motion.div
-              key="qr-scan"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <div className="text-center">
-                <QrCodeIcon className="w-16 h-16 text-sena-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Escanear QR</h2>
-                <p className="text-gray-600">Escanea tu código QR de estudiante para autenticarte</p>
-              </div>
-
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
-                <div className="text-center mb-4">
-                  <h3 className="font-semibold text-gray-900 mb-2">Elección seleccionada:</h3>
-                  <p className="text-sena-600">{selectedElection?.titulo}</p>
-                </div>
-
-                <QRScanner onScan={handleQRScanned} />
-              </div>
-            </motion.div>
-          )}
-
-          {/* Paso 3: Votar */}
-          {currentStep === 'voting' && (
-            <motion.div
-              key="voting"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <div className="text-center">
-                <UserIcon className="w-16 h-16 text-sena-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Seleccionar Candidato</h2>
-                <p className="text-gray-600">Elige tu candidato preferido</p>
-              </div>
-
-              {/* Información del votante */}
-              <div className="bg-white rounded-xl border border-gray-200 p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-sena-100 rounded-full flex items-center justify-center">
-                    <UserIcon className="w-6 h-6 text-sena-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">Votante autenticado</p>
-                    <p className="text-sm text-gray-500">Documento: {scannedData?.numero_documento}</p>
-                  </div>
-                  <CheckCircleIcon className="w-5 h-5 text-green-500 ml-auto" />
-                </div>
-              </div>
-
-              {/* Lista de candidatos */}
-              <div className="space-y-3">
-                {candidates.map((candidate, index) => (
-                  <motion.div
-                    key={candidate.id_candidato}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className={`bg-white rounded-xl border-2 transition-all cursor-pointer p-4 ${
-                      selectedCandidate === candidate.id_candidato
-                        ? 'border-sena-500 bg-sena-50'
-                        : 'border-gray-200 hover:border-sena-300'
-                    }`}
-                    onClick={() => handleCandidateSelection(candidate.id_candidato)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-sena-100 rounded-full flex items-center justify-center">
-                          <span className="text-sena-600 font-semibold">
-                            {candidate.persona.nombres.charAt(0)}{candidate.persona.apellidos.charAt(0)}
-                          </span>
+                  {/* Opción de voto en blanco */}
+                  {selectedElection?.permite_voto_blanco && (
+                    <motion.div
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${
+                        selectedCandidate === null
+                          ? 'border-gray-500 bg-gray-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                      onClick={() => handleCandidateSelection(null)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mr-4">
+                            <XCircleIcon className="w-6 h-6 text-gray-500" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-gray-900">Voto en Blanco</h4>
+                            <p className="text-sm text-gray-600">No votar por ningún candidato</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">
-                            {candidate.persona.nombreCompleto}
-                          </h3>
-                          <p className="text-sm text-gray-500">
-                            Documento: {candidate.persona.numero_documento}
-                          </p>
-                        </div>
+                        {selectedCandidate === null && (
+                          <CheckCircleIcon className="w-6 h-6 text-gray-500" />
+                        )}
                       </div>
-                      {selectedCandidate === candidate.id_candidato && (
-                        <CheckCircleIcon className="w-6 h-6 text-sena-500" />
-                      )}
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  )}
+                </div>
 
-                {/* Voto en blanco */}
-                {selectedElection?.permite_voto_blanco && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: candidates.length * 0.1 }}
-                    className={`bg-white rounded-xl border-2 transition-all cursor-pointer p-4 ${
-                      selectedCandidate === null && scannedData
-                        ? 'border-yellow-500 bg-yellow-50'
-                        : 'border-gray-200 hover:border-yellow-300'
-                    }`}
-                    onClick={() => handleCandidateSelection(null)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                          <XCircleIcon className="w-6 h-6 text-yellow-600" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">Voto en Blanco</h3>
-                          <p className="text-sm text-gray-500">No apoyar a ningún candidato</p>
-                        </div>
-                      </div>
-                      {selectedCandidate === null && scannedData && (
-                        <CheckCircleIcon className="w-6 h-6 text-yellow-500" />
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </div>
-
-              {/* Botón confirmar */}
-              <div className="text-center">
                 <Button
                   onClick={handleConfirmVote}
                   disabled={selectedCandidate === undefined}
-                  className="px-8 py-3 text-lg"
+                  className="w-full"
+                  size="lg"
                 >
-                  Confirmar Selección
+                  Continuar a Confirmación
                 </Button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Paso 4: Confirmación */}
-          {currentStep === 'confirmation' && (
-            <VoteConfirmation
-              election={selectedElection}
-              candidate={candidates.find(c => c.id_candidato === selectedCandidate)}
-              isBlankVote={selectedCandidate === null}
-              onConfirm={handleProcessVote}
-              onCancel={() => setCurrentStep('voting')}
-              processing={processing}
-            />
-          )}
-
-          {/* Paso 5: Éxito */}
-          {currentStep === 'success' && (
-            <motion.div
-              key="success"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center space-y-6"
-            >
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: 0.2, type: "spring" }}
-              >
-                <CheckCircleIcon className="w-24 h-24 text-green-500 mx-auto mb-6" />
               </motion.div>
-              
-              <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-2">¡Voto Registrado!</h2>
-                <p className="text-gray-600 text-lg">Tu participación ha sido registrada exitosamente</p>
-              </div>
+            )}
 
-              <div className="bg-white rounded-xl border border-gray-200 p-6 max-w-md mx-auto">
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Elección:</span>
-                    <span className="font-medium">{selectedElection?.titulo}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Hash de verificación:</span>
-                    <span className="font-mono text-xs">{voteResult?.hash_verificacion?.slice(0, 16)}...</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Timestamp:</span>
-                    <span className="font-medium">
-                      {voteResult?.timestamp ? new Date(voteResult.timestamp).toLocaleString() : ''}
-                    </span>
-                  </div>
+            {/* Paso 4: Confirmación */}
+            {currentStep === 'confirmation' && (
+              <motion.div
+                key="confirmation"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <VoteConfirmation
+                  election={selectedElection!}
+                  candidate={selectedCandidate ? candidates.find(c => c.id_candidato === selectedCandidate) || null : null}
+                  voterData={scannedData}
+                  onConfirm={handleProcessVote}
+                  onCancel={() => setCurrentStep('voting')}
+                  isProcessing={processing}
+                />
+              </motion.div>
+            )}
+
+            {/* Paso 5: Éxito */}
+            {currentStep === 'success' && (
+              <motion.div
+                key="success"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="text-center space-y-6"
+              >
+                <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircleIcon className="w-12 h-12 text-green-600" />
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-sm text-gray-500">
-                  Tu voto es secreto y anónimo. Guarda el hash de verificación para futuras consultas.
-                </p>
                 
+                <div>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">¡Voto Registrado!</h2>
+                  <p className="text-lg text-gray-600 mb-4">Tu voto ha sido registrado exitosamente</p>
+                </div>
+
+                {voteResult && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-6 max-w-md mx-auto">
+                    <h3 className="font-semibold text-green-900 mb-3">Detalles del voto:</h3>
+                    <div className="space-y-2 text-sm text-green-800">
+                      <p><strong>Votante:</strong> {voteResult.votante}</p>
+                      <p><strong>Candidato:</strong> {voteResult.candidato}</p>
+                      <p><strong>Fecha:</strong> {new Date(voteResult.timestamp).toLocaleString()}</p>
+                      <p><strong>Hash de verificación:</strong></p>
+                      <code className="text-xs bg-green-100 px-2 py-1 rounded break-all">
+                        {voteResult.hash_verificacion}
+                      </code>
+                    </div>
+                  </div>
+                )}
+
                 <Button
-                  onClick={handleNewVote}
-                  className="px-8 py-3"
+                  onClick={handleRestart}
+                  size="lg"
+                  className="mx-auto"
                 >
                   Nuevo Voto
                 </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
     </div>
   )
 }

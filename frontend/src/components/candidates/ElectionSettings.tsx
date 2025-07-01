@@ -7,8 +7,6 @@ import {
   TrashIcon,
   XCircleIcon,
   ExclamationTriangleIcon,
-  ClipboardDocumentListIcon,
-  UserGroupIcon,
   InformationCircleIcon,
   CheckCircleIcon,
   ClockIcon

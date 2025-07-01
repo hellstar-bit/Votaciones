@@ -1,175 +1,183 @@
-// VoteConfirmation.tsx
+// VoteConfirmation.tsx - Componente para confirmar el voto
 import { motion } from 'framer-motion'
 import { 
-  ShieldCheckIcon,
-  UserIcon,
-  XCircleIcon,
-  CheckCircleIcon,
   ExclamationTriangleIcon,
-  ClockIcon
+  CheckCircleIcon,
+  UserIcon,
+  ClipboardDocumentListIcon,
+  XCircleIcon 
 } from '@heroicons/react/24/outline'
 import Button from '../ui/Button'
-import { type Election, type Candidate } from '../../services/api'
+import type { Election, Candidate } from '../../services/api'
 
 interface VoteConfirmationProps {
-  election: Election | null
-  candidate: Candidate | undefined
-  isBlankVote: boolean
+  election: Election
+  candidate: Candidate | null
+  voterData: any
   onConfirm: () => void
   onCancel: () => void
-  processing: boolean
+  isProcessing: boolean
 }
 
-const VoteConfirmation = ({ 
-  election, 
-  candidate, 
-  isBlankVote, 
-  onConfirm, 
-  onCancel, 
-  processing 
+const VoteConfirmation = ({
+  election,
+  candidate,
+  voterData,
+  onConfirm,
+  onCancel,
+  isProcessing
 }: VoteConfirmationProps) => {
+  const isBlankVote = candidate === null
+
   return (
-    <motion.div
-      key="confirmation"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="max-w-2xl mx-auto space-y-6"
-    >
+    <div className="space-y-6">
+      {/* Header */}
       <div className="text-center">
-        <ShieldCheckIcon className="w-16 h-16 text-sena-500 mx-auto mb-4" />
+        <ExclamationTriangleIcon className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Confirmar Voto</h2>
-        <p className="text-gray-600">Revisa tu selección antes de confirmar</p>
+        <p className="text-gray-600">Revisa cuidadosamente tu selección antes de confirmar</p>
       </div>
 
-      {/* Información de la elección */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
-          <ClockIcon className="w-5 h-5 mr-2 text-gray-600" />
-          Información de la Elección
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      {/* Advertencia */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+        <div className="flex items-start">
+          <ExclamationTriangleIcon className="w-6 h-6 text-yellow-600 mr-3 mt-0.5" />
           <div>
-            <span className="text-gray-500">Elección:</span>
-            <p className="font-medium text-gray-900">{election?.titulo}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Tipo:</span>
-            <p className="font-medium text-gray-900">{election?.tipoEleccion?.nombre_tipo}</p>
-          </div>
-          <div>
-            <span className="text-gray-500">Finaliza:</span>
-            <p className="font-medium text-gray-900">
-              {election?.fecha_fin ? new Date(election.fecha_fin).toLocaleString() : 'N/A'}
+            <h3 className="font-semibold text-yellow-800 mb-1">¡Atención!</h3>
+            <p className="text-yellow-700 text-sm">
+              Una vez confirmado, tu voto no podrá ser modificado. 
+              Asegúrate de que la información sea correcta.
             </p>
-          </div>
-          <div>
-            <span className="text-gray-500">Estado:</span>
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-              Activa
-            </span>
           </div>
         </div>
       </div>
 
-      {/* Selección del candidato */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
-          <UserIcon className="w-5 h-5 mr-2 text-gray-600" />
-          Tu Selección
-        </h3>
+      {/* Resumen del voto */}
+      <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-200">
+        {/* Información de la elección */}
+        <div className="p-6">
+          <div className="flex items-start">
+            <ClipboardDocumentListIcon className="w-6 h-6 text-sena-600 mr-3 mt-1" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900 mb-1">Elección</h3>
+              <p className="text-gray-800 mb-2">{election.titulo}</p>
+              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                <span>🗳️ {election.tipoEleccion.nombre_tipo}</span>
+                <span>📅 {new Date(election.fecha_inicio).toLocaleDateString()}</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-        {isBlankVote ? (
-          <div className="flex items-center space-x-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-              <XCircleIcon className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div>
-              <h4 className="font-semibold text-gray-900">Voto en Blanco</h4>
-              <p className="text-sm text-gray-600">No apoyas a ningún candidato en esta elección</p>
+        {/* Información del votante */}
+        <div className="p-6">
+          <div className="flex items-start">
+            <UserIcon className="w-6 h-6 text-blue-600 mr-3 mt-1" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900 mb-1">Votante</h3>
+              <p className="text-gray-800 mb-2">
+                Documento: {voterData?.doc || voterData?.numero_documento}
+              </p>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">Método de identificación:</span>
+                <span className={`text-xs px-2 py-1 rounded ${
+                  voterData?.type === 'ACCESUM_SENA_LEARNER' 
+                    ? 'bg-green-100 text-green-800' 
+                    : voterData?.type === 'MANUAL_INPUT'
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-gray-100 text-gray-800'
+                }`}>
+                  {voterData?.type === 'ACCESUM_SENA_LEARNER' ? 'QR SENA' : 
+                   voterData?.type === 'MANUAL_INPUT' ? 'Manual' : 'QR Genérico'}
+                </span>
+              </div>
             </div>
           </div>
-        ) : candidate ? (
-          <div className="flex items-center space-x-4 p-4 bg-sena-50 rounded-lg border border-sena-200">
-            <div className="w-12 h-12 bg-sena-100 rounded-full flex items-center justify-center">
-              <span className="text-sena-600 font-semibold text-lg">
-                {candidate.persona.nombres.charAt(0)}{candidate.persona.apellidos.charAt(0)}
-              </span>
-            </div>
-            <div>
-              <h4 className="font-semibold text-gray-900">{candidate.persona.nombreCompleto}</h4>
-              <p className="text-sm text-gray-600">Documento: {candidate.persona.numero_documento}</p>
+        </div>
+
+        {/* Selección de voto */}
+        <div className="p-6">
+          <div className="flex items-start">
+            {isBlankVote ? (
+              <XCircleIcon className="w-6 h-6 text-gray-500 mr-3 mt-1" />
+            ) : (
+              <CheckCircleIcon className="w-6 h-6 text-green-600 mr-3 mt-1" />
+            )}
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900 mb-1">Tu Voto</h3>
+              {isBlankVote ? (
+                <div>
+                  <p className="text-gray-800 mb-2 font-medium">Voto en Blanco</p>
+                  <p className="text-sm text-gray-600">
+                    Has elegido no votar por ningún candidato
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-gray-800 mb-2 font-medium">
+                    {candidate?.persona.nombreCompleto}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Lista #{candidate?.numero_lista}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
-        ) : (
-          <div className="text-center text-gray-500 py-4">
-            No se ha seleccionado ningún candidato
-          </div>
-        )}
+        </div>
       </div>
 
-      {/* Advertencias importantes */}
-      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-        <div className="flex">
-          <ExclamationTriangleIcon className="w-5 h-5 text-orange-400 mr-3 mt-0.5" />
-          <div>
-            <h4 className="font-medium text-orange-800 mb-2">Información Importante</h4>
-            <ul className="text-sm text-orange-700 space-y-1">
-              <li>• Tu voto es <strong>secreto y anónimo</strong></li>
-              <li>• Una vez confirmado, <strong>no podrás cambiarlo</strong></li>
-              <li>• Solo puedes votar <strong>una vez</strong> en esta elección</li>
-              <li>• Se generará un hash de verificación para tu comprobante</li>
-            </ul>
-          </div>
+      {/* Confirmación final */}
+      <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+        <div className="text-center">
+          <h3 className="font-semibold text-red-800 mb-2">Confirmación final</h3>
+          <p className="text-red-700 text-sm mb-3">
+            ¿Estás seguro de que deseas emitir tu voto con la información mostrada arriba?
+          </p>
+          <p className="text-red-800 text-xs font-medium">
+            Esta acción no se puede deshacer
+          </p>
         </div>
       </div>
 
       {/* Botones de acción */}
-      <div className="flex space-x-4 pt-4">
+      <div className="flex space-x-4">
         <Button
-          variant="outline"
           onClick={onCancel}
-          disabled={processing}
-          className="flex-1 py-3"
+          variant="outline"
+          disabled={isProcessing}
+          className="flex-1"
         >
-          Cancelar
+          Cancelar y Revisar
         </Button>
         
         <Button
           onClick={onConfirm}
-          loading={processing}
-          disabled={processing}
-          className="flex-1 py-3 bg-sena-600 hover:bg-sena-700"
+          loading={isProcessing}
+          disabled={isProcessing}
+          className="flex-1 bg-green-600 hover:bg-green-700"
         >
-          {processing ? (
-            <div className="flex items-center">
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-              Procesando...
-            </div>
-          ) : (
-            <div className="flex items-center">
-              <CheckCircleIcon className="w-5 h-5 mr-2" />
-              Confirmar Voto
-            </div>
-          )}
+          {isProcessing ? 'Registrando Voto...' : 'Confirmar y Votar'}
         </Button>
       </div>
 
-      {/* Indicador de procesamiento */}
-      {processing && (
+      {/* Mensaje de procesamiento */}
+      {isProcessing && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center py-4"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-blue-50 border border-blue-200 rounded-xl p-4"
         >
-          <div className="inline-flex items-center space-x-2 text-sm text-gray-600">
-            <div className="w-4 h-4 border-2 border-sena-500 border-t-transparent rounded-full animate-spin" />
-            <span>Registrando tu voto de forma segura...</span>
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+            <span className="text-blue-800 font-medium">Procesando tu voto...</span>
           </div>
+          <p className="text-blue-700 text-sm text-center mt-2">
+            Por favor espera mientras registramos tu voto de forma segura
+          </p>
         </motion.div>
       )}
-    </motion.div>
+    </div>
   )
 }
 
