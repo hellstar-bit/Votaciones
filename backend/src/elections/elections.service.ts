@@ -167,43 +167,44 @@ export class ElectionsService {
   }
 
   async canDeleteElection(id: number, userId: number) {
-    const eleccion = await this.findOne(id);
+  const eleccion = await this.findOne(id);
 
-    if (eleccion.created_by !== userId) {
-      throw new ForbiddenException('No tiene permisos para eliminar esta elección');
-    }
+  if (eleccion.created_by !== userId) {
+    throw new ForbiddenException('No tiene permisos para eliminar esta elección');
+  }
 
-    // Solo se pueden eliminar elecciones canceladas
-    if (eleccion.estado !== 'cancelada') {
-      return {
-        canDelete: false,
-        reason: 'Solo se pueden eliminar elecciones en estado cancelada',
-        details: {
-          estado_actual: eleccion.estado,
-          estado_requerido: 'cancelada',
-          votos_a_eliminar: 0,
-          candidatos_a_eliminar: 0,
-          votantes_a_eliminar: 0
-        }
-      };
-    }
-
-    // Contar datos que se eliminarán
-    const [totalVotos, totalCandidatos, totalVotantes] = await Promise.all([
-      this.votoRepository.count({ where: { id_eleccion: id } }),
-      this.candidatoRepository.count({ where: { id_eleccion: id } }),
-      this.votanteHabilitadoRepository.count({ where: { id_eleccion: id } })
-    ]);
-
+  // ✅ CAMBIO: Permitir eliminar elecciones canceladas Y finalizadas
+  if (!['cancelada', 'finalizada'].includes(eleccion.estado)) {
     return {
-      canDelete: true,
+      canDelete: false,
+      reason: 'Solo se pueden eliminar elecciones en estado cancelada o finalizada',
       details: {
-        votos_a_eliminar: totalVotos,
-        candidatos_a_eliminar: totalCandidatos,
-        votantes_a_eliminar: totalVotantes
+        estado_actual: eleccion.estado,
+        estado_requerido: 'cancelada o finalizada',
+        votos_a_eliminar: 0,
+        candidatos_a_eliminar: 0,
+        votantes_a_eliminar: 0
       }
     };
   }
+
+  // Contar datos que se eliminarán
+  const [totalVotos, totalCandidatos, totalVotantes] = await Promise.all([
+    this.votoRepository.count({ where: { id_eleccion: id } }),
+    this.candidatoRepository.count({ where: { id_eleccion: id } }),
+    this.votanteHabilitadoRepository.count({ where: { id_eleccion: id } })
+  ]);
+
+  return {
+    canDelete: true,
+    details: {
+      estado_actual: eleccion.estado,
+      votos_a_eliminar: totalVotos,
+      candidatos_a_eliminar: totalCandidatos,
+      votantes_a_eliminar: totalVotantes
+    }
+  };
+}
 
   async delete(id: number, userId: number) {
     const canDeleteResult = await this.canDeleteElection(id, userId);

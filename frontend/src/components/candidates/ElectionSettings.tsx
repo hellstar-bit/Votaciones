@@ -28,6 +28,7 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  
 
   useEffect(() => {
     loadData()
@@ -85,7 +86,7 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
 
   // ✅ CAMBIO: Lógica actualizada según requerimientos
   const canCancel = election?.estado === 'activa'
-  const canDelete = election?.estado === 'cancelada' // ✅ Solo se puede eliminar si está cancelada
+  const canDelete = election?.estado === 'cancelada' || election?.estado === 'finalizada' // ✅ AGREGADO: finalizadas también se pueden eliminar
   const hasVotes = election?.total_votos_emitidos && election.total_votos_emitidos > 0
 
   const getStatusInfo = (estado: string) => {
@@ -292,13 +293,18 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
               <div className="border border-red-200 rounded-lg p-4 bg-red-50">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-medium text-red-800">Eliminar Elección Cancelada</h3>
+                    <h3 className="font-medium text-red-800">
+                      {election?.estado === 'cancelada' ? 'Eliminar Elección Cancelada' : 'Eliminar Elección Finalizada'}
+                    </h3>
                     <p className="text-sm text-red-700 mt-1">
-                      Esta acción eliminará permanentemente la elección cancelada y todos sus datos asociados (candidatos, votos, votantes habilitados). 
+                      Esta acción eliminará permanentemente la elección {election?.estado === 'cancelada' ? 'cancelada' : 'finalizada'} y todos sus datos asociados (candidatos, votos, votantes habilitados).
                       <strong> Esta acción no se puede deshacer.</strong>
                     </p>
                     <p className="text-xs text-red-600 mt-2">
-                      ⚠️ Solo se pueden eliminar elecciones que han sido canceladas previamente
+                      ⚠️ {election?.estado === 'cancelada' 
+                        ? 'Solo se pueden eliminar elecciones que han sido canceladas previamente'
+                        : 'Las elecciones finalizadas pueden eliminarse si ya no se necesitan'
+                      }
                     </p>
                     {hasVotes && (
                       <p className="text-xs text-red-600 mt-1">
@@ -331,7 +337,7 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
                         'Esta elección está en configuración. Las acciones de gestión estarán disponibles cuando esté activa.'
                       }
                       {election?.estado === 'finalizada' && 
-                        'Esta elección ha finalizado. No se pueden realizar modificaciones.'
+                        'Esta elección ha finalizado. Puede ser eliminada si lo necesita.'
                       }
                       {election?.estado === 'activa' && !canCancel &&
                         'Esta elección está activa pero no se puede cancelar en este momento.'
@@ -340,16 +346,6 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
                         'Esta elección está cancelada. Puede ser eliminada si cumple con los requisitos.'
                       }
                     </p>
-                    
-                    {/* ✅ NUEVO: Mensaje específico para elecciones canceladas */}
-                    {election?.estado === 'cancelada' && (
-                      <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                        <p className="text-sm text-orange-700">
-                          <strong>Proceso de eliminación:</strong> Para eliminar esta elección cancelada, 
-                          asegúrese de que no existan dependencias críticas del sistema.
-                        </p>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>

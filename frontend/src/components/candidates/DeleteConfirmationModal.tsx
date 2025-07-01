@@ -1,6 +1,6 @@
 // DeleteConfirmationModal.tsx - Modal específico para eliminación de elecciones
 import { useState, useEffect } from 'react'
-import { TrashIcon, ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
+import { TrashIcon, ExclamationTriangleIcon,  CheckCircleIcon } from '@heroicons/react/24/outline'
 import { electionsApi, type Election } from '../../services/api'
 import Button from '../ui/Button'
 
@@ -60,6 +60,31 @@ const DeleteConfirmationModal = ({
 
   if (!isOpen || !election) return null
 
+  // ✅ FUNCIÓN HELPER: Determinar el título según el estado
+  const getModalTitle = () => {
+    switch (election.estado) {
+      case 'cancelada':
+        return 'Eliminar Elección Cancelada'
+      case 'finalizada':
+        return 'Eliminar Elección Finalizada'
+      default:
+        return 'Eliminar Elección'
+    }
+  }
+
+  // ✅ FUNCIÓN HELPER: Mensaje contextual según el estado
+  const getContextualMessage = () => {
+    if (election.estado === 'finalizada') {
+      return (
+        <span className="block mt-2 text-xs text-gray-500">
+          Esta elección ya finalizó y todos sus resultados se conservaron. 
+          La eliminación es permanente y no se puede deshacer.
+        </span>
+      )
+    }
+    return null
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
@@ -70,7 +95,7 @@ const DeleteConfirmationModal = ({
               <TrashIcon className="w-6 h-6 text-red-600" />
             </div>
             <h3 className="text-lg font-medium text-gray-900">
-              Eliminar Elección Cancelada
+              {getModalTitle()}
             </h3>
           </div>
           
@@ -78,6 +103,7 @@ const DeleteConfirmationModal = ({
           <p className="text-sm text-gray-600 mb-4">
             ¿Está seguro que desea eliminar permanentemente la elección{' '}
             <strong>"{election.titulo}"</strong>?
+            {getContextualMessage()}
           </p>
 
           {/* Información de carga */}
@@ -93,51 +119,54 @@ const DeleteConfirmationModal = ({
           {deleteInfo && !loadingInfo && (
             <>
               {deleteInfo.canDelete ? (
-                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-start">
-                    <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mr-2 mt-0.5" />
+                    <CheckCircleIcon className="w-5 h-5 text-green-600 mr-3 mt-0.5" />
                     <div>
-                      <p className="text-sm text-red-800 mb-2">
-                        <strong>Esta acción eliminará permanentemente:</strong>
+                      <p className="text-sm text-green-800 font-medium">
+                        {election.estado === 'cancelada' 
+                          ? 'Esta elección cancelada puede ser eliminada'
+                          : 'Esta elección finalizada puede ser eliminada'
+                        }
                       </p>
-                      <ul className="text-sm text-red-700 space-y-1">
-                        <li>• La elección y su configuración completa</li>
-                        {deleteInfo.details && (
-                          <>
-                            <li>• {deleteInfo.details.candidatos_a_eliminar} candidatos registrados</li>
+                      
+                      {deleteInfo.details && (
+                        <div className="mt-2 text-xs text-green-700">
+                          <p className="font-medium mb-1">Se eliminarán:</p>
+                          <ul className="list-disc list-inside space-y-1">
+                            <li>{deleteInfo.details.candidatos_a_eliminar} candidatos registrados</li>
                             {deleteInfo.details.votos_a_eliminar > 0 && (
-                              <li>• {deleteInfo.details.votos_a_eliminar} votos emitidos</li>
+                              <li>{deleteInfo.details.votos_a_eliminar} votos emitidos</li>
                             )}
-                            <li>• {deleteInfo.details.votantes_a_eliminar} registros de votantes habilitados</li>
-                          </>
-                        )}
-                      </ul>
-                      <p className="text-sm text-red-800 mt-2 font-medium">
-                        Esta acción no se puede deshacer.
+                            <li>{deleteInfo.details.votantes_a_eliminar} registros de votantes habilitados</li>
+                          </ul>
+                        </div>
+                      )}
+
+                      <p className="text-sm text-green-800 mt-2 font-medium">
+                        ⚠️ Esta acción no se puede deshacer.
                       </p>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                   <div className="flex items-start">
-                    <InformationCircleIcon className="w-5 h-5 text-yellow-500 mr-2 mt-0.5" />
+                    <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mr-3 mt-0.5" />
                     <div>
-                      <p className="text-sm text-yellow-800">
-                        <strong>No se puede eliminar esta elección:</strong>
+                      <p className="text-sm text-red-800 font-medium">
+                        No se puede eliminar esta elección
                       </p>
-                      <p className="text-sm text-yellow-700 mt-1">
+                      <p className="text-sm text-red-700 mt-1">
                         {deleteInfo.reason}
                       </p>
-                      {deleteInfo.details && (deleteInfo.details.estado_actual || deleteInfo.details.estado_requerido) && (
-                        <div className="mt-2 text-xs text-yellow-600">
-                          {deleteInfo.details.estado_actual && (
-                            <p>Estado actual: {deleteInfo.details.estado_actual}</p>
-                          )}
-                          {deleteInfo.details.estado_requerido && (
-                            <p>Estado requerido: {deleteInfo.details.estado_requerido}</p>
-                          )}
-                        </div>
+                      
+                      {deleteInfo.details?.estado_actual && (
+                        <p className="text-xs text-red-600 mt-2">
+                          Estado actual: <strong>{deleteInfo.details.estado_actual}</strong>
+                          <br />
+                          Estado requerido: <strong>{deleteInfo.details.estado_requerido}</strong>
+                        </p>
                       )}
                     </div>
                   </div>
