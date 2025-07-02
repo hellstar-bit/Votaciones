@@ -1,5 +1,4 @@
-// 📁 src/dashboard/dashboard.service.ts
-// ====================================================================
+// 📁 backend/src/dashboard/dashboard.service.ts - MÉTODOS ADICIONALES
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -53,6 +52,133 @@ export class DashboardService {
         election: vote.eleccion.titulo,
         candidate: vote.candidato ? vote.candidato.persona.nombreCompleto : 'VOTO EN BLANCO',
         timestamp: vote.timestamp_voto,
+      })),
+    };
+  }
+
+  async getRealTimeElections() {
+    const activeElections = await this.eleccionRepository.find({
+      where: { estado: 'activa' },
+      relations: ['tipoEleccion', 'centro', 'sede', 'ficha'],
+      order: { fecha_inicio: 'DESC' },
+    });
+
+    const electionsWithStats = await Promise.all(
+      activeElections.map(async (election) => {
+        // Obtener candidatos con sus votos
+        const candidates = await this.candidatoRepository.find({
+          where: { id_eleccion: election.id_eleccion, estado: 'validado' },
+          relations: ['persona'],
+        });
+
+        // Contar votos por candidato
+        const votesPerCandidate = await Promise.all(
+          candidates.map(async (candidate) => {
+            const voteCount = await this.votoRepository.count({
+              where: { 
+                id_eleccion: election.id_eleccion, 
+                id_candidato: candidate.id_candidato 
+              },
+            });
+
+            return {
+              candidato: candidate.persona.nombreCompleto,
+              votos: voteCount,
+              porcentaje: election.total_votos_emitidos > 0 
+                ? (voteCount / election.total_votos_emitidos) * 100 
+                : 0,
+            };
+          })
+        );
+
+        // Contar votos en blanco
+        const blankVotes = await this.votoRepository.count({
+          where: { 
+            id_eleccion: election.id_eleccion, 
+            id_candidato: null 
+          },
+        });
+
+        if (blankVotes > 0) {
+          votesPerCandidate.push({
+            candidato: 'Voto en Blanco',
+            votos: blankVotes,
+            porcentaje: election.total_votos_emitidos > 0 
+              ? (blankVotes / election.total_votos_emitidos) * 100 
+              : 0,
+          });
+        }
+
+        return {
+          id: election.id_eleccion,
+          titulo: election.titulo,
+          estado: election.estado,
+          fecha_inicio: election.fecha_inicio,
+          fecha_fin: election.fecha_fin,
+          estadisticas: {
+            total_votos: election.total_votos_emitidos,
+            total_votantes_habilitados: election.total_votantes_habilitados,
+            participacion_porcentaje: election.total_votantes_habilitados > 0 
+              ? (election.total_votos_emitidos / election.total_votantes_habilitados) * 100 
+              : 0,
+            votos_por_candidato: votesPerCandidate,
+          },
+        };
+      })
+    );
+
+    return electionsWithStats;
+  }
+
+  async getGlobalRealTimeStats() {
+    const activeElections = await this.eleccionRepository.count({
+      where: { estado: 'activa' },
+    });
+
+    const totalElections = await this.eleccionRepository.count();
+
+    const totalVotes = await this.votoRepository
+      .createQueryBuilder('voto')
+      .innerJoin('voto.eleccion', 'eleccion')
+      .where('eleccion.estado = :estado', { estado: 'activa' })
+      .getCount();
+
+    const totalEnabledVoters = await this.votanteHabilitadoRepository
+      .createQueryBuilder('votante')
+      .innerJoin('votante.eleccion', 'eleccion')
+      .where('eleccion.estado = :estado', { estado: 'activa' })
+      .getCount();
+
+    // Actividad reciente (últimos 10 votos)
+    const recentActivity = await this.votoRepository
+      .createQueryBuilder('voto')
+      .innerJoin('voto.eleccion', 'eleccion')
+      .leftJoin('voto.candidato', 'candidato')
+      .leftJoin('candidato.persona', 'persona')
+      .select([
+        'voto.created_at',
+        'eleccion.titulo',
+        'persona.nombreCompleto',
+      ])
+      .where('eleccion.estado = :estado', { estado: 'activa' })
+      .orderBy('voto.created_at', 'DESC')
+      .limit(10)
+      .getRawMany();
+
+    return {
+      summary: {
+        total_elections: totalElections,
+        active_elections: activeElections,
+        total_votes: totalVotes,
+        total_voters: totalEnabledVoters,
+        participation_rate: totalEnabledVoters > 0 
+          ? (totalVotes / totalEnabledVoters) * 100 
+          : 0,
+      },
+      recent_activity: recentActivity.map(activity => ({
+        election: activity.eleccion_titulo,
+        candidate: activity.persona_nombreCompleto || 'Voto en Blanco',
+        timestamp: activity.voto_created_at,
       })),
     };
   }

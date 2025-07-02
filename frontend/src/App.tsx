@@ -1,59 +1,41 @@
+// 📁 frontend/src/App.tsx - Sección de rutas actualizada
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './stores/authStore'
-
-// Pages
 import Landing from './pages/public/Landing'
 import Login from './pages/auth/Login'
-import VotingStation from './components/voting/VotingStation'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
-import AdminVotingPage from './pages/admin/AdminVotingPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import AdminReportsPage from './pages/admin/AdminReportsPage'
-import AdminSettingsPage from './pages/admin/AdminSettingsPage'
+import VotingStation from './components/voting/VotingStation'
+import RealTimeDashboard from './pages/dashboard/RealTimeDashboard' // ✅ NUEVO
 
-
-// Protected Route Component
-const ProtectedRoute = ({
-  children,
-  allowedRoles
-}: {
+// Componente de protección de rutas
+const ProtectedRoute = ({ 
+  children, 
+  allowedRoles 
+}: { 
   children: React.ReactNode
-  allowedRoles: string[]
+  allowedRoles: string[] 
 }) => {
-  const { isAuthenticated, user } = useAuthStore()
+  const { user, isAuthenticated } = useAuthStore()
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
 
-  if (user && !allowedRoles.includes(user.rol)) {
+  if (allowedRoles.length > 0 && user && !allowedRoles.includes(user.rol)) {
     return <Navigate to="/unauthorized" replace />
   }
 
   return <>{children}</>
 }
 
-// Placeholder components for other dashboards
-const VotingDashboard = () => (
+// Páginas de error y no autorizado
+const InstructorPlaceholder = () => (
   <div className="min-h-screen bg-gray-50 flex items-center justify-center">
     <div className="text-center">
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">Mesa de Votación</h1>
-      <p className="text-gray-600 mb-6">Sistema de votación activo</p>
-      <button
-        onClick={() => useAuthStore.getState().logout()}
-        className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
-      >
-        Cerrar Sesión
-      </button>
-    </div>
-  </div>
-)
-
-const InstructorDashboard = () => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">Dashboard Instructor</h1>
+      <h1 className="text-3xl font-bold text-sena-600 mb-4">Panel de Instructor</h1>
       <p className="text-gray-600 mb-6">Panel de control para instructores</p>
       <button
         onClick={() => useAuthStore.getState().logout()}
@@ -88,9 +70,11 @@ const Dashboard = () => {
 
   switch (user.rol) {
     case 'ADMIN':
-      return <Navigate to="/admin" replace />        // ← Va al dashboard con sidebar
+      return <Navigate to="/admin" replace />
+    case 'DASHBOARD':  // ✅ NUEVO: redirigir usuarios con rol DASHBOARD
+      return <Navigate to="/real-time-dashboard" replace />
     case 'MESA_VOTACION':
-      return <Navigate to="/voting" replace />       // ← Va directo a votación sin sidebar
+      return <Navigate to="/voting" replace />
     case 'INSTRUCTOR':
       return <Navigate to="/instructor" replace />
     default:
@@ -117,48 +101,37 @@ function App() {
               <AdminDashboardPage />
             </ProtectedRoute>
           } />
-
-          <Route path="/admin/voting" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminVotingPage />
-            </ProtectedRoute>
-          } />
-
+          
           <Route path="/admin/users" element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
               <AdminUsersPage />
             </ProtectedRoute>
           } />
-
+          
           <Route path="/admin/reports" element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
               <AdminReportsPage />
             </ProtectedRoute>
           } />
 
-          <Route path="/admin/settings" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminSettingsPage />
+          {/* ✅ NUEVO: Dashboard en Tiempo Real */}
+          <Route path="/real-time-dashboard" element={
+            <ProtectedRoute allowedRoles={['ADMIN', 'DASHBOARD']}>
+              <RealTimeDashboard />
             </ProtectedRoute>
           } />
 
-          {/* Voting Station Route (para usuarios MESA_VOTACION) */}
+          {/* Voting Station */}
           <Route path="/voting" element={
-            <ProtectedRoute allowedRoles={['MESA_VOTACION', 'ADMIN']}>
+            <ProtectedRoute allowedRoles={['MESA_VOTACION']}>
               <VotingStation />
             </ProtectedRoute>
           } />
 
-          {/* Legacy routes - mantener por compatibilidad */}
-          <Route path="/voting-legacy" element={
-            <ProtectedRoute allowedRoles={['MESA_VOTACION']}>
-              <VotingDashboard />
-            </ProtectedRoute>
-          } />
-
+          {/* Instructor Routes */}
           <Route path="/instructor" element={
             <ProtectedRoute allowedRoles={['INSTRUCTOR']}>
-              <InstructorDashboard />
+              <InstructorPlaceholder />
             </ProtectedRoute>
           } />
 
@@ -166,13 +139,29 @@ function App() {
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
 
+        {/* Toast notifications */}
         <Toaster
           position="top-right"
           toastOptions={{
             duration: 4000,
             style: {
-              background: '#363636',
-              color: '#fff',
+              background: '#1F2937',
+              color: '#F9FAFB',
+              border: '1px solid #374151',
+            },
+            success: {
+              style: {
+                background: '#065F46',
+                color: '#D1FAE5',
+                border: '1px solid #10B981',
+              },
+            },
+            error: {
+              style: {
+                background: '#7F1D1D',
+                color: '#FEE2E2',
+                border: '1px solid #EF4444',
+              },
             },
           }}
         />

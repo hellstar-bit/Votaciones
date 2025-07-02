@@ -1,4 +1,4 @@
-// 📁 src/database/seeds/roles.seed.ts
+// 📁 backend/src/database/seeds/roles.seed.ts - VERSIÓN FINAL
 import { DataSource } from 'typeorm';
 import { Rol } from '../../users/entities/rol.entity';
 
@@ -15,6 +15,18 @@ export async function seedRoles(dataSource: DataSource) {
         manage_candidates: true,
         view_results: true,
         manage_users: true,
+        real_time_dashboard: true, // ✅ AGREGADO
+      },
+    },
+    {
+      nombre_rol: 'DASHBOARD', // ✅ NUEVO ROL
+      descripcion: 'Usuario con acceso exclusivo al dashboard de votaciones en tiempo real',
+      permisos: {
+        real_time_dashboard: true,
+        view_results: true,
+        view_election_data: true,
+        view_statistics: true,
+        monitor_voting: true,
       },
     },
     {
@@ -46,16 +58,41 @@ export async function seedRoles(dataSource: DataSource) {
   ];
 
   for (const roleData of roles) {
-    const existingRole = await roleRepository.findOne({
-      where: { nombre_rol: roleData.nombre_rol },
-    });
+    try {
+      const existingRole = await roleRepository.findOne({
+        where: { nombre_rol: roleData.nombre_rol },
+      });
 
-    if (!existingRole) {
-      const role = roleRepository.create(roleData);
-      await roleRepository.save(role);
-      console.log(`✅ Rol creado: ${roleData.nombre_rol}`);
-    } else {
-      console.log(`⚠️  Rol ya existe: ${roleData.nombre_rol}`);
+      if (!existingRole) {
+        // ✅ CREAR usando queryBuilder para evitar problemas de tipos
+        await roleRepository
+          .createQueryBuilder()
+          .insert()
+          .into(Rol)
+          .values({
+            nombre_rol: roleData.nombre_rol,
+            descripcion: roleData.descripcion,
+            permisos: roleData.permisos as any, // ✅ Forzar el tipo
+          })
+          .execute();
+        
+        console.log(`✅ Rol creado: ${roleData.nombre_rol}`);
+      } else {
+        // ✅ ACTUALIZAR usando queryBuilder
+        await roleRepository
+          .createQueryBuilder()
+          .update(Rol)
+          .set({
+            descripcion: roleData.descripcion,
+            permisos: roleData.permisos as any, // ✅ Forzar el tipo
+          })
+          .where('nombre_rol = :nombre', { nombre: roleData.nombre_rol })
+          .execute();
+        
+        console.log(`🔄 Rol actualizado: ${roleData.nombre_rol}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error procesando rol ${roleData.nombre_rol}:`, error);
     }
   }
 }

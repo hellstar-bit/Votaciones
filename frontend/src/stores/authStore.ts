@@ -1,3 +1,4 @@
+// 📁 frontend/src/stores/authStore.ts - ACTUALIZAR SOLO LA INTERFACE
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -5,7 +6,7 @@ interface User {
   id: number
   username: string
   nombre_completo: string
-  rol: 'ADMIN' | 'MESA_VOTACION' | 'INSTRUCTOR' | 'APRENDIZ'
+  rol: 'ADMIN' | 'DASHBOARD' | 'MESA_VOTACION' | 'INSTRUCTOR' | 'APRENDIZ' // ✅ AGREGADO 'DASHBOARD'
   centro?: string
   sede?: string
   ficha?: string
