@@ -1,4 +1,4 @@
-// 📁 frontend/src/App.tsx - Sección de rutas actualizada
+// 📁 frontend/src/App.tsx - CORREGIDO
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './stores/authStore'
@@ -7,8 +7,9 @@ import Login from './pages/auth/Login'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import AdminReportsPage from './pages/admin/AdminReportsPage'
+import AdminVotingPage from './pages/admin/AdminVotingPage' // ✅ IMPORTAR AdminVotingPage
 import VotingStation from './components/voting/VotingStation'
-import RealTimeDashboard from './pages/dashboard/RealTimeDashboard' // ✅ NUEVO
+import RealTimeDashboard from './pages/dashboard/RealTimeDashboard'
 
 // Componente de protección de rutas
 const ProtectedRoute = ({ 
@@ -71,7 +72,7 @@ const Dashboard = () => {
   switch (user.rol) {
     case 'ADMIN':
       return <Navigate to="/admin" replace />
-    case 'DASHBOARD':  // ✅ NUEVO: redirigir usuarios con rol DASHBOARD
+    case 'DASHBOARD':
       return <Navigate to="/real-time-dashboard" replace />
     case 'MESA_VOTACION':
       return <Navigate to="/voting" replace />
@@ -101,27 +102,34 @@ function App() {
               <AdminDashboardPage />
             </ProtectedRoute>
           } />
+
+          {/* ✅ NUEVA RUTA: Mesa de Votación para Admin */}
+          <Route path="/admin/voting" element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminVotingPage />
+            </ProtectedRoute>
+          } />
           
           <Route path="/admin/users" element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
               <AdminUsersPage />
             </ProtectedRoute>
           } />
-          
+        
           <Route path="/admin/reports" element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
               <AdminReportsPage />
             </ProtectedRoute>
           } />
 
-          {/* ✅ NUEVO: Dashboard en Tiempo Real */}
+          {/* Dashboard en Tiempo Real */}
           <Route path="/real-time-dashboard" element={
             <ProtectedRoute allowedRoles={['ADMIN', 'DASHBOARD']}>
               <RealTimeDashboard />
             </ProtectedRoute>
           } />
 
-          {/* Voting Station */}
+          {/* Voting Station - Solo para usuarios MESA_VOTACION */}
           <Route path="/voting" element={
             <ProtectedRoute allowedRoles={['MESA_VOTACION']}>
               <VotingStation />

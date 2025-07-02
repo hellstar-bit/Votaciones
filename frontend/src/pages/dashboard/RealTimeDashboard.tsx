@@ -25,6 +25,20 @@ import io, { Socket } from 'socket.io-client'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../../stores/authStore'
 
+// ✅ DEFINIR COLORS - Array de colores para los gráficos
+const COLORS = [
+  '#3B82F6', // blue-500
+  '#EF4444', // red-500
+  '#10B981', // emerald-500
+  '#F59E0B', // amber-500
+  '#8B5CF6', // violet-500
+  '#EC4899', // pink-500
+  '#06B6D4', // cyan-500
+  '#84CC16', // lime-500
+  '#F97316', // orange-500
+  '#6366F1'  // indigo-500
+]
+
 // Interfaces para los datos
 interface ElectionStats {
   id: number
@@ -56,6 +70,15 @@ interface VoteUpdate {
   electionId: number
   stats: ElectionStats['estadisticas']
   timestamp: string
+}
+
+// ✅ FUNCIONES AUXILIARES - Definir funciones que faltan
+const formatNumber = (num: number): string => {
+  return new Intl.NumberFormat('es-ES').format(num)
+}
+
+const formatPercentage = (percent: number): string => {
+  return `${percent.toFixed(1)}%`
 }
 
 const RealTimeDashboard = () => {
@@ -174,70 +197,68 @@ const RealTimeDashboard = () => {
           ? { ...prev, estadisticas: data.stats }
           : prev
       )
-
+      
       // Actualizar historial de votos
       setVoteHistory(prev => {
         const newEntry = {
-          time: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+          time: new Date().toLocaleTimeString('es-ES', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }),
           votes: data.stats.total_votos
         }
         return [...prev.slice(1), newEntry]
       })
-
-      // Mostrar notificación
-      toast.success(`Nuevo voto registrado`, {
-        icon: '🗳️',
-        duration: 2000
-      })
+      
+      // Agregar alerta de nuevo voto
+      const newAlert = {
+        id: `vote-${Date.now()}`,
+        message: `Nuevo voto registrado en ${data.electionId}`,
+        type: 'info',
+        time: new Date()
+      }
+      setAlerts(prev => [...prev.slice(-4), newAlert]) // Mantener solo 5 alertas
     })
 
-    // Alertas del sistema
+    // ✅ Manejar alertas del sistema
     socket.on('alert', (alert: { message: string, type: string, timestamp: string }) => {
       const newAlert = {
-        id: Date.now().toString(),
+        id: `alert-${Date.now()}`,
         message: alert.message,
         type: alert.type,
         time: new Date(alert.timestamp)
       }
+      setAlerts(prev => [...prev.slice(-4), newAlert])
       
-      setAlerts(prev => [newAlert, ...prev.slice(0, 4)]) // Mantener solo 5 alertas
-      
+      // Mostrar toast según tipo
       if (alert.type === 'error') {
         toast.error(alert.message)
       } else if (alert.type === 'warning') {
         toast(alert.message, { icon: '⚠️' })
+      } else {
+        toast.success(alert.message)
       }
     })
 
-    // Unirse a las salas de elecciones activas
-    if (dashboardData?.elections) {
-      dashboardData.elections.forEach(election => {
-        socket.emit('join-election-room', { electionId: election.id })
-      })
-    }
-
+    // Limpiar al desmontar
     return () => {
-      socket.disconnect()
-      setIsConnected(false)
+      if (socketRef.current) {
+        console.log('🔌 Desconectando WebSocket...')
+        socketRef.current.disconnect()
+      }
     }
   }, [token])
 
-  // Función para formatear números
-  const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('es-ES').format(num)
-  }
-
-  // Función para formatear porcentajes
-  const formatPercentage = (num: number) => {
-    return `${num.toFixed(1)}%`
-  }
-
+  // ✅ MANEJO DE CARGA - Mostrar loading mientras no hay datos
   if (!dashboardData) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-green-500 mx-auto mb-4"></div>
-          <p className="text-white text-lg">Conectando al dashboard...</p>
+          <ArrowPathIcon className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <p className="text-lg">Cargando dashboard...</p>
+          <p className="text-sm text-gray-400 mt-2">
+            {isConnected ? 'Conectado' : 'Conectando...'}
+          </p>
         </div>
       </div>
     )
@@ -246,17 +267,15 @@ const RealTimeDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
+      <header className="bg-gray-800 border-b border-gray-700">
+        <div className="px-6 py-4 flex justify-between items-center">
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <ChartBarIcon className="w-8 h-8 text-green-500" />
-              <h1 className="text-2xl font-bold">Dashboard Electoral SENA</h1>
-            </div>
+            <h1 className="text-2xl font-bold">Dashboard en Tiempo Real</h1>
             
-            {/* Indicador de conexión */}
             <div className="flex items-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <div className={`w-2 h-2 rounded-full ${
+                isConnected ? 'bg-green-500' : 'bg-red-500'
+              }`}></div>
               <span className="text-sm text-gray-300">
                 {isConnected ? 'En vivo' : 'Desconectado'}
               </span>
