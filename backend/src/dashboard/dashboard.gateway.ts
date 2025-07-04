@@ -1,4 +1,4 @@
-// 📁 backend/src/dashboard/dashboard.gateway.ts - ACTUALIZADO
+// 📁 backend/src/dashboard/dashboard.gateway.ts - CORREGIDO
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -11,6 +11,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { Injectable, UseGuards, Inject, forwardRef } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config'; // ✅ AGREGAR ConfigService
 import { ElectionsService } from '../elections/elections.service';
 
 @Injectable()
@@ -22,6 +23,9 @@ import { ElectionsService } from '../elections/elections.service';
   namespace: '/dashboard',
 })
 export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnect {
+  notifyNewVote(id_eleccion: number) {
+    throw new Error('Method not implemented.');
+  }
   @WebSocketServer()
   server: Server;
 
@@ -29,25 +33,59 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
 
   constructor(
     private jwtService: JwtService,
+    private configService: ConfigService, // ✅ INYECTAR ConfigService
     @Inject(forwardRef(() => ElectionsService))
     private electionsService: ElectionsService,
   ) {}
 
   async handleConnection(client: Socket) {
     try {
-      const token = client.handshake.auth.token || client.handshake.headers.authorization?.split(' ')[1];
+      console.log('🔌 Nueva conexión WebSocket:', client.id);
+      
+      // ✅ MEJORAR extracción del token
+      let token = client.handshake.auth?.token;
+      
+      if (!token) {
+        // Intentar extraer del header Authorization
+        const authHeader = client.handshake.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          token = authHeader.split(' ')[1];
+        }
+      }
       
       if (!token) {
         console.log('❌ Cliente sin token intentando conectar');
+        client.emit('error', { message: 'Token requerido' });
         client.disconnect();
         return;
       }
 
-      const payload = await this.jwtService.verifyAsync(token);
+      console.log('🔑 Token recibido, verificando...');
+
+      // ✅ VERIFICAR token manualmente con el secret correcto
+      const jwtSecret = this.configService.get<string>('JWT_SECRET');
+      
+      if (!jwtSecret) {
+        console.error('❌ JWT_SECRET no configurado en variables de entorno');
+        client.emit('error', { message: 'Error de configuración del servidor' });
+        client.disconnect();
+        return;
+      }
+
+      console.log('🔐 JWT_SECRET encontrado, verificando token...');
+
+      // ✅ USAR verifyAsync con opciones explícitas
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: jwtSecret,
+        ignoreExpiration: false,
+      });
+      
+      console.log('✅ Token verificado para usuario:', payload.nombre_completo, 'Rol:', payload.rol);
       
       // ✅ VERIFICAR que el usuario tiene permisos para el dashboard
       if (!['ADMIN', 'DASHBOARD', 'MESA_VOTACION'].includes(payload.rol)) {
         console.log(`❌ Usuario con rol ${payload.rol} intentando acceder al dashboard`);
+        client.emit('error', { message: 'No tienes permisos para acceder al dashboard' });
         client.disconnect();
         return;
       }
@@ -58,20 +96,41 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
       if (payload.rol === 'ADMIN') {
         client.join('admin-dashboard');
         client.join('full-access'); // Acceso completo
+        console.log(`👤 Admin ${payload.nombre_completo} conectado`);
       } else if (payload.rol === 'DASHBOARD') {
         client.join('dashboard-only'); // Solo dashboard en tiempo real
         client.join('full-access'); // También acceso completo para ver todo
+        console.log(`📊 Usuario Dashboard ${payload.nombre_completo} conectado`);
       } else if (payload.rol === 'MESA_VOTACION') {
         client.join(`mesa-${payload.sede_id || 'general'}`);
+        console.log(`🗳️ Mesa de votación ${payload.nombre_completo} conectada`);
       }
 
-      console.log(`✅ Cliente conectado: ${client.id} - Rol: ${payload.rol} - Usuario: ${payload.nombre_completo}`);
+      console.log(`✅ Cliente conectado exitosamente: ${client.id} - Rol: ${payload.rol} - Usuario: ${payload.nombre_completo}`);
+      
+      // ✅ CONFIRMAR conexión al cliente
+      client.emit('connection-confirmed', {
+        message: 'Conectado exitosamente',
+        userId: payload.id_usuario,
+        role: payload.rol,
+        timestamp: new Date().toISOString(),
+      });
       
       // Enviar estadísticas iniciales
       await this.sendInitialStats(client, payload.rol);
       
     } catch (error) {
       console.error('❌ Error en conexión WebSocket:', error);
+      
+      // ✅ ENVIAR error específico al cliente
+      if (error.name === 'JsonWebTokenError') {
+        client.emit('error', { message: 'Token inválido' });
+      } else if (error.name === 'TokenExpiredError') {
+        client.emit('error', { message: 'Token expirado' });
+      } else {
+        client.emit('error', { message: 'Error de autenticación' });
+      }
+      
       client.disconnect();
     }
   }
@@ -82,6 +141,21 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
       console.log(`👋 Cliente desconectado: ${client.id} - ${clientData.user.nombre_completo}`);
     }
     this.connectedClients.delete(client.id);
+  }
+
+  // ✅ NUEVO: Manejar solicitud de estado de conexión
+  @SubscribeMessage('get-connection-status')
+  handleGetConnectionStatus(@ConnectedSocket() client: Socket) {
+    const clientData = this.connectedClients.get(client.id);
+    if (clientData) {
+      client.emit('connection-status', {
+        connected: true,
+        user: clientData.user.nombre_completo,
+        role: clientData.user.rol,
+        timestamp: new Date().toISOString(),
+        totalConnections: this.connectedClients.size,
+      });
+    }
   }
 
   @SubscribeMessage('join-election-room')
@@ -98,125 +172,87 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     console.log(`📊 Cliente ${client.id} unido a sala de elección ${data.electionId}`);
     
     try {
-      const stats = await this.electionsService.getElectionStats(data.electionId);
-      client.emit('election-stats', stats);
+      const electionStats = await this.electionsService.getElectionStats(data.electionId);
+      client.emit('election-stats', electionStats);
     } catch (error) {
-      console.error('❌ Error al obtener estadísticas:', error);
-      client.emit('error', { message: 'Error al obtener estadísticas' });
+      console.error('Error obteniendo estadísticas de elección:', error);
+      client.emit('error', { message: 'Error obteniendo datos de la elección' });
     }
   }
 
-  @SubscribeMessage('get-election-stats')
-  async handleGetElectionStats(
+  @SubscribeMessage('leave-election-room')
+  handleLeaveElectionRoom(
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { electionId: number },
   ) {
-    try {
-      const stats = await this.electionsService.getElectionStats(data.electionId);
-      client.emit('election-stats', stats);
-    } catch (error) {
-      console.error('❌ Error al obtener estadísticas:', error);
-      client.emit('error', { message: 'Error al obtener estadísticas' });
-    }
+    const room = `election-${data.electionId}`;
+    client.leave(room);
+    console.log(`📊 Cliente ${client.id} salió de la sala de elección ${data.electionId}`);
   }
 
-  // ✅ MEJORADO: Notificación de nuevo voto
-  async notifyNewVote(electionId: number) {
-    try {
-      if (!this.electionsService) {
-        console.warn('⚠️ ElectionsService no disponible para notificación');
-        return;
-      }
-
-      const stats = await this.electionsService.getElectionStats(electionId);
-      
-      const voteNotification = {
-        electionId,
-        stats,
-        timestamp: new Date().toISOString(),
-        type: 'new-vote'
-      };
-
-      // Enviar a sala específica de la elección
-      this.server.to(`election-${electionId}`).emit('new-vote', voteNotification);
-
-      // ✅ ENVIAR A USUARIOS CON ACCESO COMPLETO (ADMIN + DASHBOARD)
-      this.server.to('full-access').emit('vote-notification', {
-        electionId,
-        totalVotes: stats.estadisticas.total_votos,
-        electionTitle: stats.eleccion.titulo,
-        timestamp: new Date().toISOString(),
-      });
-
-      console.log(`🗳️ Notificación de voto enviada para elección ${electionId}`);
-
-    } catch (error) {
-      console.error('❌ Error al notificar nuevo voto:', error);
-    }
-  }
-
-  // ✅ MEJORADO: Enviar estadísticas iniciales según rol
+  // ✅ MÉTODO para enviar estadísticas iniciales
   private async sendInitialStats(client: Socket, userRole: string) {
     try {
-      if (!this.electionsService) {
-        console.warn('⚠️ ElectionsService no disponible para estadísticas iniciales');
-        return;
-      }
-
+      console.log(`📈 Enviando estadísticas iniciales para rol: ${userRole}`);
+      
+      // Obtener elecciones activas
       const activeElections = await this.electionsService.getActiveElections();
       
-      // ✅ DATOS COMPLETOS PARA ADMIN Y DASHBOARD
-      if (['ADMIN', 'DASHBOARD'].includes(userRole)) {
-        const initialData = {
-          activeElections: activeElections.length,
-          elections: await Promise.all(
-            activeElections.map(async (election) => {
-              try {
-                const stats = await this.electionsService.getElectionStats(election.id_eleccion);
-                return {
-                  id: election.id_eleccion,
-                  titulo: election.titulo,
-                  estado: election.estado,
-                  fecha_inicio: election.fecha_inicio,
-                  fecha_fin: election.fecha_fin,
-                  stats: stats.estadisticas,
-                };
-              } catch (error) {
-                console.error(`❌ Error al obtener stats para elección ${election.id_eleccion}:`, error);
-                return {
-                  id: election.id_eleccion,
-                  titulo: election.titulo,
-                  estado: election.estado,
-                  stats: null,
-                };
-              }
-            })
-          ),
-          userRole,
-          timestamp: new Date().toISOString(),
-        };
+      // ✅ DATOS BÁSICOS para todos los roles
+      const dashboardData = {
+        activeElections: activeElections.length,
+        elections: activeElections.map(election => ({
+          id: election.id_eleccion,
+          titulo: election.titulo,
+          estado: election.estado,
+          fecha_inicio: election.fecha_inicio,
+          fecha_fin: election.fecha_fin,
+          estadisticas: {
+            total_votos: 0, // Se calculará en tiempo real
+            participacion_porcentaje: 0,
+            total_votantes_habilitados: 0,
+            votos_por_candidato: [],
+          }
+        })),
+        timestamp: new Date().toISOString(),
+      };
 
-        client.emit('initial-dashboard-data', initialData);
-        console.log(`📊 Datos iniciales enviados a ${userRole}`);
-      }
+      console.log(`📊 Enviando datos iniciales:`, {
+        elecciones: dashboardData.activeElections,
+        usuario_rol: userRole
+      });
+
+      client.emit('initial-dashboard-data', dashboardData);
       
-      // ✅ DATOS LIMITADOS PARA MESA DE VOTACIÓN
-      else if (userRole === 'MESA_VOTACION') {
-        const limitedData = {
-          activeElections: activeElections.length,
-          userRole,
-          timestamp: new Date().toISOString(),
-        };
-
-        client.emit('initial-dashboard-data', limitedData);
-      }
-
     } catch (error) {
       console.error('❌ Error al enviar estadísticas iniciales:', error);
+      client.emit('error', { message: 'Error obteniendo datos iniciales' });
     }
   }
 
-  // ✅ NUEVO: Método para enviar alertas dirigidas
+  // ✅ MÉTODO para broadcastear actualizaciones de votos
+  async broadcastVoteUpdate(electionId: number, voteData: any) {
+    try {
+      const update = {
+        electionId,
+        stats: voteData,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Enviar a todos los usuarios con acceso completo
+      this.server.to('full-access').emit('new-vote', update);
+      
+      // También enviar a la sala específica de la elección
+      this.server.to(`election-${electionId}`).emit('new-vote', update);
+      
+      console.log(`📢 Actualización de voto broadcasted para elección ${electionId}`);
+      
+    } catch (error) {
+      console.error('❌ Error broadcasting voto:', error);
+    }
+  }
+
+  // ✅ MÉTODO para enviar alertas dirigidas
   async sendAlert(
     message: string, 
     type: 'info' | 'warning' | 'error' = 'info', 
@@ -240,20 +276,7 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     console.log(`🚨 Alerta enviada: ${message} (${type}) - Roles: ${targetRoles.join(', ')}`);
   }
 
-  // ✅ NUEVO: Método para broadcastear actualizaciones de elección
-  async broadcastElectionUpdate(electionId: number, updateType: string, data: any) {
-    const update = {
-      electionId,
-      updateType,
-      data,
-      timestamp: new Date().toISOString(),
-    };
-
-    this.server.to('full-access').emit('election-update', update);
-    console.log(`📢 Actualización de elección ${electionId} broadcasted: ${updateType}`);
-  }
-
-  // ✅ NUEVO: Obtener estadísticas de conexiones
+  // ✅ MÉTODO para obtener estadísticas de conexiones
   getConnectionStats() {
     const connections = Array.from(this.connectedClients.values());
     const roleStats = connections.reduce((acc, { user }) => {
