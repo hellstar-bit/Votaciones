@@ -1,5 +1,6 @@
+// AdminDashboard.tsx - Diseño coherente con el sistema existente
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
@@ -13,11 +14,13 @@ import {
   PlayIcon,
   ChartPieIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  EyeIcon,
+  ClockIcon,
+  CalendarIcon
 } from '@heroicons/react/24/outline'
 import { useAuthStore } from '../../stores/authStore'
 import { dashboardApi, electionsApi, type Election, type DashboardStats, handleApiError } from '../../services/api'
-import Button from '../ui/Button'
 import CreateElectionModal from '../modals/CreateElectionModal'
 import CandidatesManagement from '../candidates/CandidatesManagement'
 import ElectionSettings from '../candidates/ElectionSettings'
@@ -30,7 +33,6 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [elections, setElections] = useState<Election[]>([])
   const [loading, setLoading] = useState(true)
-  const [] = useState<number | null>(null)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [currentView, setCurrentView] = useState<'dashboard' | 'candidates' | 'settings'>('dashboard')
   const [selectedElectionId, setSelectedElectionId] = useState<number | null>(null)
@@ -49,24 +51,17 @@ const AdminDashboard = () => {
 
         setStats(dashboardStats)
         setElections(allElections)
-        // ✅ No cambia loading, por eso no se ve el refresh
       } catch (error) {
         console.error('Error actualizando datos:', error)
-        // No mostrar toast para no molestar al usuario
       }
     }
 
-    // Actualizar cada 1 minuto de forma silenciosa
+    // Actualizar cada 30 segundos de forma silenciosa
     const interval = setInterval(updateDataSilently, 30000)
-
     return () => clearInterval(interval)
   }, [])
 
-  useEffect(() => {
-    fetchDashboardData() // Carga inicial con loading
-  }, [])
-
-  // Función para la carga inicial (con loading)
+  // Función para la carga inicial
   const fetchDashboardData = async () => {
     try {
       setLoading(true)
@@ -88,15 +83,11 @@ const AdminDashboard = () => {
     }
   }
 
-
-  // Función para activar una elección
   // Función para activar una elección
   const handleActivateElection = async (electionId: number) => {
     try {
       await electionsApi.activate(electionId)
       toast.success('Elección activada exitosamente')
-
-      // Recargar datos
       await fetchDashboardData()
     } catch (error) {
       const errorMessage = handleApiError(error)
@@ -109,8 +100,6 @@ const AdminDashboard = () => {
     try {
       await electionsApi.finalize(electionId)
       toast.success('Elección finalizada exitosamente')
-
-      // Recargar datos
       await fetchDashboardData()
     } catch (error) {
       const errorMessage = handleApiError(error)
@@ -149,7 +138,7 @@ const AdminDashboard = () => {
       case 'activa': return 'bg-green-100 text-green-800'
       case 'configuracion': return 'bg-yellow-100 text-yellow-800'
       case 'finalizada': return 'bg-blue-100 text-blue-800'
-      case 'cancelada': return 'bg-red-100 text-red-800' // ✅ AGREGADO
+      case 'cancelada': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-800'
     }
   }
@@ -159,7 +148,7 @@ const AdminDashboard = () => {
       case 'activa': return <PlayIcon className="w-4 h-4" />
       case 'configuracion': return <Cog6ToothIcon className="w-4 h-4" />
       case 'finalizada': return <CheckCircleIcon className="w-4 h-4" />
-      case 'cancelada': return <ExclamationTriangleIcon className="w-4 h-4" /> // ✅ AGREGADO
+      case 'cancelada': return <ExclamationTriangleIcon className="w-4 h-4" />
       default: return null
     }
   }
@@ -167,16 +156,19 @@ const AdminDashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-          className="w-8 h-8 border-4 border-sena-500 border-t-transparent rounded-full"
-        />
+        <motion.div className="text-center">
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+            className="w-12 h-12 border-4 border-sena-500 border-t-transparent rounded-full mx-auto mb-4"
+          />
+          <p className="text-gray-600 font-medium">Cargando dashboard...</p>
+        </motion.div>
       </div>
     )
   }
 
-  // ✅ CORRECTO: Después las condiciones de navegación
+  // Navegación condicional
   if (currentView === 'candidates' && selectedElectionId) {
     return (
       <CandidatesManagement
@@ -195,375 +187,395 @@ const AdminDashboard = () => {
     )
   }
 
-  // ✅ CORRECTO: Finalmente el dashboard normal
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              <div className="w-8 h-8 bg-gradient-to-br from-sena-500 to-sena-600 rounded-lg flex items-center justify-center">
+    <div className="h-full bg-gray-50 overflow-hidden">
+      {/* Header - más compacto y coherente */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-sena-500 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">S</span>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Panel Administrativo</h1>
+                <h1 className="text-xl font-semibold text-gray-900">Panel Administrativo</h1>
                 <p className="text-sm text-gray-500">Sistema de Votaciones SENA</p>
               </div>
             </div>
 
             <div className="flex items-center space-x-4">
-              <div className="hidden sm:block text-right">
-                <p className="text-sm font-medium text-gray-900">{user?.nombre_completo}</p>
-                <p className="text-xs text-gray-500">{user?.rol}</p>
+              {/* Búsqueda */}
+              <div className="relative">
+                <input 
+                  type="text" 
+                  placeholder="Buscar elecciones..." 
+                  className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-sena-500 focus:border-transparent w-64"
+                />
+                <ChartBarIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               </div>
-              <Button
-                variant="outline"
-                size="sm"
+
+              {/* Notificaciones */}
+              <button className="relative p-2 text-gray-400 hover:text-gray-600 transition-colors">
+                <BellIcon className="w-5 h-5" />
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
+              </button>
+
+              {/* Usuario */}
+              <div className="flex items-center space-x-3">
+                <div className="text-right">
+                  <p className="text-sm font-medium text-gray-900">{user?.nombre_completo}</p>
+                  <p className="text-xs text-gray-500">{user?.rol}</p>
+                </div>
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                  <span className="text-white font-semibold text-sm">
+                    {user?.nombre_completo?.charAt(0)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Logout */}
+              <button
                 onClick={handleLogout}
-                icon={<ArrowRightOnRectangleIcon className="w-4 h-4" />}
+                className="flex items-center space-x-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
               >
-                Salir
-              </Button>
+                <ArrowRightOnRectangleIcon className="w-4 h-4" />
+                <span>Salir</span>
+              </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Elecciones</p>
-                <p className="text-3xl font-bold text-gray-900">{stats?.summary?.total_elections || 0}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <ClipboardDocumentListIcon className="w-6 h-6 text-blue-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Elecciones Activas</p>
-                <p className="text-3xl font-bold text-green-600">{stats?.summary?.active_elections || 0}</p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <PlayIcon className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Votos</p>
-                <p className="text-3xl font-bold text-purple-600">{stats?.summary?.total_votes || 0}</p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <UsersIcon className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white p-6 rounded-xl shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Participación</p>
-                <p className="text-3xl font-bold text-sena-600">{stats?.summary?.participation_rate || 0}%</p>
-              </div>
-              <div className="w-12 h-12 bg-sena-100 rounded-lg flex items-center justify-center">
-                <ChartBarIcon className="w-6 h-6 text-sena-600" />
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* Elecciones */}
-          <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5 }}
-              className="bg-white rounded-xl shadow-sm border border-gray-100"
+      {/* Contenido Principal - aprovecha todo el espacio */}
+      <main className="h-[calc(100vh-80px)] overflow-y-auto">
+        <div className="p-6 space-y-6">
+          {/* Estadísticas - más compactas y coherentes */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Total Elecciones */}
+            <motion.div 
+              className="bg-blue-500 rounded-xl p-5 text-white relative overflow-hidden"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              whileHover={{ y: -2 }}
             >
-              <div className="p-6 border-b border-gray-100">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900">Elecciones</h2>
-                  <Button
-                    size="sm"
-                    icon={<PlusIcon className="w-4 h-4" />}
-                    onClick={() => setIsCreateModalOpen(true)}
-                  >
-                    Nueva Elección
-                  </Button>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-blue-100 text-sm font-medium">Total Elecciones</p>
+                  <p className="text-2xl font-bold mt-1">{stats?.summary.total_elections || 0}</p>
+                  <p className="text-blue-200 text-xs mt-1">En el sistema</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                  <ClipboardDocumentListIcon className="w-6 h-6" />
                 </div>
               </div>
+              <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
+            </motion.div>
 
-              <div className="p-6">
-                <div className="space-y-4">
-                  {elections.length > 0 ? elections.map((election, index) => (
-                    <motion.div
-                      key={election.id_eleccion}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.6 + index * 0.1 }}
-                      className="p-4 border border-gray-200 rounded-lg hover:border-sena-300 transition-colors"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-medium text-gray-900">{election.titulo}</h3>
-                        <div className="flex items-center gap-2">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(election.estado)}`}>
-                            {getStatusIcon(election.estado)}
-                            {election.estado.charAt(0).toUpperCase() + election.estado.slice(1)}
-                          </span>
-
-                          {/* Botones de acción */}
-                          <div className="flex space-x-2">
-                            {election.estado === 'configuracion' && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleViewCandidates(election.id_eleccion)}
-                                  className="text-xs text-sena-600 border-sena-300 hover:bg-sena-50"
-                                >
-                                  Candidatos
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleActivateElection(election.id_eleccion)}
-                                  className="text-xs"
-                                >
-                                  Activar
-                                </Button>
-                              </>
-                            )}
-
-                            {election.estado === 'activa' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleFinalizeElection(election.id_eleccion)}
-                                className="text-xs"
-                              >
-                                Finalizar
-                              </Button>
-                            )}
-
-                            {/* ✅ NUEVO: Botón para elecciones canceladas */}
-                            {election.estado === 'cancelada' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleElectionSettings(election.id_eleccion)}
-                                className="text-xs text-red-600 border-red-300 hover:bg-red-50"
-                              >
-                                Gestionar
-                              </Button>
-                            )}
-
-                            {/* Botón de configuración (para todos los estados) */}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => handleElectionSettings(election.id_eleccion)}
-                              className="text-xs text-gray-600 hover:text-gray-800"
-                              icon={<Cog6ToothIcon className="w-4 h-4" />}
-                            >
-                              Configurar
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-500">Participación</p>
-                          <p className="font-medium">
-                            {election.total_votantes_habilitados > 0
-                              ? ((election.total_votos_emitidos / election.total_votantes_habilitados) * 100).toFixed(1)
-                              : 0}%
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Votos</p>
-                          <p className="font-medium">{election.total_votos_emitidos}/{election.total_votantes_habilitados}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Finaliza</p>
-                          <p className="font-medium">
-                            {new Date(election.fecha_fin).toLocaleTimeString('es-ES', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Barra de progreso */}
-                      <div className="mt-3">
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-sena-500 h-2 rounded-full transition-all duration-500"
-                            style={{
-                              width: `${election.total_votantes_habilitados > 0
-                                ? (election.total_votos_emitidos / election.total_votantes_habilitados) * 100
-                                : 0}%`
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Información adicional */}
-                      <div className="mt-2 text-xs text-gray-500">
-                        {election.tipoEleccion?.nombre_tipo} - {election.tipoEleccion?.nivel_aplicacion}
-                        {election.centro && ` | ${election.centro.nombre_centro}`}
-                        {election.sede && ` | ${election.sede.nombre_sede}`}
-                        {election.ficha && ` | Ficha ${election.ficha.numero_ficha}`}
-                      </div>
-                    </motion.div>
-                  )) : (
-                    <div className="text-center text-gray-500 py-8">
-                      <ClipboardDocumentListIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      <p>No hay elecciones disponibles</p>
-                    </div>
-                  )}
+            {/* Elecciones Activas */}
+            <motion.div 
+              className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              whileHover={{ y: -2 }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-green-100 text-sm font-medium">Elecciones Activas</p>
+                  <p className="text-2xl font-bold mt-1">{stats?.summary.active_elections || 0}</p>
+                  <p className="text-green-200 text-xs mt-1">En proceso</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                  <PlayIcon className="w-6 h-6" />
                 </div>
               </div>
+              <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
+            </motion.div>
+
+            {/* Total Votos */}
+            <motion.div 
+              className="bg-purple-500 rounded-xl p-5 text-white relative overflow-hidden"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              whileHover={{ y: -2 }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-purple-100 text-sm font-medium">Total Votos</p>
+                  <p className="text-2xl font-bold mt-1">{stats?.summary.total_votes || 0}</p>
+                  <p className="text-purple-200 text-xs mt-1">Registrados</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                  <UsersIcon className="w-6 h-6" />
+                </div>
+              </div>
+              <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
+            </motion.div>
+
+            {/* Participación */}
+            <motion.div 
+              className="bg-orange-500 rounded-xl p-5 text-white relative overflow-hidden"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              whileHover={{ y: -2 }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-orange-100 text-sm font-medium">Participación</p>
+                  <p className="text-2xl font-bold mt-1">{stats?.summary.participation_rate.toFixed(1) || 0}%</p>
+                  <p className="text-orange-200 text-xs mt-1">Promedio</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                  <ChartPieIcon className="w-6 h-6" />
+                </div>
+              </div>
+              <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
             </motion.div>
           </div>
 
-          {/* Sidebar derecho */}
-          <div>
-            {/* Actividad Reciente */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.7 }}
-              className="bg-white rounded-xl shadow-sm border border-gray-100"
-            >
-              <div className="p-6 border-b border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-900">Actividad Reciente</h2>
-              </div>
+          {/* Grid Principal - ocupa todo el espacio disponible */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-300px)]">
+            {/* Lista de Elecciones - más ancha */}
+            <div className="lg:col-span-3">
+              <motion.div 
+                className="bg-white rounded-xl border border-gray-200 h-full flex flex-col"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                      <ClipboardDocumentListIcon className="w-4 h-4 text-white" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Elecciones</h3>
+                  </div>
+                  <button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="flex items-center space-x-2 px-4 py-2 bg-sena-500 text-white rounded-lg hover:bg-sena-600 transition-colors font-medium"
+                  >
+                    <PlusIcon className="w-4 h-4" />
+                    <span>Nueva Elección</span>
+                  </button>
+                </div>
 
-              <div className="p-6">
-                <div className="space-y-4">
-                  {stats?.recent_activity && stats.recent_activity.length > 0 ? stats.recent_activity.map((activity, index) => (
-                    <motion.div
-                      key={activity.id}
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.8 + index * 0.1 }}
-                      className="flex items-start space-x-3"
-                    >
-                      <div className="w-2 h-2 bg-sena-500 rounded-full mt-2 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-gray-900 font-medium">
-                          {activity.candidate}
-                        </p>
-                        <p className="text-xs text-gray-500 truncate">
-                          {activity.election}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {new Date(activity.timestamp).toLocaleTimeString('es-ES', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
+                <div className="flex-1 overflow-y-auto p-6">
+                  {elections.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                        <ClipboardDocumentListIcon className="w-8 h-8 text-gray-400" />
                       </div>
-                    </motion.div>
-                  )) : (
-                    <div className="text-center text-gray-500 py-4">
-                      <BellIcon className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">No hay actividad reciente</p>
+                      <h4 className="text-lg font-medium text-gray-900 mb-2">No hay elecciones disponibles</h4>
+                      <p className="text-gray-500 text-sm mb-6">Comienza creando tu primera elección para el sistema</p>
+                      <button
+                        onClick={() => setIsCreateModalOpen(true)}
+                        className="px-6 py-3 bg-sena-500 text-white rounded-lg hover:bg-sena-600 transition-colors font-medium"
+                      >
+                        Crear Primera Elección
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <AnimatePresence>
+                        {elections.map((election, index) => (
+                          <motion.div
+                            key={election.id_eleccion}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -20 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-3 mb-2">
+                                  <h4 className="text-base font-medium text-gray-900">{election.titulo}</h4>
+                                  <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(election.estado)}`}>
+                                    {getStatusIcon(election.estado)}
+                                    <span className="capitalize">{election.estado}</span>
+                                  </span>
+                                </div>
+                                <p className="text-gray-600 text-sm mb-2">{election.descripcion || 'Sin descripción'}</p>
+                                <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                  <span className="flex items-center space-x-1">
+                                    <CalendarIcon className="w-4 h-4" />
+                                    <span>{new Date(election.fecha_inicio).toLocaleDateString()}</span>
+                                  </span>
+                                  <span className="flex items-center space-x-1">
+                                    <UsersIcon className="w-4 h-4" />
+                                    <span>{election.total_votos_emitidos}/{election.total_votantes_habilitados} votos</span>
+                                  </span>
+                                  {election.tipoEleccion && (
+                                    <span className="bg-white px-2 py-1 rounded text-xs border">
+                                      {election.tipoEleccion.nombre_tipo}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2 ml-4">
+                                <button
+                                  onClick={() => handleViewCandidates(election.id_eleccion)}
+                                  className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                                  title="Ver candidatos"
+                                >
+                                  <EyeIcon className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleElectionSettings(election.id_eleccion)}
+                                  className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                                  title="Configuración"
+                                >
+                                  <Cog6ToothIcon className="w-4 h-4" />
+                                </button>
+                                {election.estado === 'configuracion' && (
+                                  <button
+                                    onClick={() => handleActivateElection(election.id_eleccion)}
+                                    className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                                    title="Activar elección"
+                                  >
+                                    <PlayIcon className="w-4 h-4" />
+                                  </button>
+                                )}
+                                {election.estado === 'activa' && (
+                                  <button
+                                    onClick={() => handleFinalizeElection(election.id_eleccion)}
+                                    className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                    title="Finalizar elección"
+                                  >
+                                    <CheckCircleIcon className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
                     </div>
                   )}
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
+            </div>
 
-            {/* Acciones Rápidas */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.9 }}
-              className="bg-white rounded-xl shadow-sm border border-gray-100 mt-6"
-            >
-              <div className="p-6 border-b border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-900">Acciones Rápidas</h2>
-              </div>
+            {/* Sidebar Derecho - más compacto */}
+            <div className="space-y-4 overflow-y-auto">
+              {/* Actividad Reciente */}
+              <motion.div 
+                className="bg-white rounded-xl border border-gray-200 p-4"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.6 }}
+              >
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-6 h-6 bg-orange-500 rounded-lg flex items-center justify-center">
+                    <ClockIcon className="w-3 h-3 text-white" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900">Actividad Reciente</h3>
+                </div>
+                {stats?.recent_activity && stats.recent_activity.length > 0 ? (
+                  <div className="space-y-2">
+                    {stats.recent_activity.slice(0, 3).map((activity) => (
+                      <div key={activity.id} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
+                        <div className="w-1.5 h-1.5 bg-sena-500 rounded-full"></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-gray-900 truncate">{activity.candidate}</p>
+                          <p className="text-xs text-gray-600 truncate">{activity.election}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <ClockIcon className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500 text-xs">No hay actividad reciente</p>
+                  </div>
+                )}
+              </motion.div>
 
-              <div className="p-6 space-y-3">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  icon={<PlusIcon className="w-4 h-4" />}
-                  onClick={() => setIsCreateModalOpen(true)}
-                >
-                  Crear Elección
-                </Button>
+              {/* Acciones Rápidas */}
+              <motion.div 
+                className="bg-white rounded-xl border border-gray-200 p-4"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.7 }}
+              >
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-6 h-6 bg-purple-500 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-xs">⚡</span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900">Acciones Rápidas</h3>
+                </div>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="w-full flex items-center space-x-2 px-3 py-2 bg-sena-500 text-white rounded-lg hover:bg-sena-600 transition-colors text-sm"
+                  >
+                    <PlusIcon className="w-4 h-4" />
+                    <span>Crear Elección</span>
+                  </button>
 
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  icon={<UsersIcon className="w-4 h-4" />}
-                  onClick={() => {/* TODO: Navegar a gestión de usuarios */ }}
-                >
-                  Gestionar Usuarios
-                </Button>
+                  <button className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                    <UsersIcon className="w-4 h-4" />
+                    <span>Gestionar Usuarios</span>
+                  </button>
 
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  icon={<ChartPieIcon className="w-4 h-4" />}
-                  onClick={() => {/* TODO: Navegar a reportes */ }}
-                >
-                  Ver Reportes
-                </Button>
+                  <button className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                    <ChartPieIcon className="w-4 h-4" />
+                    <span>Ver Reportes</span>
+                  </button>
 
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  icon={<Cog6ToothIcon className="w-4 h-4" />}
-                  onClick={() => {/* TODO: Navegar a configuración */ }}
-                >
-                  Configuración
-                </Button>
+                  <button className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                    <Cog6ToothIcon className="w-4 h-4" />
+                    <span>Configuración</span>
+                  </button>
+                </div>
+              </motion.div>
 
-              </div>
-            </motion.div>
+              {/* Estado del Sistema */}
+              <motion.div 
+                className="bg-white rounded-xl border border-gray-200 p-4"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.8 }}
+              >
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="w-6 h-6 bg-green-500 rounded-lg flex items-center justify-center">
+                    <CheckCircleIcon className="w-3 h-3 text-white" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900">Estado del Sistema</h3>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600">Sistema</span>
+                    <span className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-green-600 font-medium">Activo</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600">Base de Datos</span>
+                    <span className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-green-600 font-medium">Conectada</span>
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600">Última Actualización</span>
+                    <span className="text-gray-900 font-medium">Hace 30s</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600">Usuarios Activos</span>
+                    <span className="text-gray-900 font-medium">{stats?.summary.total_voters || 0}</span>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
           </div>
         </div>
       </main>
+
       {/* Modal Crear Elección */}
       <CreateElectionModal
         isOpen={isCreateModalOpen}
@@ -573,4 +585,5 @@ const AdminDashboard = () => {
     </div>
   )
 }
+
 export default AdminDashboard
