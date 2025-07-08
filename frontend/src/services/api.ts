@@ -137,8 +137,9 @@ export interface CreateElectionData {
 
 export interface VoteData {
   id_eleccion: number
+  numero_documento: string
   id_candidato?: number | null
-  qr_code: string
+  es_voto_blanco?: boolean
 }
 
 export interface VoteResult {
@@ -163,6 +164,7 @@ export interface Candidate {
     nombreCompleto: string
     email: string
     telefono: string
+    foto_url?: string  // ⭐ AGREGADA - Propiedad foto_url
   }
   eleccion?: {
     id_eleccion: number
@@ -180,6 +182,7 @@ export interface Aprendiz {
   nombreCompleto: string
   email: string
   telefono: string
+  foto_url?: string  // ⭐ AGREGADA - Propiedad foto_url
   jornada?: string
   ficha?: {
     id_ficha: number
@@ -446,13 +449,47 @@ export const votesApi = {
 }
 
 // Manejo de errores específicos
-export const handleApiError = (error: any, _p0: string) => {
+export const handleApiError = (error: any, _p0?: string): string => {
+  console.error('🚨 API Error:', error)
+  
+  // Si hay respuesta del servidor
   if (error.response?.data?.message) {
     return error.response.data.message
   }
+  
+  // Si hay un mensaje de error genérico
   if (error.message) {
     return error.message
   }
+  
+  // Error de red
+  if (error.code === 'NETWORK_ERROR' || !error.response) {
+    return 'Error de conexión. Verifica tu conexión a internet.'
+  }
+  
+  // Error por código de estado
+  if (error.response?.status) {
+    switch (error.response.status) {
+      case 400:
+        return 'Datos inválidos. Verifica la información enviada.'
+      case 401:
+        return 'No autorizado. Por favor, inicia sesión nuevamente.'
+      case 403:
+        return 'No tienes permisos para realizar esta acción.'
+      case 404:
+        return 'Recurso no encontrado.'
+      case 409:
+        return 'Conflicto. El recurso ya existe o está en uso.'
+      case 422:
+        return 'Datos no válidos. Verifica los campos requeridos.'
+      case 500:
+        return 'Error interno del servidor. Intenta nuevamente.'
+      default:
+        return `Error del servidor (${error.response.status})`
+    }
+  }
+  
+  // Fallback
   return 'Ha ocurrido un error inesperado'
 }
 
