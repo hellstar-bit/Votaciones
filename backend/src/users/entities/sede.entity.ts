@@ -1,8 +1,9 @@
-// 📁 src/users/entities/sede.entity.ts
+// 📁 backend/src/users/entities/sede.entity.ts
 // ====================================================================
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Centro } from './centro.entity';
 import { Ficha } from './ficha.entity';
+import { Persona } from './persona.entity';
 
 @Entity('sedes')
 export class Sede {
@@ -36,4 +37,8 @@ export class Sede {
 
   @OneToMany(() => Ficha, ficha => ficha.sede)
   fichas: Ficha[];
+
+  // ✅ RELACIÓN AGREGADA
+  @OneToMany(() => Persona, persona => persona.sede)
+  personas: Persona[];
 }

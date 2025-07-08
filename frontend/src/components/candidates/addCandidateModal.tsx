@@ -17,7 +17,7 @@ import {
   PhotoIcon
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { candidatesApi, personasApi, fichasApi, handleApiError } from '../../services/api'
+import { candidatesApi, personasApi, fichasApi } from '../../services/api'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 
@@ -110,6 +110,30 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
 
   // Estado para número de lista
   const [numeroLista, setNumeroLista] = useState('')
+
+  useEffect(() => {
+  if (isOpen) {
+    console.log('🎯 Modal abierto para elección:', electionId);
+    console.log('🔧 URL de API configurada:', import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1');
+    
+    // Verificar autenticación
+    const authStorage = localStorage.getItem('auth-storage');
+    if (authStorage) {
+      try {
+        const parsed = JSON.parse(authStorage);
+        console.log('🔑 Auth storage encontrado:', {
+          hasState: !!parsed.state,
+          hasUser: !!parsed.state?.user,
+          hasToken: !!parsed.state?.user?.access_token
+        });
+      } catch (e) {
+        console.error('❌ Error parsing auth storage:', e);
+      }
+    } else {
+      console.warn('⚠️ No hay auth storage');
+    }
+  }
+}, [isOpen, electionId]);
 
   // Cargar datos cuando se abre el modal
   useEffect(() => {
@@ -218,31 +242,66 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
 
   // Funciones para manejo de foto
   const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    // Validar tipo de archivo
-    if (!file.type.startsWith('image/')) {
-      toast.error('Solo se permiten archivos de imagen')
-      return
-    }
-
-    // Validar tamaño (máximo 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('La imagen no debe superar los 5MB')
-      return
-    }
-
-    // Crear preview
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setPhotoPreview(e.target?.result as string)
-    }
-    reader.readAsDataURL(file)
-
-    // Guardar archivo
-    setManualForm({ ...manualForm, foto: file })
+  console.log('📸 === INICIO DE PHOTO UPLOAD ===');
+  
+  const file = event.target.files?.[0];
+  if (!file) {
+    console.log('❌ No hay archivo seleccionado');
+    return;
   }
+
+  console.log('📁 Archivo seleccionado:', {
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    lastModified: new Date(file.lastModified).toISOString()
+  });
+
+  // Validar tipo de archivo
+  if (!file.type.startsWith('image/')) {
+    console.error('❌ Tipo de archivo inválido:', file.type);
+    toast.error('Solo se permiten archivos de imagen');
+    return;
+  }
+
+  // Validar tamaño (máximo 5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    console.error('❌ Archivo demasiado grande:', file.size);
+    toast.error('La imagen no debe superar los 5MB');
+    return;
+  }
+
+  console.log('✅ Archivo válido, creando preview...');
+
+  // Crear preview
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const result = e.target?.result as string;
+    console.log('🖼️ Preview creado exitosamente, tamaño:', result.length);
+    setPhotoPreview(result);
+  };
+  reader.onerror = (e) => {
+    console.error('❌ Error leyendo archivo:', e);
+    toast.error('Error al procesar la imagen');
+  };
+  reader.readAsDataURL(file);
+
+  // Guardar archivo en el estado
+  setManualForm(prev => {
+    const updated = { ...prev, foto: file };
+    console.log('💾 Estado actualizado:', {
+      ...updated,
+      foto: updated.foto ? {
+        name: updated.foto.name,
+        size: updated.foto.size,
+        type: updated.foto.type
+      } : null
+    });
+    return updated;
+  });
+
+  console.log('🏁 === FIN DE PHOTO UPLOAD ===');
+};
 
   const removePhoto = () => {
     setManualForm({ ...manualForm, foto: null })
@@ -330,81 +389,174 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
   }
 
   const handleSubmit = async () => {
-    console.log('🚀 Iniciando handleSubmit')
-    console.log('Step actual:', step)
-    console.log('Is manual mode:', isManualMode)
-    console.log('Selected aprendiz:', selectedAprendiz)
-    console.log('Numero lista:', numeroLista)
-    console.log('Manual form:', manualForm)
-    console.log('Has photo:', !!manualForm.foto)
+  console.log('🚀 === INICIO DE SUBMIT ===');
+  console.log('Step actual:', step);
+  console.log('Is manual mode:', isManualMode);
+  console.log('Selected aprendiz:', selectedAprendiz);
+  console.log('Numero lista:', numeroLista);
+  console.log('Manual form completo:', {
+    numero_documento: manualForm.numero_documento,
+    nombres: manualForm.nombres,
+    apellidos: manualForm.apellidos,
+    email: manualForm.email,
+    telefono: manualForm.telefono,
+    foto: manualForm.foto ? {
+      name: manualForm.foto.name,
+      size: manualForm.foto.size,
+      type: manualForm.foto.type
+    } : null
+  });
 
-    if (!validateForm()) {
-      console.log('❌ Validación falló')
-      return
-    }
-
-    try {
-      setSubmitting(true)
-
-      // Si es modo manual y hay foto, usar FormData
-      if (isManualMode || (!selectedAprendiz && manualForm.numero_documento.trim())) {
-        const formData = new FormData()
-        formData.append('id_eleccion', electionId.toString())
-        formData.append('numero_documento', manualForm.numero_documento.trim())
-        formData.append('numero_lista', numeroLista)
-        formData.append('nombres', manualForm.nombres.trim())
-        formData.append('apellidos', manualForm.apellidos.trim())
-        
-        if (manualForm.email.trim()) {
-          formData.append('email', manualForm.email.trim())
-        }
-        if (manualForm.telefono.trim()) {
-          formData.append('telefono', manualForm.telefono.trim())
-        }
-        if (manualForm.foto) {
-          formData.append('foto', manualForm.foto)
-        }
-
-        console.log('📤 Enviando FormData con foto')
-        
-        // Hacer petición con FormData (multipart/form-data)
-        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'}/candidates`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('auth-storage') ? JSON.parse(localStorage.getItem('auth-storage')!).state?.token : ''}`
-          },
-          body: formData
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.message || 'Error creando candidato')
-        }
-
-      } else {
-        // Modo aprendiz existente sin foto
-        const candidateData = {
-          id_eleccion: electionId,
-          numero_documento: selectedAprendiz!.numero_documento,
-          numero_lista: parseInt(numeroLista)
-        }
-
-        console.log('📤 Enviando datos JSON sin foto:', candidateData)
-        await candidatesApi.create(candidateData)
-      }
-      
-      toast.success('Candidato agregado exitosamente')
-      onCandidateAdded()
-      handleClose()
-
-    } catch (error: any) {
-      console.error('❌ Error en handleSubmit:', error)
-      const errorMessage = error.message || handleApiError(error)
-      toast.error(`Error agregando candidato: ${errorMessage}`)
-    } finally {
-      setSubmitting(false)
-    }
+  if (!validateForm()) {
+    console.log('❌ Validación falló');
+    return;
   }
+
+  try {
+    setSubmitting(true);
+
+    // Si es modo manual, usar FormData
+    if (isManualMode || (!selectedAprendiz && manualForm.numero_documento.trim())) {
+      console.log('📝 === MODO MANUAL CON FORMDATA ===');
+      
+      const formData = new FormData();
+      formData.append('id_eleccion', electionId.toString());
+      formData.append('numero_documento', manualForm.numero_documento.trim());
+      formData.append('numero_lista', numeroLista);
+      formData.append('nombres', manualForm.nombres.trim());
+      formData.append('apellidos', manualForm.apellidos.trim());
+      
+      if (manualForm.email.trim()) {
+        formData.append('email', manualForm.email.trim());
+      }
+      if (manualForm.telefono.trim()) {
+        formData.append('telefono', manualForm.telefono.trim());
+      }
+      if (manualForm.foto) {
+        console.log('📸 Agregando foto al FormData:', {
+          name: manualForm.foto.name,
+          size: manualForm.foto.size,
+          type: manualForm.foto.type
+        });
+        formData.append('foto', manualForm.foto);
+      }
+
+      // Debug completo del FormData
+      console.log('📤 === CONTENIDO DEL FORMDATA ===');
+      for (let [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          console.log(`  ${key}: File - ${value.name} (${value.size} bytes, ${value.type})`);
+        } else {
+          console.log(`  ${key}: ${value}`);
+        }
+      }
+
+      // Obtener token de autenticación
+      const authStorage = localStorage.getItem('auth-storage');
+      let token = '';
+      if (authStorage) {
+        try {
+          const parsed = JSON.parse(authStorage);
+          // Probar diferentes estructuras de token
+          token = parsed.state?.user?.access_token || 
+                  parsed.state?.token || 
+                  parsed.access_token || 
+                  parsed.token || '';
+          console.log('🔑 Token extraído:', token ? `${token.substring(0, 20)}...` : 'NO ENCONTRADO');
+        } catch (e) {
+          console.error('❌ Error parsing auth storage:', e);
+        }
+      }
+
+      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'}/candidates`;
+      console.log('🌐 URL de envío:', url);
+
+      const headers: HeadersInit = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      console.log('📡 Headers de la petición:', headers);
+
+      // Hacer petición con FormData
+      console.log('⏳ Enviando petición...');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: formData
+      });
+
+      console.log('📡 Response recibido:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Error response body:', errorText);
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ === RESULTADO EXITOSO ===', result);
+
+    } else if (selectedAprendiz) {
+      // Para aprendices existentes, usar JSON normal
+      console.log('👤 === MODO APRENDIZ EXISTENTE ===');
+      
+      const candidateData = {
+        id_eleccion: electionId,
+        numero_documento: selectedAprendiz.numero_documento,
+        numero_lista: parseInt(numeroLista),
+        nombres: selectedAprendiz.nombres,
+        apellidos: selectedAprendiz.apellidos,
+        email: selectedAprendiz.email,
+        telefono: selectedAprendiz.telefono
+      };
+
+      console.log('📤 Datos del candidato (JSON):', candidateData);
+      const result = await candidatesApi.create(candidateData);
+      console.log('✅ Candidato creado exitosamente:', result);
+    }
+
+    toast.success('¡Candidato agregado exitosamente!');
+    onCandidateAdded();
+    onClose();
+
+  } catch (error) {
+    let errorMessage = 'Error desconocido';
+    let errorStack = '';
+    if (typeof error === 'object' && error !== null) {
+      if ('message' in error && typeof (error as any).message === 'string') {
+        errorMessage = (error as any).message;
+      }
+      if ('stack' in error && typeof (error as any).stack === 'string') {
+        errorStack = (error as any).stack;
+      }
+    }
+    console.error('❌ === ERROR COMPLETO ===', {
+      message: errorMessage,
+      stack: errorStack,
+      error: error
+    });
+    
+    // Mostrar error más detallado al usuario
+    if (typeof errorMessage === 'string' && errorMessage.includes('401')) {
+      toast.error('Error de autenticación. Inicia sesión nuevamente.');
+    } else if (typeof errorMessage === 'string' && errorMessage.includes('413')) {
+      toast.error('El archivo es demasiado grande. Máximo 5MB.');
+    } else if (typeof errorMessage === 'string' && errorMessage.includes('400')) {
+      toast.error('Datos inválidos. Revisa el formulario.');
+    } else {
+      toast.error(`Error: ${errorMessage}`);
+    }
+  } finally {
+    setSubmitting(false);
+    console.log('🏁 === FIN DE SUBMIT ===');
+  }
+};
 
   const handleClose = () => {
     resetForm()

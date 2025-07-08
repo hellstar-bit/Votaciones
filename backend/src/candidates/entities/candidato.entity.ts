@@ -1,14 +1,16 @@
-// 📁 src/candidates/entities/candidato.entity.ts - ACTUALIZADO
-// ====================================================================
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+// 🔧 ARREGLO: backend/src/candidates/entities/candidato.entity.ts
+// Remover los índices que están causando conflicto
+
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Eleccion } from '../../elections/entities/eleccion.entity';
 import { Persona } from '../../users/entities/persona.entity';
 import { Usuario } from '../../users/entities/usuario.entity';
 import { Voto } from '../../votes/entities/voto.entity';
 
 @Entity('candidatos')
-@Index('idx_candidato_eleccion', ['id_eleccion'])
-@Index('idx_candidato_estado', ['estado'])
+// ✅ REMOVER ÍNDICES TEMPORALMENTE
+// @Index('idx_candidato_eleccion', ['id_eleccion'])
+// @Index('idx_candidato_estado', ['estado'])
 export class Candidato {
   @PrimaryGeneratedColumn()
   id_candidato: number;
@@ -37,14 +39,12 @@ export class Candidato {
   @Column({ type: 'timestamp', nullable: true })
   validado_at: Date;
 
-  // ✅ NUEVO CAMPO: Motivo de rechazo
   @Column({ type: 'text', nullable: true })
   motivo_rechazo: string;
 
   @Column({ default: 0 })
   votos_recibidos: number;
 
-  // ✅ ACTUALIZADO: Estados más específicos y consistentes con el frontend
   @Column({ type: 'enum', enum: ['pendiente', 'validado', 'rechazado', 'retirado'], default: 'pendiente' })
   estado: string;
 
@@ -54,7 +54,7 @@ export class Candidato {
   @UpdateDateColumn()
   updated_at: Date;
 
-  // ✅ RELACIONES CORREGIDAS
+  // Relaciones
   @ManyToOne(() => Eleccion, eleccion => eleccion.candidatos)
   @JoinColumn({ name: 'id_eleccion' })
   eleccion: Eleccion;

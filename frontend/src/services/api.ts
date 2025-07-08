@@ -446,7 +446,7 @@ export const votesApi = {
 }
 
 // Manejo de errores específicos
-export const handleApiError = (error: any) => {
+export const handleApiError = (error: any, _p0: string) => {
   if (error.response?.data?.message) {
     return error.response.data.message
   }

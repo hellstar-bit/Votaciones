@@ -1,4 +1,4 @@
-// 📁 src/users/entities/persona.entity.ts
+// 📁 backend/src/users/entities/persona.entity.ts
 // ====================================================================
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { Centro } from './centro.entity';
@@ -34,6 +34,10 @@ export class Persona {
 
   @Column({ type: 'date', nullable: true })
   fecha_nacimiento: Date;
+
+  // ✅ CAMPO AGREGADO PARA FOTO
+  @Column({ length: 500, nullable: true })
+  foto_url: string;
 
   @Column({ nullable: true })
   id_centro: number;
@@ -74,8 +78,35 @@ export class Persona {
   @OneToMany(() => Candidato, candidato => candidato.persona)
   candidaturas: Candidato[];
 
-  // Método para obtener nombre completo
+  // ✅ GETTER PARA NOMBRE COMPLETO
   get nombreCompleto(): string {
-    return `${this.nombres} ${this.apellidos}`;
+  console.log('🔍 Calculando nombreCompleto:', { nombres: this.nombres, apellidos: this.apellidos });
+  
+  if (!this.nombres || !this.apellidos) {
+    console.warn('⚠️ Faltan nombres o apellidos:', { nombres: this.nombres, apellidos: this.apellidos });
+    return 'Sin nombre';
+  }
+  
+  const resultado = `${this.nombres.trim()} ${this.apellidos.trim()}`.trim();
+  console.log('✅ nombreCompleto calculado:', resultado);
+  return resultado;
+}
+
+  // ✅ MÉTODO HELPER PARA VERIFICAR SI TIENE FOTO
+  get tieneFoto(): boolean {
+    return !!this.foto_url;
+  }
+
+  // ✅ MÉTODO HELPER PARA URL COMPLETA DE FOTO
+  get fotoUrl(): string | null {
+    if (!this.foto_url) return null;
+    
+    // Si ya es una URL completa, devolverla tal como está
+    if (this.foto_url.startsWith('http')) {
+      return this.foto_url;
+    }
+    
+    // Si es una ruta relativa, agregar el dominio base
+    return `${process.env.APP_URL || 'http://localhost:3000'}${this.foto_url}`;
   }
 }
