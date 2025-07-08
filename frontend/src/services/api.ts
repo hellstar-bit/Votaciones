@@ -218,6 +218,8 @@ export interface Ficha {
 
 // Dashboard API
 export const dashboardApi = {
+
+  
   // Obtener estadísticas del dashboard
   getStats: async (): Promise<DashboardStats> => {
     const response = await api.get('/dashboard/stats')
@@ -347,6 +349,25 @@ export const candidatesApi = {
     return response.data
   },
 
+  // 🆕 AGREGAR: Actualizar datos de candidato (para funcionalidad de edición)
+  update: async (id: number, data: {
+    numero_lista?: number;
+    nombres?: string;
+    apellidos?: string;
+    email?: string;
+    telefono?: string;
+  }): Promise<Candidate> => {
+    const response = await api.patch(`/candidates/${id}`, data)
+    return response.data
+  },
+
+  // 🆕 AGREGAR: Actualizar estado con motivo (método alternativo más específico)
+  updateStatus: async (id: number, estado: string, motivo?: string): Promise<{ message: string }> => {
+    const body = motivo ? { estado, motivo } : { estado }
+    const response = await api.patch(`/candidates/${id}/status`, body)
+    return response.data
+  },
+
   // Eliminar candidato
   remove: async (id: number): Promise<{ message: string }> => {
     const response = await api.delete(`/candidates/${id}`)
@@ -356,6 +377,12 @@ export const candidatesApi = {
   // Obtener candidato por ID
   getById: async (id: number): Promise<Candidate> => {
     const response = await api.get(`/candidates/${id}`)
+    return response.data
+  },
+
+  // 🆕 AGREGAR: Alias para compatibilidad (algunos componentes usan 'delete' en lugar de 'remove')
+  delete: async (id: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/candidates/${id}`)
     return response.data
   },
 }

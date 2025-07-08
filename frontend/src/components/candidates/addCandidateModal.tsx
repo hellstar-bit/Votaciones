@@ -1,9 +1,23 @@
-// AddCandidateModal.tsx - MEJORADO con lista de aprendices y filtros
+// AddCandidateModal.tsx - Versión corregida completa
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { XMarkIcon, MagnifyingGlassIcon, UserPlusIcon } from '@heroicons/react/24/outline'
+import {
+  XMarkIcon,
+  MagnifyingGlassIcon,
+  UserPlusIcon,
+  UserIcon,
+  IdentificationIcon,
+  EnvelopeIcon,
+  PhoneIcon,
+  HashtagIcon,
+  AcademicCapIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  CameraIcon,
+  PhotoIcon
+} from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { candidatesApi, handleApiError } from '../../services/api'
+import { candidatesApi, personasApi, fichasApi, handleApiError } from '../../services/api'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 
@@ -17,11 +31,13 @@ interface AddCandidateModalProps {
 interface Aprendiz {
   id_persona: number
   numero_documento: string
+  tipo_documento: string
   nombres: string
   apellidos: string
   nombreCompleto: string
   email: string
   telefono: string
+  jornada?: string
   ficha?: {
     id_ficha: number
     numero_ficha: string
@@ -32,6 +48,10 @@ interface Aprendiz {
     id_sede: number
     nombre_sede: string
   }
+  centro?: {
+    id_centro: number
+    nombre_centro: string
+  }
 }
 
 interface Ficha {
@@ -39,117 +59,128 @@ interface Ficha {
   numero_ficha: string
   nombre_programa: string
   jornada: string
+  fecha_inicio?: string
+  fecha_fin?: string
+  sede?: {
+    id_sede: number
+    nombre_sede: string
+  }
+  centro?: {
+    id_centro: number
+    nombre_centro: string
+  }
+}
+
+interface ManualCandidateForm {
+  numero_documento: string
+  nombres: string
+  apellidos: string
+  email: string
+  telefono: string
+  foto?: File | null
 }
 
 const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: AddCandidateModalProps) => {
-  const [aprendices, setAprendices] = useState<Aprendiz[]>([])
-  const [fichas, setFichas] = useState<Ficha[]>([])
-  const [selectedAprendiz, setSelectedAprendiz] = useState<Aprendiz | null>(null)
-  const [numeroLista, setNumeroLista] = useState('')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedFicha, setSelectedFicha] = useState<string>('all')
+  // Estados principales
+  const [step, setStep] = useState<'method' | 'search' | 'manual' | 'confirm'>('method')
   const [loading, setLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [showManualForm, setShowManualForm] = useState(false)
+  const [isManualMode, setIsManualMode] = useState(false)
 
-  // Estado para formulario manual
-  const [manualForm, setManualForm] = useState({
+  // Estados para búsqueda de aprendices
+  const [aprendices, setAprendices] = useState<Aprendiz[]>([])
+  const [fichas, setFichas] = useState<Ficha[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedFicha, setSelectedFicha] = useState<string>('all')
+  const [selectedAprendiz, setSelectedAprendiz] = useState<Aprendiz | null>(null)
+
+  // Estados para formulario manual
+  const [manualForm, setManualForm] = useState<ManualCandidateForm>({
     numero_documento: '',
     nombres: '',
     apellidos: '',
     email: '',
-    telefono: ''
+    telefono: '',
+    foto: null
   })
 
-  // Cargar aprendices y fichas al abrir el modal
+  // Estados para foto
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [, setUploadingPhoto] = useState(false)
+
+  // Estado para número de lista
+  const [numeroLista, setNumeroLista] = useState('')
+
+  // Cargar datos cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
       loadAprendices()
       loadFichas()
+      resetForm()
     }
   }, [isOpen])
+
+  const resetForm = () => {
+    setStep('method')
+    setIsManualMode(false)
+    setSearchTerm('')
+    setSelectedFicha('all')
+    setSelectedAprendiz(null)
+    setManualForm({
+      numero_documento: '',
+      nombres: '',
+      apellidos: '',
+      email: '',
+      telefono: '',
+      foto: null
+    })
+    setNumeroLista('')
+    setPhotoPreview(null)
+    setUploadingPhoto(false)
+  }
 
   const loadAprendices = async () => {
     try {
       setLoading(true)
-      // ✅ CORREGIDO: Usar endpoint real
-      const response = await fetch('/api/v1/personas/aprendices', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth-token')}` // Ajustar según tu implementación
-        }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setAprendices(data)
-      } else {
-        throw new Error('Error cargando aprendices')
-      }
+      const data = await personasApi.getAprendices()
+      setAprendices(data)
     } catch (error) {
       console.error('Error cargando aprendices:', error)
-      toast.error('Error cargando lista de aprendices')
-      
-      // ✅ Fallback con datos simulados para desarrollo
-      const simulatedAprendices: Aprendiz[] = [
+      // Datos simulados para desarrollo
+      setAprendices([
         {
           id_persona: 1,
           numero_documento: '1234567890',
           nombres: 'Juan Carlos',
-          apellidos: 'García López',
-          nombreCompleto: 'Juan Carlos García López',
-          email: 'juan.garcia@sena.edu.co',
+          apellidos: 'González Pérez',
+          nombreCompleto: 'Juan Carlos González Pérez',
+          email: 'juan.gonzalez@ejemplo.com',
           telefono: '3001234567',
+          tipo_documento: 'CC',
           ficha: {
             id_ficha: 1,
-            numero_ficha: '2669742',
+            numero_ficha: '3037398',
             nombre_programa: 'ANÁLISIS Y DESARROLLO DE SOFTWARE',
             jornada: 'mixta'
-          },
-          sede: {
-            id_sede: 1,
-            nombre_sede: 'Sede Principal'
           }
         },
         {
           id_persona: 2,
           numero_documento: '0987654321',
-          nombres: 'María Fernanda',
-          apellidos: 'Rodríguez Torres',
-          nombreCompleto: 'María Fernanda Rodríguez Torres',
-          email: 'maria.rodriguez@sena.edu.co',
-          telefono: '3009876543',
+          nombres: 'María José',
+          apellidos: 'Rodríguez López',
+          nombreCompleto: 'María José Rodríguez López',
+          email: 'maria.rodriguez@ejemplo.com',
+          telefono: '3007654321',
+          tipo_documento: 'CC',
           ficha: {
             id_ficha: 2,
             numero_ficha: '3037399',
             nombre_programa: 'OPERACIONES COMERCIALES',
             jornada: 'nocturna'
-          },
-          sede: {
-            id_sede: 1,
-            nombre_sede: 'Sede Principal'
-          }
-        },
-        {
-          id_persona: 3,
-          numero_documento: '1122334455',
-          nombres: 'Andrés Felipe',
-          apellidos: 'Martínez Silva',
-          nombreCompleto: 'Andrés Felipe Martínez Silva',
-          email: 'andres.martinez@sena.edu.co',
-          telefono: '3011223344',
-          ficha: {
-            id_ficha: 3,
-            numero_ficha: '3070126',
-            nombre_programa: 'ANÁLISIS Y DESARROLLO DE SOFTWARE',
-            jornada: 'madrugada'
-          },
-          sede: {
-            id_sede: 2,
-            nombre_sede: 'Sede TIC'
           }
         }
-      ]
-      setAprendices(simulatedAprendices)
+      ])
     } finally {
       setLoading(false)
     }
@@ -157,27 +188,15 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
 
   const loadFichas = async () => {
     try {
-      // ✅ CORREGIDO: Usar endpoint real
-      const response = await fetch('/api/v1/fichas', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth-token')}` // Ajustar según tu implementación
-        }
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setFichas(data)
-      } else {
-        throw new Error('Error cargando fichas')
-      }
+      const data = await fichasApi.getAll()
+      setFichas(data)
     } catch (error) {
       console.error('Error cargando fichas:', error)
-      
-      // ✅ Fallback con datos simulados para desarrollo
-      const simulatedFichas: Ficha[] = [
+      // Datos simulados para desarrollo
+      setFichas([
         {
           id_ficha: 1,
-          numero_ficha: '2669742',
+          numero_ficha: '3037398',
           nombre_programa: 'ANÁLISIS Y DESARROLLO DE SOFTWARE',
           jornada: 'mixta'
         },
@@ -193,9 +212,41 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
           nombre_programa: 'ANÁLISIS Y DESARROLLO DE SOFTWARE',
           jornada: 'madrugada'
         }
-      ]
-      setFichas(simulatedFichas)
+      ])
     }
+  }
+
+  // Funciones para manejo de foto
+  const handlePhotoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validar tipo de archivo
+    if (!file.type.startsWith('image/')) {
+      toast.error('Solo se permiten archivos de imagen')
+      return
+    }
+
+    // Validar tamaño (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La imagen no debe superar los 5MB')
+      return
+    }
+
+    // Crear preview
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setPhotoPreview(e.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+
+    // Guardar archivo
+    setManualForm({ ...manualForm, foto: file })
+  }
+
+  const removePhoto = () => {
+    setManualForm({ ...manualForm, foto: null })
+    setPhotoPreview(null)
   }
 
   // Filtrar aprendices
@@ -211,53 +262,144 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
     return matchesSearch && matchesFicha
   })
 
-  const handleSubmit = async () => {
-    if (!selectedAprendiz && !showManualForm) {
-      toast.error('Debe seleccionar un aprendiz')
-      return
-    }
+  const validateForm = () => {
+    console.log('🔍 Validando formulario...')
+    console.log('Step actual:', step)
+    console.log('Numero lista:', numeroLista)
+    console.log('Selected aprendiz:', selectedAprendiz)
+    console.log('Manual form:', manualForm)
 
     if (!numeroLista.trim()) {
-      toast.error('Debe ingresar un número de lista')
-      return
+      console.log('❌ Número de lista vacío')
+      toast.error('El número de lista es obligatorio')
+      return false
     }
 
-    if (showManualForm) {
-      // Validar formulario manual
-      if (!manualForm.numero_documento.trim() || !manualForm.nombres.trim() || !manualForm.apellidos.trim()) {
-        toast.error('Debe completar todos los campos obligatorios')
-        return
+    const numeroListaNum = parseInt(numeroLista)
+    if (isNaN(numeroListaNum) || numeroListaNum < 1) {
+      console.log('❌ Número de lista inválido')
+      toast.error('El número de lista debe ser un número válido mayor a 0')
+      return false
+    }
+
+    // Validación para modo manual (cuando venimos del formulario manual)
+    if (step === 'confirm' && !selectedAprendiz) {
+      // Verificar si tenemos datos del formulario manual
+      if (!manualForm.numero_documento.trim()) {
+        console.log('❌ Documento vacío en modo manual')
+        toast.error('El número de documento es obligatorio')
+        return false
       }
+      if (!manualForm.nombres.trim()) {
+        console.log('❌ Nombres vacíos en modo manual')
+        toast.error('Los nombres son obligatorios')
+        return false
+      }
+      if (!manualForm.apellidos.trim()) {
+        console.log('❌ Apellidos vacíos en modo manual')
+        toast.error('Los apellidos son obligatorios')
+        return false
+      }
+      if (!manualForm.foto) {
+        console.log('❌ Foto faltante en modo manual')
+        toast.error('La foto de perfil es obligatoria')
+        return false
+      }
+      if (manualForm.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manualForm.email)) {
+        console.log('❌ Email inválido en modo manual')
+        toast.error('El formato del email no es válido')
+        return false
+      }
+    }
+
+    // Validación para modo búsqueda (cuando venimos de seleccionar aprendiz)
+    if (step === 'confirm' && selectedAprendiz) {
+      console.log('✅ Aprendiz seleccionado válido')
+      // Si hay aprendiz seleccionado, todo está bien
+    }
+
+    // Si llegamos hasta aquí sin selectedAprendiz y sin datos manuales, es error
+    if (step === 'confirm' && !selectedAprendiz && !manualForm.numero_documento.trim()) {
+      console.log('❌ No hay aprendiz seleccionado ni datos manuales')
+      toast.error('Debe seleccionar un aprendiz o completar los datos manuales')
+      return false
+    }
+
+    console.log('✅ Validación exitosa')
+    return true
+  }
+
+  const handleSubmit = async () => {
+    console.log('🚀 Iniciando handleSubmit')
+    console.log('Step actual:', step)
+    console.log('Is manual mode:', isManualMode)
+    console.log('Selected aprendiz:', selectedAprendiz)
+    console.log('Numero lista:', numeroLista)
+    console.log('Manual form:', manualForm)
+    console.log('Has photo:', !!manualForm.foto)
+
+    if (!validateForm()) {
+      console.log('❌ Validación falló')
+      return
     }
 
     try {
       setSubmitting(true)
 
-      const candidateData = showManualForm 
-        ? {
-            id_eleccion: electionId,
-            numero_documento: manualForm.numero_documento,
-            numero_lista: parseInt(numeroLista),
-            // Datos adicionales para candidato manual
-            nombres: manualForm.nombres,
-            apellidos: manualForm.apellidos,
-            email: manualForm.email,
-            telefono: manualForm.telefono
-          }
-        : {
-            id_eleccion: electionId,
-            numero_documento: selectedAprendiz!.numero_documento,
-            numero_lista: parseInt(numeroLista)
-          }
+      // Si es modo manual y hay foto, usar FormData
+      if (isManualMode || (!selectedAprendiz && manualForm.numero_documento.trim())) {
+        const formData = new FormData()
+        formData.append('id_eleccion', electionId.toString())
+        formData.append('numero_documento', manualForm.numero_documento.trim())
+        formData.append('numero_lista', numeroLista)
+        formData.append('nombres', manualForm.nombres.trim())
+        formData.append('apellidos', manualForm.apellidos.trim())
+        
+        if (manualForm.email.trim()) {
+          formData.append('email', manualForm.email.trim())
+        }
+        if (manualForm.telefono.trim()) {
+          formData.append('telefono', manualForm.telefono.trim())
+        }
+        if (manualForm.foto) {
+          formData.append('foto', manualForm.foto)
+        }
 
-      await candidatesApi.create(candidateData)
+        console.log('📤 Enviando FormData con foto')
+        
+        // Hacer petición con FormData (multipart/form-data)
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'}/candidates`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth-storage') ? JSON.parse(localStorage.getItem('auth-storage')!).state?.token : ''}`
+          },
+          body: formData
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.message || 'Error creando candidato')
+        }
+
+      } else {
+        // Modo aprendiz existente sin foto
+        const candidateData = {
+          id_eleccion: electionId,
+          numero_documento: selectedAprendiz!.numero_documento,
+          numero_lista: parseInt(numeroLista)
+        }
+
+        console.log('📤 Enviando datos JSON sin foto:', candidateData)
+        await candidatesApi.create(candidateData)
+      }
       
       toast.success('Candidato agregado exitosamente')
       onCandidateAdded()
       handleClose()
 
-    } catch (error) {
-      const errorMessage = handleApiError(error)
+    } catch (error: any) {
+      console.error('❌ Error en handleSubmit:', error)
+      const errorMessage = error.message || handleApiError(error)
       toast.error(`Error agregando candidato: ${errorMessage}`)
     } finally {
       setSubmitting(false)
@@ -265,358 +407,585 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
   }
 
   const handleClose = () => {
-    setSelectedAprendiz(null)
-    setNumeroLista('')
-    setSearchTerm('')
-    setSelectedFicha('all')
-    setShowManualForm(false)
-    setManualForm({
-      numero_documento: '',
-      nombres: '',
-      apellidos: '',
-      email: '',
-      telefono: ''
-    })
+    resetForm()
     onClose()
   }
 
   const getJornadaColor = (jornada: string) => {
     switch (jornada) {
-      case 'mixta': return 'bg-blue-100 text-blue-800'
-      case 'nocturna': return 'bg-purple-100 text-purple-800'
-      case 'madrugada': return 'bg-indigo-100 text-indigo-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'mixta': return 'bg-blue-100 text-blue-800 border-blue-200'
+      case 'nocturna': return 'bg-purple-100 text-purple-800 border-purple-200'
+      case 'madrugada': return 'bg-orange-100 text-orange-800 border-orange-200'
+      default: return 'bg-gray-100 text-gray-800 border-gray-200'
     }
   }
+
+  const renderStepMethod = () => (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h3 className="text-lg font-medium text-gray-900 mb-2">
+          Agregar Candidato
+        </h3>
+        <p className="text-sm text-gray-500">
+          Seleccione cómo desea agregar el candidato
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => setStep('search')}
+          className="w-full p-6 border-2 border-gray-200 rounded-xl hover:border-sena-300 hover:bg-sena-50 transition-all group"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-sena-100 rounded-lg flex items-center justify-center group-hover:bg-sena-200">
+              <MagnifyingGlassIcon className="w-6 h-6 text-sena-600" />
+            </div>
+            <div className="text-left">
+              <h4 className="font-medium text-gray-900">Buscar Aprendiz Registrado</h4>
+              <p className="text-sm text-gray-500">Seleccionar de la base de datos de aprendices</p>
+            </div>
+          </div>
+        </motion.button>
+
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => {
+            setIsManualMode(true)
+            setStep('manual')
+          }}
+          className="w-full p-6 border-2 border-gray-200 rounded-xl hover:border-sena-300 hover:bg-sena-50 transition-all group"
+        >
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-sena-100 rounded-lg flex items-center justify-center group-hover:bg-sena-200">
+              <UserPlusIcon className="w-6 h-6 text-sena-600" />
+            </div>
+            <div className="text-left">
+              <h4 className="font-medium text-gray-900">Agregar Manualmente</h4>
+              <p className="text-sm text-gray-500">Ingresar datos del candidato manualmente</p>
+            </div>
+          </div>
+        </motion.button>
+      </div>
+    </div>
+  )
+
+  const renderStepSearch = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium text-gray-900">
+            Buscar Aprendiz
+          </h3>
+          <p className="text-sm text-gray-500">
+            Seleccione un aprendiz de la base de datos
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          onClick={() => setStep('method')}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          Volver
+        </Button>
+      </div>
+
+      {/* Controles de búsqueda */}
+      <div className="space-y-4">
+        <Input
+          placeholder="Buscar por nombre, documento o email..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          icon={<MagnifyingGlassIcon className="w-5 h-5" />}
+          fullWidth
+        />
+
+        <select
+          value={selectedFicha}
+          onChange={(e) => setSelectedFicha(e.target.value)}
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sena-500 focus:border-sena-500"
+        >
+          <option value="all">Todas las fichas</option>
+          {fichas.map(ficha => (
+            <option key={ficha.id_ficha} value={ficha.numero_ficha}>
+              {ficha.numero_ficha} - {ficha.nombre_programa}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Lista de aprendices */}
+      <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
+        {loading ? (
+          <div className="p-8 text-center">
+            <div className="w-8 h-8 border-4 border-sena-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-sm text-gray-500">Cargando aprendices...</p>
+          </div>
+        ) : filteredAprendices.length > 0 ? (
+          <div className="divide-y divide-gray-200">
+            {filteredAprendices.map((aprendiz) => (
+              <motion.button
+                key={aprendiz.id_persona}
+                whileHover={{ backgroundColor: '#f9fafb' }}
+                onClick={() => {
+                  setSelectedAprendiz(aprendiz)
+                  setStep('confirm')
+                }}
+                className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                    <UserIcon className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium text-gray-900 truncate">
+                        {aprendiz.nombreCompleto}
+                      </p>
+                      {aprendiz.ficha && (
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getJornadaColor(aprendiz.ficha.jornada)}`}>
+                          {aprendiz.ficha.jornada}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500 truncate">
+                      {aprendiz.numero_documento} • {aprendiz.email}
+                    </p>
+                    {aprendiz.ficha && (
+                      <p className="text-xs text-gray-400 truncate">
+                        Ficha {aprendiz.ficha.numero_ficha} - {aprendiz.ficha.nombre_programa}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        ) : (
+          <div className="p-8 text-center">
+            <UserIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-sm text-gray-500">
+              {searchTerm || selectedFicha !== 'all' 
+                ? 'No se encontraron aprendices con los filtros aplicados'
+                : 'No hay aprendices disponibles'
+              }
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+
+  const renderStepManual = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium text-gray-900">
+            Datos del Candidato
+          </h3>
+          <p className="text-sm text-gray-500">
+            Ingrese la información del candidato manualmente
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          onClick={() => setStep('method')}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          Volver
+        </Button>
+      </div>
+
+      <div className="space-y-4">
+        <Input
+          label="Número de Documento *"
+          placeholder="Ej: 1234567890"
+          value={manualForm.numero_documento}
+          onChange={(e) => setManualForm({ ...manualForm, numero_documento: e.target.value })}
+          icon={<IdentificationIcon className="w-5 h-5" />}
+          fullWidth
+          required
+        />
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Nombres *"
+            placeholder="Ej: Juan Carlos"
+            value={manualForm.nombres}
+            onChange={(e) => setManualForm({ ...manualForm, nombres: e.target.value })}
+            icon={<UserIcon className="w-5 h-5" />}
+            fullWidth
+            required
+          />
+
+          <Input
+            label="Apellidos *"
+            placeholder="Ej: González Pérez"
+            value={manualForm.apellidos}
+            onChange={(e) => setManualForm({ ...manualForm, apellidos: e.target.value })}
+            icon={<UserIcon className="w-5 h-5" />}
+            fullWidth
+            required
+          />
+        </div>
+
+        <Input
+          label="Email"
+          type="email"
+          placeholder="Ej: juan.gonzalez@ejemplo.com"
+          value={manualForm.email}
+          onChange={(e) => setManualForm({ ...manualForm, email: e.target.value })}
+          icon={<EnvelopeIcon className="w-5 h-5" />}
+          fullWidth
+        />
+
+        <Input
+          label="Teléfono"
+          placeholder="Ej: 3001234567"
+          value={manualForm.telefono}
+          onChange={(e) => setManualForm({ ...manualForm, telefono: e.target.value })}
+          icon={<PhoneIcon className="w-5 h-5" />}
+          fullWidth
+        />
+
+        {/* Sección de foto de perfil */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            Foto de Perfil *
+          </label>
+          
+          <div className="flex items-start space-x-4">
+            {/* Preview de la foto */}
+            <div className="flex-shrink-0">
+              {photoPreview ? (
+                <div className="relative">
+                  <img
+                    src={photoPreview}
+                    alt="Preview"
+                    className="w-24 h-24 rounded-xl object-cover border-2 border-gray-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <div className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center bg-gray-50">
+                  <CameraIcon className="w-8 h-8 text-gray-400" />
+                </div>
+              )}
+            </div>
+
+            {/* Botón de upload */}
+            <div className="flex-1">
+              <input
+                type="file"
+                id="photo-upload"
+                accept="image/*"
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
+              <label
+                htmlFor="photo-upload"
+                className="cursor-pointer inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-sena-500 transition-colors"
+              >
+                <PhotoIcon className="w-4 h-4 mr-2" />
+                {photoPreview ? 'Cambiar Foto' : 'Subir Foto'}
+              </label>
+              
+              <p className="text-xs text-gray-500 mt-2">
+                Formatos: JPG, PNG, GIF. Máximo 5MB.
+                <br />
+                Recomendado: 400x400px o superior.
+              </p>
+
+              {manualForm.foto && (
+                <div className="mt-2 text-xs text-green-600 flex items-center">
+                  <CheckCircleIcon className="w-4 h-4 mr-1" />
+                  Foto cargada: {manualForm.foto.name}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex">
+            <ExclamationTriangleIcon className="w-5 h-5 text-blue-400 mt-0.5" />
+            <div className="ml-3">
+              <h4 className="text-sm font-medium text-blue-800">Información</h4>
+              <p className="text-xs text-blue-700 mt-1">
+                Los campos marcados con * son obligatorios. La foto de perfil es requerida para la papeleta de votación.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-4 border-t border-gray-200">
+        <Button
+          onClick={() => {
+            if (manualForm.numero_documento.trim() && manualForm.nombres.trim() && manualForm.apellidos.trim() && manualForm.foto) {
+              console.log('✅ Datos manuales completos incluyendo foto, yendo a confirm')
+              setStep('confirm')
+            } else {
+              console.log('❌ Datos manuales incompletos')
+              if (!manualForm.foto) {
+                toast.error('La foto de perfil es obligatoria')
+              } else {
+                toast.error('Complete todos los campos obligatorios')
+              }
+            }
+          }}
+          disabled={!manualForm.numero_documento.trim() || !manualForm.nombres.trim() || !manualForm.apellidos.trim() || !manualForm.foto}
+          className="w-full bg-sena-600 hover:bg-sena-700"
+        >
+          Continuar
+        </Button>
+      </div>
+    </div>
+  )
+
+  const renderStepConfirm = () => (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium text-gray-900">
+            Confirmar Candidato
+          </h3>
+          <p className="text-sm text-gray-500">
+            Revise los datos y asigne un número de lista
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          onClick={() => setStep(isManualMode ? 'manual' : 'search')}
+          className="text-gray-500 hover:text-gray-700"
+        >
+          Volver
+        </Button>
+      </div>
+
+      {/* Información del candidato */}
+      <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+        <div className="flex items-center space-x-4">
+          {/* Mostrar foto si está disponible */}
+          <div className="w-16 h-16 rounded-lg overflow-hidden bg-sena-100 flex items-center justify-center flex-shrink-0">
+            {photoPreview ? (
+              <img
+                src={photoPreview}
+                alt="Foto del candidato"
+                className="w-full h-full object-cover"
+              />
+            ) : selectedAprendiz ? (
+              <UserIcon className="w-8 h-8 text-sena-600" />
+            ) : (
+              <UserIcon className="w-8 h-8 text-sena-600" />
+            )}
+          </div>
+          
+          <div className="flex-1">
+            <p className="font-medium text-gray-900">
+              {selectedAprendiz?.nombreCompleto || `${manualForm.nombres} ${manualForm.apellidos}`}
+            </p>
+            <p className="text-sm text-gray-500">
+              {selectedAprendiz?.numero_documento || manualForm.numero_documento}
+            </p>
+            {(photoPreview || selectedAprendiz) && (
+              <p className="text-xs text-green-600 flex items-center mt-1">
+                <CheckCircleIcon className="w-3 h-3 mr-1" />
+                {photoPreview ? 'Foto subida' : 'Datos de aprendiz'}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-gray-200 pt-3 space-y-2">
+          <div className="flex items-center text-sm">
+            <EnvelopeIcon className="w-4 h-4 text-gray-400 mr-2" />
+            <span className="text-gray-600">
+              {selectedAprendiz?.email || manualForm.email || 'No especificado'}
+            </span>
+          </div>
+
+          {(selectedAprendiz?.telefono || manualForm.telefono) && (
+            <div className="flex items-center text-sm">
+              <PhoneIcon className="w-4 h-4 text-gray-400 mr-2" />
+              <span className="text-gray-600">
+                {selectedAprendiz?.telefono || manualForm.telefono}
+              </span>
+            </div>
+          )}
+
+          {selectedAprendiz?.ficha && (
+            <div className="flex items-center text-sm">
+              <AcademicCapIcon className="w-4 h-4 text-gray-400 mr-2" />
+              <span className="text-gray-600">
+                Ficha {selectedAprendiz.ficha.numero_ficha} - {selectedAprendiz.ficha.nombre_programa}
+              </span>
+              <span className={`ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getJornadaColor(selectedAprendiz.ficha.jornada)}`}>
+                {selectedAprendiz.ficha.jornada}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Número de lista */}
+      <div>
+        <Input
+          label="Número de Lista *"
+          type="number"
+          placeholder="Ej: 1"
+          value={numeroLista}
+          onChange={(e) => setNumeroLista(e.target.value)}
+          icon={<HashtagIcon className="w-5 h-5" />}
+          min="1"
+          fullWidth
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Número que aparecerá en la papeleta de votación
+        </p>
+      </div>
+
+      {/* Confirmación final */}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="flex">
+          <CheckCircleIcon className="w-5 h-5 text-green-400 mt-0.5" />
+          <div className="ml-3">
+            <h4 className="text-sm font-medium text-green-800">Todo listo</h4>
+            <p className="text-xs text-green-700 mt-1">
+              El candidato será agregado a la elección con la información mostrada arriba.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="pt-4 border-t border-gray-200 space-y-3">
+        <Button
+          onClick={handleSubmit}
+          disabled={!numeroLista.trim() || submitting}
+          loading={submitting}
+          className="w-full bg-sena-600 hover:bg-sena-700"
+        >
+          {submitting ? 'Agregando Candidato...' : 'Agregar Candidato'}
+        </Button>
+        
+        <Button
+          variant="outline"
+          onClick={handleClose}
+          disabled={submitting}
+          className="w-full"
+        >
+          Cancelar
+        </Button>
+      </div>
+    </div>
+  )
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Overlay */}
+          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
             onClick={handleClose}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50"
           />
 
           {/* Modal */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
-            onClick={handleClose}
           >
-            <motion.div
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
               {/* Header */}
-              <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-sena-50 to-green-50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-sena-100 rounded-lg flex items-center justify-center">
-                      <UserPlusIcon className="w-5 h-5 text-sena-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-bold text-gray-900">Agregar Candidato</h2>
-                      <p className="text-sm text-gray-600">Seleccionar aprendiz para postular como candidato</p>
-                    </div>
+              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-sena-100 rounded-lg flex items-center justify-center">
+                    <UserPlusIcon className="w-5 h-5 text-sena-600" />
                   </div>
-                  <button
-                    onClick={handleClose}
-                    disabled={submitting}
-                    className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-                  >
-                    <XMarkIcon className="w-4 h-4 text-gray-600" />
-                  </button>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Agregar Candidato
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                      {step === 'method' && 'Seleccione el método de agregado'}
+                      {step === 'search' && 'Busque y seleccione un aprendiz'}
+                      {step === 'manual' && 'Complete los datos del candidato'}
+                      {step === 'confirm' && 'Confirme la información'}
+                    </p>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={handleClose}
+                  disabled={submitting}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <XMarkIcon className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Progress Indicator */}
+              <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div className={`flex items-center space-x-2 ${step === 'method' ? 'text-sena-600' : step === 'search' || step === 'manual' || step === 'confirm' ? 'text-green-600' : 'text-gray-400'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${step === 'method' ? 'bg-sena-100 text-sena-600' : step === 'search' || step === 'manual' || step === 'confirm' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                      1
+                    </div>
+                    <span className="text-sm font-medium">Método</span>
+                  </div>
+
+                  <div className={`flex-1 h-px mx-4 ${step === 'search' || step === 'manual' || step === 'confirm' ? 'bg-green-300' : 'bg-gray-300'}`} />
+
+                  <div className={`flex items-center space-x-2 ${step === 'search' || step === 'manual' ? 'text-sena-600' : step === 'confirm' ? 'text-green-600' : 'text-gray-400'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${step === 'search' || step === 'manual' ? 'bg-sena-100 text-sena-600' : step === 'confirm' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+                      2
+                    </div>
+                    <span className="text-sm font-medium">Datos</span>
+                  </div>
+
+                  <div className={`flex-1 h-px mx-4 ${step === 'confirm' ? 'bg-green-300' : 'bg-gray-300'}`} />
+
+                  <div className={`flex items-center space-x-2 ${step === 'confirm' ? 'text-sena-600' : 'text-gray-400'}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${step === 'confirm' ? 'bg-sena-100 text-sena-600' : 'bg-gray-100 text-gray-400'}`}>
+                      3
+                    </div>
+                    <span className="text-sm font-medium">Confirmar</span>
+                  </div>
                 </div>
               </div>
 
               {/* Content */}
-              <div className="flex h-[600px]">
-                {/* Panel izquierdo - Lista de aprendices */}
-                <div className="w-2/3 border-r border-gray-200 flex flex-col">
-                  {/* Filtros y búsqueda */}
-                  <div className="p-4 border-b border-gray-100 bg-gray-50">
-                    <div className="flex flex-col gap-3">
-                      {/* Toggle entre lista y manual */}
-                      <div className="flex space-x-2">
-                        <Button
-                          variant={!showManualForm ? "primary" : "outline"}
-                          size="sm"
-                          onClick={() => setShowManualForm(false)}
-                        >
-                          Seleccionar de Lista
-                        </Button>
-                        <Button
-                          variant={showManualForm ? "primary" : "outline"}
-                          size="sm"
-                          onClick={() => setShowManualForm(true)}
-                        >
-                          Agregar Manualmente
-                        </Button>
-                      </div>
-
-                      {!showManualForm && (
-                        <>
-                          {/* Búsqueda */}
-                          <div className="relative">
-                            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                            <Input
-                              type="text"
-                              placeholder="Buscar por nombre, documento o email..."
-                              value={searchTerm}
-                              onChange={(e) => setSearchTerm(e.target.value)}
-                              className="pl-9 text-sm"
-                            />
-                          </div>
-
-                          {/* Filtro por ficha */}
-                          <select
-                            value={selectedFicha}
-                            onChange={(e) => setSelectedFicha(e.target.value)}
-                            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-sena-500 focus:border-sena-500"
-                          >
-                            <option value="all">Todas las fichas</option>
-                            {fichas.map((ficha) => (
-                              <option key={ficha.id_ficha} value={ficha.numero_ficha}>
-                                {ficha.numero_ficha} - {ficha.nombre_programa} ({ficha.jornada})
-                              </option>
-                            ))}
-                          </select>
-
-                          <div className="text-xs text-gray-500">
-                            {filteredAprendices.length} aprendices encontrados
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Lista de aprendices o formulario manual */}
-                  <div className="flex-1 overflow-y-auto">
-                    {showManualForm ? (
-                      /* Formulario manual */
-                      <div className="p-6 space-y-4">
-                        <h3 className="font-semibold text-gray-900 mb-4">Datos del Candidato</h3>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Número de Documento *
-                            </label>
-                            <Input
-                              type="text"
-                              value={manualForm.numero_documento}
-                              onChange={(e) => setManualForm(prev => ({ ...prev, numero_documento: e.target.value }))}
-                              placeholder="1234567890"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Nombres *
-                            </label>
-                            <Input
-                              type="text"
-                              value={manualForm.nombres}
-                              onChange={(e) => setManualForm(prev => ({ ...prev, nombres: e.target.value }))}
-                              placeholder="Juan Carlos"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Apellidos *
-                            </label>
-                            <Input
-                              type="text"
-                              value={manualForm.apellidos}
-                              onChange={(e) => setManualForm(prev => ({ ...prev, apellidos: e.target.value }))}
-                              placeholder="García López"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Email
-                            </label>
-                            <Input
-                              type="email"
-                              value={manualForm.email}
-                              onChange={(e) => setManualForm(prev => ({ ...prev, email: e.target.value }))}
-                              placeholder="juan.garcia@sena.edu.co"
-                            />
-                          </div>
-
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Teléfono
-                            </label>
-                            <Input
-                              type="text"
-                              value={manualForm.telefono}
-                              onChange={(e) => setManualForm(prev => ({ ...prev, telefono: e.target.value }))}
-                              placeholder="3001234567"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Lista de aprendices */
-                      <div className="p-4">
-                        {loading ? (
-                          <div className="flex items-center justify-center py-8">
-                            <motion.div
-                              animate={{ rotate: 360 }}
-                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                              className="w-6 h-6 border-2 border-sena-500 border-t-transparent rounded-full"
-                            />
-                          </div>
-                        ) : filteredAprendices.length > 0 ? (
-                          <div className="space-y-2">
-                            {filteredAprendices.map((aprendiz) => (
-                              <motion.div
-                                key={aprendiz.id_persona}
-                                whileHover={{ scale: 1.01 }}
-                                className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                                  selectedAprendiz?.id_persona === aprendiz.id_persona
-                                    ? 'border-sena-500 bg-sena-50'
-                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                }`}
-                                onClick={() => setSelectedAprendiz(aprendiz)}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1">
-                                    <h4 className="font-medium text-gray-900">{aprendiz.nombreCompleto}</h4>
-                                    <p className="text-sm text-gray-600">Doc: {aprendiz.numero_documento}</p>
-                                    <p className="text-xs text-gray-500">{aprendiz.email}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    {aprendiz.ficha && (
-                                      <>
-                                        <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getJornadaColor(aprendiz.ficha.jornada)}`}>
-                                          {aprendiz.ficha.jornada}
-                                        </span>
-                                        <p className="text-xs text-gray-500 mt-1">
-                                          Ficha {aprendiz.ficha.numero_ficha}
-                                        </p>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              </motion.div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center py-8 text-gray-500">
-                            <UserPlusIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                            <p>No se encontraron aprendices</p>
-                            <p className="text-sm">Intente ajustar los filtros de búsqueda</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Panel derecho - Detalles y confirmación */}
-                <div className="w-1/3 p-6 bg-gray-50 flex flex-col">
-                  <h3 className="font-semibold text-gray-900 mb-4">Detalles del Candidato</h3>
-
-                  {(selectedAprendiz || showManualForm) ? (
-                    <div className="flex-1 space-y-4">
-                      {/* Información del candidato */}
-                      <div className="bg-white rounded-lg p-4 border border-gray-200">
-                        {showManualForm ? (
-                          <div>
-                            <h4 className="font-medium text-gray-900">Candidato Manual</h4>
-                            <p className="text-sm text-gray-600 mt-1">
-                              {manualForm.nombres} {manualForm.apellidos}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Doc: {manualForm.numero_documento}
-                            </p>
-                          </div>
-                        ) : selectedAprendiz && (
-                          <div>
-                            <h4 className="font-medium text-gray-900">{selectedAprendiz.nombreCompleto}</h4>
-                            <p className="text-sm text-gray-600 mt-1">
-                              Documento: {selectedAprendiz.numero_documento}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {selectedAprendiz.email}
-                            </p>
-                            {selectedAprendiz.ficha && (
-                              <div className="mt-2">
-                                <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getJornadaColor(selectedAprendiz.ficha.jornada)}`}>
-                                  {selectedAprendiz.ficha.jornada}
-                                </span>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Ficha {selectedAprendiz.ficha.numero_ficha}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {selectedAprendiz.ficha.nombre_programa}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Número de lista */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Número de Lista *
-                        </label>
-                        <Input
-                          type="number"
-                          value={numeroLista}
-                          onChange={(e) => setNumeroLista(e.target.value)}
-                          placeholder="1"
-                          min="1"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Número que aparecerá en la papeleta de votación
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center text-gray-400">
-                      <div className="text-center">
-                        <UserPlusIcon className="w-16 h-16 mx-auto mb-4" />
-                        <p>Seleccione un aprendiz para continuar</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Botones de acción */}
-                  <div className="space-y-2 pt-4 border-t border-gray-200">
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={(!selectedAprendiz && !showManualForm) || !numeroLista.trim() || submitting}
-                      loading={submitting}
-                      className="w-full"
-                    >
-                      {submitting ? 'Agregando...' : 'Agregar Candidato'}
-                    </Button>
-                    
-                    <Button
-                      variant="outline"
-                      onClick={handleClose}
-                      disabled={submitting}
-                      className="w-full"
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                </div>
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={step}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {step === 'method' && renderStepMethod()}
+                    {step === 'search' && renderStepSearch()}
+                    {step === 'manual' && renderStepManual()}
+                    {step === 'confirm' && renderStepConfirm()}
+                  </motion.div>
+                </AnimatePresence>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         </>
       )}

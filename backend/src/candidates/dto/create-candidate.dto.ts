@@ -1,41 +1,37 @@
-// 📁 src/candidates/dto/create-candidate.dto.ts - ACTUALIZADO
-// ====================================================================
-import { IsString, IsNotEmpty, IsOptional, IsNumber } from 'class-validator';
+import { IsNumber, IsString, IsOptional, IsEmail } from 'class-validator'
+import { Transform } from 'class-transformer'
 
 export class CreateCandidateDto {
+  @Transform(({ value }) => parseInt(value))
   @IsNumber()
-  id_eleccion: number;
+  id_eleccion: number
 
   @IsString()
-  @IsNotEmpty()
-  numero_documento: string;
+  numero_documento: string
 
+  @Transform(({ value }) => parseInt(value))
   @IsNumber()
-  numero_lista: number;
+  numero_lista: number
 
-  // ✅ NUEVOS CAMPOS: Para candidatos que no existen en el sistema
-  @IsString()
+  // Campos opcionales para candidatos manuales
   @IsOptional()
-  nombres?: string;
+  @IsString()
+  nombres?: string
 
-  @IsString()
   @IsOptional()
-  apellidos?: string;
+  @IsString()
+  apellidos?: string
 
-  @IsString()
   @IsOptional()
-  email?: string;
+  @IsEmail()
+  email?: string
 
-  @IsString()
   @IsOptional()
-  telefono?: string;
+  @IsString()
+  telefono?: string
 
-  // Campos existentes opcionales
-  @IsString()
+  // 🆕 Campo para la URL de la foto
   @IsOptional()
-  propuestas?: string;
-
   @IsString()
-  @IsOptional()
-  foto_url?: string;
+  foto_url?: string
 }
