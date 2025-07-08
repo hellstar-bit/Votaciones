@@ -352,7 +352,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
 
     } catch (error) {
       console.error('Error creando elección:', error)
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'creando elección')
       
       // Manejo de errores más específico
       if (errorMessage.includes('ficha')) {

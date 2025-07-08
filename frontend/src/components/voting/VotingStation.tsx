@@ -39,7 +39,7 @@ const VotingStation = () => {
       const elections = await electionsApi.getActive()
       setActiveElections(elections)
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'cargando elecciones')
       toast.error(`Error cargando elecciones: ${errorMessage}`)
     } finally {
       setLoading(false)
@@ -56,7 +56,7 @@ const VotingStation = () => {
       setCandidates(validatedCandidates)
       setCurrentStep('qr-scan')
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'cargando candidatos')
       toast.error(`Error cargando candidatos: ${errorMessage}`)
     }
   }
@@ -182,7 +182,7 @@ const VotingStation = () => {
       
     } catch (error) {
       console.error('❌ Error procesando voto:', error)
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'procesando voto')
       toast.error(`Error: ${errorMessage}`)
     } finally {
       setProcessing(false)

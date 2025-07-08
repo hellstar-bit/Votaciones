@@ -1,4 +1,4 @@
-// CandidatesManagement.tsx - Versión corregida y completa
+// CandidatesManagement.tsx - Versión corregida para mostrar fotos
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -15,7 +15,6 @@ import {
   ExclamationTriangleIcon,
   UserIcon,
   IdentificationIcon,
-  HashtagIcon,
   EnvelopeIcon,
   PhoneIcon
 } from '@heroicons/react/24/outline'
@@ -23,7 +22,7 @@ import toast from 'react-hot-toast'
 import { candidatesApi, electionsApi, handleApiError, type Candidate, type Election } from '../../services/api'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
-import AddCandidateModal from './AddCandidateModal'
+import AddCandidateModal from './addCandidateModal'
 
 interface CandidatesManagementProps {
   electionId: number
@@ -69,6 +68,32 @@ const CandidatesManagement = ({ electionId, onBack }: CandidatesManagementProps)
   })
   const [rejectReason, setRejectReason] = useState('')
 
+  // ✅ FUNCIÓN HELPER PARA MANEJAR FOTOS
+  const getPhotoUrl = (candidate: any) => {
+  const fotoUrl = candidate.persona?.foto_url || candidate.foto_url;
+  
+  if (!fotoUrl) {
+    console.log('❌ No hay foto_url para candidato:', candidate.numero_lista);
+    return null;
+  }
+
+  console.log('📸 Foto URL encontrada:', fotoUrl, 'para candidato:', candidate.numero_lista);
+  
+  // Si ya es una URL completa, usarla tal como está
+  if (fotoUrl.startsWith('http')) {
+    console.log('🌐 URL ya completa:', fotoUrl);
+    return fotoUrl;
+  }
+  
+  // ✅ CORRECCIÓN: No usar /api/v1 para archivos estáticos
+  // Los archivos estáticos se sirven directamente desde el dominio base
+  const baseUrl = import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:3000';
+  const fullUrl = `${baseUrl}${fotoUrl}`;
+  
+  console.log('🌐 URL completa corregida:', fullUrl);
+  return fullUrl;
+};
+
   // Cargar datos iniciales
   useEffect(() => {
     loadData()
@@ -84,8 +109,20 @@ const CandidatesManagement = ({ electionId, onBack }: CandidatesManagementProps)
 
       setElection(electionData)
       setCandidates(candidatesData)
+      
+      // ✅ DEBUG: Mostrar datos de candidatos
+      console.log('📋 Candidatos cargados:', candidatesData);
+      candidatesData.forEach((candidate: any) => {
+        console.log(`👤 Candidato ${candidate.numero_lista}:`, {
+          nombres: candidate.persona?.nombres,
+          apellidos: candidate.persona?.apellidos,
+          nombreCompleto: candidate.persona?.nombreCompleto,
+          foto_url: candidate.persona?.foto_url,
+          fotoUrlCompleta: getPhotoUrl(candidate)
+        });
+      });
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'cargando datos')
       toast.error(`Error cargando datos: ${errorMessage}`)
     } finally {
       setLoading(false)
@@ -120,7 +157,7 @@ const CandidatesManagement = ({ electionId, onBack }: CandidatesManagementProps)
       toast.success('Candidato validado exitosamente')
       loadData()
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'validando candidato')
       toast.error(`Error validando candidato: ${errorMessage}`)
     } finally {
       setProcessing(false)
@@ -139,7 +176,7 @@ const CandidatesManagement = ({ electionId, onBack }: CandidatesManagementProps)
       setRejectReason('')
       loadData()
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'rechazando candidato')
       toast.error(`Error rechazando candidato: ${errorMessage}`)
     } finally {
       setProcessing(false)
@@ -161,7 +198,7 @@ const CandidatesManagement = ({ electionId, onBack }: CandidatesManagementProps)
       setSelectedCandidate(null)
       loadData()
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'actualizando candidato')
       toast.error(`Error actualizando candidato: ${errorMessage}`)
     } finally {
       setProcessing(false)
@@ -179,7 +216,7 @@ const CandidatesManagement = ({ electionId, onBack }: CandidatesManagementProps)
       setSelectedCandidate(null)
       loadData()
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'eliminando candidato')
       toast.error(`Error eliminando candidato: ${errorMessage}`)
     } finally {
       setProcessing(false)
@@ -430,15 +467,27 @@ const CandidatesManagement = ({ electionId, onBack }: CandidatesManagementProps)
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="w-12 h-12 bg-gray-100 rounded-full overflow-hidden flex items-center justify-center mr-3 flex-shrink-0">
-                              {candidate.persona?.foto_url ? (
+                              {getPhotoUrl(candidate) ? (
                                 <img
-                                  src={candidate.persona.foto_url}
-                                  alt={candidate.persona.nombreCompleto}
+                                  src={getPhotoUrl(candidate)}
+                                  alt={candidate.persona?.nombreCompleto || 'candidato'}
                                   className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    console.error('❌ Error cargando imagen:', getPhotoUrl(candidate));
+                                    e.currentTarget.style.display = 'none';
+                                    // Mostrar el UserIcon como fallback
+                                    const fallbackIcon = e.currentTarget.nextElementSibling as HTMLElement;
+                                    if (fallbackIcon) fallbackIcon.style.display = 'block';
+                                  }}
+                                  onLoad={() => {
+                                    console.log('✅ Imagen cargada exitosamente:', getPhotoUrl(candidate));
+                                  }}
                                 />
-                              ) : (
-                                <UserIcon className="w-6 h-6 text-gray-400" />
-                              )}
+                              ) : null}
+                              <UserIcon 
+                                className="w-6 h-6 text-gray-400" 
+                                style={{ display: getPhotoUrl(candidate) ? 'none' : 'block' }}
+                              />
                             </div>
                             <div>
                               <div className="text-sm font-medium text-gray-900">
@@ -601,15 +650,23 @@ const CandidatesManagement = ({ electionId, onBack }: CandidatesManagementProps)
               <div className="space-y-4">
                 <div className="flex items-center space-x-4">
                   <div className="w-16 h-16 bg-sena-100 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0">
-                    {selectedCandidate.persona?.foto_url ? (
+                    {getPhotoUrl(selectedCandidate) ? (
                       <img
-                        src={selectedCandidate.persona.foto_url}
-                        alt={selectedCandidate.persona.nombreCompleto}
+                        src={getPhotoUrl(selectedCandidate)}
+                        alt={selectedCandidate.persona?.nombreCompleto || 'candidato'}
                         className="w-full h-full object-cover"
+                        onError={(e) => {
+                          console.error('❌ Error cargando imagen en modal:', getPhotoUrl(selectedCandidate));
+                          e.currentTarget.style.display = 'none';
+                          const fallbackIcon = e.currentTarget.nextElementSibling as HTMLElement;
+                          if (fallbackIcon) fallbackIcon.style.display = 'block';
+                        }}
                       />
-                    ) : (
-                      <UserIcon className="w-8 h-8 text-sena-600" />
-                    )}
+                    ) : null}
+                    <UserIcon 
+                      className="w-8 h-8 text-sena-600" 
+                      style={{ display: getPhotoUrl(selectedCandidate) ? 'none' : 'block' }}
+                    />
                   </div>
                   <div className="flex-1">
                     <p className="font-medium text-gray-900">

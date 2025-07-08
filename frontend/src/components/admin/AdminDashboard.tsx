@@ -75,7 +75,7 @@ const AdminDashboard = () => {
       setElections(allElections)
 
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'cargando datos')
       toast.error(`Error cargando datos: ${errorMessage}`)
       console.error('Error cargando datos del dashboard:', error)
     } finally {
@@ -90,7 +90,7 @@ const AdminDashboard = () => {
       toast.success('Elección activada exitosamente')
       await fetchDashboardData()
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'activando elección')
       toast.error(`Error activando elección: ${errorMessage}`)
     }
   }
@@ -102,7 +102,7 @@ const AdminDashboard = () => {
       toast.success('Elección finalizada exitosamente')
       await fetchDashboardData()
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'finalizando elección')
       toast.error(`Error finalizando elección: ${errorMessage}`)
     }
   }

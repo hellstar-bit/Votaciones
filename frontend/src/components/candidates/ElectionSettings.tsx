@@ -45,7 +45,7 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
       setElection(electionData)
       setCandidates(candidatesData)
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'cargando datos')
       toast.error(`Error cargando datos: ${errorMessage}`)
     } finally {
       setLoading(false)
@@ -61,7 +61,7 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
       setShowCancelModal(false)
       await loadData() // Recargar datos para actualizar estado
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'cancelando elección')
       toast.error(`Error cancelando elección: ${errorMessage}`)
     } finally {
       setIsProcessing(false)
@@ -77,7 +77,7 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
       setShowDeleteModal(false)
       onBack() // Volver al dashboard
     } catch (error) {
-      const errorMessage = handleApiError(error)
+      const errorMessage = handleApiError(error, 'eliminando elección')
       toast.error(`Error eliminando elección: ${errorMessage}`)
     } finally {
       setIsProcessing(false)
