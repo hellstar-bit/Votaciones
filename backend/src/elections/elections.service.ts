@@ -10,6 +10,8 @@ import { Persona } from '../users/entities/persona.entity';
 import { Voto } from '../votes/entities/voto.entity';
 import { Candidato } from '../candidates/entities/candidato.entity';
 import { CreateElectionDto } from './dto/create-election.dto';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class ElectionsService {
@@ -27,6 +29,8 @@ export class ElectionsService {
     @InjectRepository(Candidato)
     private candidatoRepository: Repository<Candidato>,
   ) {}
+
+  
 
   async create(createElectionDto: CreateElectionDto, userId: number) {
     const { tipo_eleccion, ...electionData } = createElectionDto;
@@ -100,6 +104,8 @@ export class ElectionsService {
       order: { created_at: 'DESC' },
     });
   }
+
+  
 
   async findOne(id: number) {
     const eleccion = await this.eleccionRepository.findOne({
@@ -207,23 +213,51 @@ export class ElectionsService {
 }
 
   async delete(id: number, userId: number) {
-    const canDeleteResult = await this.canDeleteElection(id, userId);
-    
-    if (!canDeleteResult.canDelete) {
-      throw new BadRequestException(canDeleteResult.reason);
-    }
-
-    // Eliminar en orden: votos -> candidatos -> votantes habilitados -> elección
-    await this.votoRepository.delete({ id_eleccion: id });
-    await this.candidatoRepository.delete({ id_eleccion: id });
-    await this.votanteHabilitadoRepository.delete({ id_eleccion: id });
-    await this.eleccionRepository.delete(id);
-
-    return {
-      message: 'Elección eliminada exitosamente',
-      details: canDeleteResult.details
-    };
+  const canDeleteResult = await this.canDeleteElection(id, userId);
+  
+  if (!canDeleteResult.canDelete) {
+    throw new BadRequestException(canDeleteResult.reason);
   }
+
+  // ⭐ NUEVO: Obtener candidatos con sus fotos antes de borrarlos
+  const candidates = await this.candidatoRepository.find({
+    where: { id_eleccion: id },
+    relations: ['persona']
+  });
+
+  // ⭐ NUEVO: Borrar archivos físicos de fotos
+  for (const candidate of candidates) {
+    if (candidate.persona?.foto_url) {
+      await this.deletePhotoFile(candidate.persona.foto_url);
+    }
+  }
+
+  // Eliminar en orden: votos -> candidatos -> votantes habilitados -> elección
+  await this.votoRepository.delete({ id_eleccion: id });
+  await this.candidatoRepository.delete({ id_eleccion: id });
+  await this.votanteHabilitadoRepository.delete({ id_eleccion: id });
+  await this.eleccionRepository.delete(id);
+
+  return {
+    message: 'Elección eliminada exitosamente',
+    details: canDeleteResult.details
+  };
+}
+
+// ⭐ NUEVO: Agregar este método helper al final de la clase
+private async deletePhotoFile(fotoUrl: string): Promise<void> {
+  try {
+    if (fotoUrl && !fotoUrl.startsWith('http')) {
+      const filePath = path.join(process.cwd(), fotoUrl);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log('📸 Foto borrada:', filePath);
+      }
+    }
+  } catch (error) {
+    console.error('❌ Error borrando foto:', error);
+  }
+}
 
   private async generateEligibleVoters(eleccion: Eleccion) {
     let personas: Persona[] = [];
@@ -293,6 +327,8 @@ export class ElectionsService {
       order: { fecha_inicio: 'ASC' },
     });
   }
+
+  
 
   async getElectionStats(id: number) {
     const eleccion = await this.findOne(id);

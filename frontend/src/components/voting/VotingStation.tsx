@@ -83,27 +83,42 @@ const VotingStation = () => {
 
   // Manejar QR escaneado o documento ingresado
   const handleIdentificationData = (data: any) => {
-    if (isProcessingQR) {
-      console.log('🚫 Ya procesando QR, ignorando...')
-      return
-    }
-    
-    setIsProcessingQR(true)
-    
-    try {
-      console.log('🔍 Datos de identificación recibidos:', data)
-      setScannedData(data)
-      setCurrentStep('voting')
-      toast.success('Identificación exitosa')
-    } catch (error) {
-      console.error('❌ Error procesando identificación:', error)
-      toast.error('Error procesando los datos de identificación')
-    } finally {
-      setTimeout(() => {
-        setIsProcessingQR(false)
-      }, 1000)
-    }
+  if (isProcessingQR) {
+    console.log('🚫 Ya procesando QR, ignorando...')
+    return
   }
+  
+  setIsProcessingQR(true)
+  
+  try {
+    console.log('🔍 Datos recibidos del QR:', data)
+    
+    let parsedData = data
+    
+    // ✅ Si los datos son un string JSON, parsearlos
+    if (typeof data === 'string') {
+      try {
+        parsedData = JSON.parse(data)
+        console.log('🔄 JSON parseado exitosamente:', parsedData)
+      } catch (parseError) {
+        console.log('⚠️ No se pudo parsear JSON, usando como string:', data)
+        parsedData = { doc: data, numero_documento: data }
+      }
+    }
+    
+    console.log('✅ Datos finales para guardar:', parsedData)
+    setScannedData(parsedData)
+    setCurrentStep('voting')
+    toast.success('Identificación exitosa')
+  } catch (error) {
+    console.error('❌ Error procesando identificación:', error)
+    toast.error('Error procesando los datos de identificación')
+  } finally {
+    setTimeout(() => {
+      setIsProcessingQR(false)
+    }, 1000)
+  }
+}
 
   // Seleccionar candidato
   const handleCandidateSelection = (candidateId: number | null) => {
@@ -121,27 +136,45 @@ const VotingStation = () => {
 
   // Procesar voto
   const handleProcessVote = async () => {
-    try {
-      setProcessing(true)
-      
-      const voteData = {
-        id_eleccion: selectedElection!.id_eleccion,
-        numero_documento: scannedData?.doc || scannedData?.numero_documento,
-        id_candidato: selectedCandidate,
-        es_voto_blanco: selectedCandidate === null
-      }
-
-      const result = await votesApi.cast(voteData)
-      setVoteResult(result)
-      setCurrentStep('success')
-      toast.success('¡Voto registrado exitosamente!')
-    } catch (error) {
-      const errorMessage = handleApiError(error)
-      toast.error(`Error registrando voto: ${errorMessage}`)
-    } finally {
-      setProcessing(false)
+  try {
+    setProcessing(true)
+    
+    // ✅ Obtener documento del QR de forma más robusta
+    const documentFromQR = scannedData?.doc || scannedData?.numero_documento
+    console.log('📄 Documento del QR:', documentFromQR)
+    console.log('📄 Tipo de documento:', typeof documentFromQR)
+    console.log('📄 scannedData completo:', scannedData)
+    
+    // Limpiar y validar
+    const cleanDocument = documentFromQR ? documentFromQR.toString().replace(/\D/g, '') : ''
+    
+    if (!cleanDocument) {
+      toast.error('No se pudo obtener el número de documento')
+      return
     }
+    
+    console.log('📄 Documento limpio:', cleanDocument)
+    
+    const voteData = {
+  id_eleccion: selectedElection!.id_eleccion,
+  id_candidato: selectedCandidate,
+  qr_code: cleanDocument  // Solo enviar qr_code, no numero_documento
+}
+    
+    console.log('📤 Datos a enviar:', voteData)
+
+    const result = await votesApi.cast(voteData)
+    setVoteResult(result)
+    setCurrentStep('success')
+    toast.success('¡Voto registrado exitosamente!')
+  } catch (error) {
+    const errorMessage = handleApiError(error)
+    toast.error(`Error registrando voto: ${errorMessage}`)
+    console.error('❌ Error completo:', error)
+  } finally {
+    setProcessing(false)
   }
+}
 
   // Reiniciar para nuevo voto
   const handleRestart = () => {

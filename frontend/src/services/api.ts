@@ -137,9 +137,9 @@ export interface CreateElectionData {
 
 export interface VoteData {
   id_eleccion: number
-  numero_documento: string
   id_candidato?: number | null
-  es_voto_blanco?: boolean
+  qr_code: string
+  // ❌ Quitar numero_documento si el backend no lo acepta
 }
 
 export interface VoteResult {

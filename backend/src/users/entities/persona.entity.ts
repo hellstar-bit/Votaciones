@@ -36,7 +36,11 @@ export class Persona {
   fecha_nacimiento: Date;
 
   // ✅ CAMPO AGREGADO PARA FOTO
-  @Column({ length: 500, nullable: true })
+  @Column({ 
+    length: 255, 
+    nullable: true,
+    default: null  // ✅ Agregar default para evitar que se borre
+  })
   foto_url: string;
 
   @Column({ nullable: true })
