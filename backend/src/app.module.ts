@@ -18,10 +18,11 @@ import { DashboardModule } from './dashboard/dashboard.module';
 // Interceptors y Filters
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { ImportModule } from './import/import.module';
 
 @Module({
   imports: [
-
+    ImportModule,
     PersonasModule,     // ✅ AGREGAR
     FichasModule,
     // Configuración global

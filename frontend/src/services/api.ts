@@ -62,7 +62,83 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
+export interface ImportOptions {
+  validateFichas?: boolean
+  createMissingFichas?: boolean
+}
 
+export interface ExcelPreviewResult {
+  success: boolean
+  preview: SheetPreview[]
+  resumen: ImportSummary
+}
+
+export interface SheetPreview {
+  numeroFicha: string
+  nombrePrograma: string
+  totalEstudiantes: number
+  erroresEncontrados: number
+  muestra: StudentSample[]
+  errores: ImportError[]
+}
+
+export interface StudentSample {
+  documento: string
+  nombre: string
+  email: string
+  telefono: string
+}
+
+export interface ImportResult {
+  success: boolean
+  summary: ImportSummary
+  errors: ImportError[]
+  warnings: ImportWarning[]
+  importedRecords: number
+  totalRecords: number
+  executionTime: number
+}
+
+export interface ImportSummary {
+  totalHojas: number
+  totalEstudiantes: number
+  fichas: any
+  totalErrores: number
+  totalFiles: number
+  totalSheets: number
+  totalRecords: number
+  importedRecords: number
+  duplicateRecords: number
+  errorRecords: number
+  fichasProcessed: string[]
+  programasFound: string[]
+}
+
+export interface ImportError {
+  row: number
+  sheet: string
+  field: string
+  value: any
+  message: string
+  severity: 'error' | 'warning'
+}
+
+export interface ImportWarning {
+  row: number
+  sheet: string
+  message: string
+  data: any
+}
+
+export interface ImportHistoryItem {
+  id: number
+  filename: string
+  fecha: string
+  usuario: string
+  registros_importados: number
+  registros_totales: number
+  estado: string
+}
 // INTERFACES Y TIPOS
 export interface DashboardStats {
   summary: {
@@ -173,6 +249,81 @@ export interface Candidate {
   }
 }
 
+// Interfaces para Import
+export interface ImportOptions {
+  validateFichas?: boolean
+  createMissingFichas?: boolean
+}
+
+export interface ExcelPreviewResult {
+  success: boolean
+  preview: SheetPreview[]
+  resumen: ImportSummary
+}
+
+export interface SheetPreview {
+  numeroFicha: string
+  nombrePrograma: string
+  totalEstudiantes: number
+  erroresEncontrados: number
+  muestra: StudentSample[]
+  errores: ImportError[]
+}
+
+export interface StudentSample {
+  documento: string
+  nombre: string
+  email: string
+  telefono: string
+}
+
+export interface ImportResult {
+  success: boolean
+  summary: ImportSummary
+  errors: ImportError[]
+  warnings: ImportWarning[]
+  importedRecords: number
+  totalRecords: number
+  executionTime: number
+}
+
+export interface ImportSummary {
+  totalFiles: number
+  totalSheets: number
+  totalRecords: number
+  importedRecords: number
+  duplicateRecords: number
+  errorRecords: number
+  fichasProcessed: string[]
+  programasFound: string[]
+}
+
+export interface ImportError {
+  row: number
+  sheet: string
+  field: string
+  value: any
+  message: string
+  severity: 'error' | 'warning'
+}
+
+export interface ImportWarning {
+  row: number
+  sheet: string
+  message: string
+  data: any
+}
+
+export interface ImportHistoryItem {
+  id: number
+  filename: string
+  fecha: string
+  usuario: string
+  registros_importados: number
+  registros_totales: number
+  estado: string
+}
+
 export interface Aprendiz {
   id_persona: number
   numero_documento: string
@@ -182,7 +333,8 @@ export interface Aprendiz {
   nombreCompleto: string
   email: string
   telefono: string
-  foto_url?: string  // ⭐ AGREGADA - Propiedad foto_url
+  foto_url?: string
+  estado?: string  // ✅ AGREGAR PROPIEDAD ESTADO
   jornada?: string
   ficha?: {
     id_ficha: number
@@ -198,6 +350,16 @@ export interface Aprendiz {
     id_centro: number
     nombre_centro: string
   }
+  // ✅ AGREGAR CAMPOS ADICIONALES QUE PUEDEN VENIR DEL BACKEND
+  fecha_nacimiento?: string
+  direccion?: string
+  ciudad?: string
+  genero?: string
+  nivel_educativo?: string
+  fecha_ingreso_ficha?: string
+  fecha_fin_formacion?: string
+  telefono_emergencia?: string
+  contacto_emergencia?: string
 }
 
 export interface Ficha {
@@ -215,6 +377,60 @@ export interface Ficha {
     id_centro: number
     nombre_centro: string
   }
+}
+
+export const importApi = {
+  // Preview de importación Excel
+  previewExcel: async (file: File): Promise<ExcelPreviewResult> => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await api.post('/import/excel/preview', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+
+  // Importar aprendices desde Excel
+  importExcel: async (
+    file: File, 
+    options: ImportOptions = {}
+  ): Promise<ImportResult> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    
+    // Agregar opciones como query params
+    const params = new URLSearchParams()
+    if (options.validateFichas !== undefined) {
+      params.append('validateFichas', options.validateFichas.toString())
+    }
+    if (options.createMissingFichas !== undefined) {
+      params.append('createMissingFichas', options.createMissingFichas.toString())
+    }
+
+    const response = await api.post(`/import/excel/aprendices?${params.toString()}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+
+  // Obtener historial de importaciones
+  getImportHistory: async (): Promise<ImportHistoryItem[]> => {
+    const response = await api.get('/import/history')
+    return response.data
+  },
+
+  // Descargar plantilla Excel
+  downloadTemplate: async (): Promise<Blob> => {
+    const response = await api.get('/import/templates/excel', {
+      responseType: 'blob',
+    })
+    return response.data
+  },
 }
 
 // SERVICIOS DE API
