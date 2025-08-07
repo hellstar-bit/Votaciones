@@ -31,4 +31,5 @@ export class TipoEleccion {
 
   @OneToMany(() => Eleccion, eleccion => eleccion.tipoEleccion)
   elecciones: Eleccion[];
+  nombre: string;
 }

@@ -204,13 +204,13 @@ export const dashboardApi = {
 }
 // INTERFACES Y TIPOS
 export interface DashboardStats {
-  summary: {
-    total_elections: number
-    active_elections: number
-    total_votes: number
-    total_voters: number
-    participation_rate: number
-  }
+  // El backend devuelve las propiedades directamente, no anidadas en summary
+  total_elections: number
+  active_elections: number
+  total_votes: number
+  total_voters: number
+  participation_rate: number
+  elections: Election[]
   recent_activity: Array<{
     id: number
     election: string

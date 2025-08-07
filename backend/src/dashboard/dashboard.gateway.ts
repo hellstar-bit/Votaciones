@@ -1,4 +1,4 @@
-// backend/src/dashboard/dashboard.gateway.ts - Con nombres reales de votantes
+// 📁 backend/src/dashboard/dashboard.gateway.ts - CORREGIDO
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -88,7 +88,7 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
   private async sendInitialDashboardData(client: Socket, userRole: string) {
     try {
       console.log(`📈 Enviando datos iniciales para rol: ${userRole}`);
-      
+
       const elections = await this.dashboardService.getRealTimeElections();
       const globalStats = await this.dashboardService.getGlobalRealTimeStats();
       
@@ -128,75 +128,60 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     console.log(`📊 Cliente ${client.id} salió de la sala de elección ${data.electionId}`);
   }
 
-  // ✅ MÉTODO PRINCIPAL ACTUALIZADO: Notificar nuevo voto con nombre real
-  async notifyNewVote(electionId: number, votanteDocumento?: string, candidatoId?: number) {
+  // ✅ MÉTODO PRINCIPAL CORREGIDO: Notificar nuevo voto
+  async notifyNewVote(electionId: number, documentoVotante?: string, candidatoId?: number) {
     try {
       console.log(`🗳️ Notificando nuevo voto en elección ${electionId}`);
       
-      // ✅ OBTENER NOMBRE REAL DEL VOTANTE
+      // ✅ OBTENER NOMBRE DEL VOTANTE POR DOCUMENTO
       let votanteNombre = 'Votante';
-      if (votanteDocumento) {
-        try {
-          const persona = await this.personaRepository.findOne({
-            where: { numero_documento: votanteDocumento.toString() }
-          });
-          
-          if (persona) {
-            votanteNombre = persona.nombreCompleto;
-            console.log(`👤 Votante identificado: ${votanteNombre}`);
-          }
-        } catch (error) {
-          console.warn('⚠️ No se pudo obtener nombre del votante:', error);
+      if (documentoVotante) {
+        const votantePersona = await this.personaRepository.findOne({
+          where: { numero_documento: documentoVotante }
+        });
+        
+        if (votantePersona) {
+          votanteNombre = `${votantePersona.nombres} ${votantePersona.apellidos}`.trim();
         }
       }
 
       // ✅ OBTENER NOMBRE DEL CANDIDATO
       let candidatoNombre = 'Voto en Blanco';
       if (candidatoId) {
-        try {
-          const candidato = await this.personaRepository
-            .createQueryBuilder('persona')
-            .innerJoin('candidatos', 'candidato', 'candidato.id_persona = persona.id_persona')
-            .select(['persona.nombres', 'persona.apellidos'])
-            .where('candidato.id_candidato = :candidatoId', { candidatoId })
-            .getRawOne();
-          
-          if (candidato) {
-            candidatoNombre = `${candidato.persona_nombres} ${candidato.persona_apellidos}`;
-            console.log(`🏆 Candidato identificado: ${candidatoNombre}`);
-          }
-        } catch (error) {
-          console.warn('⚠️ No se pudo obtener nombre del candidato:', error);
+        const candidatoPersona = await this.personaRepository
+          .createQueryBuilder('persona')
+          .innerJoin('candidatos', 'candidato', 'candidato.id_persona = persona.id_persona')
+          .where('candidato.id_candidato = :candidatoId', { candidatoId })
+          .getOne();
+        
+        if (candidatoPersona) {
+          candidatoNombre = `${candidatoPersona.nombres} ${candidatoPersona.apellidos}`.trim();
         }
       }
 
-      // Obtener estadísticas actualizadas
-      const elections = await this.dashboardService.getRealTimeElections();
-      const updatedElection = elections.find(e => e.id === electionId);
-      
-      if (!updatedElection) {
-        console.warn(`⚠️ No se encontró la elección ${electionId}`);
-        return;
-      }
-
+      // ✅ OBTENER ESTADÍSTICAS ACTUALIZADAS
+      const updatedElections = await this.dashboardService.getRealTimeElections();
+      const updatedElection = updatedElections.find(e => e.id === electionId);
       const globalStats = await this.dashboardService.getGlobalRealTimeStats();
 
-      // ✅ NOTIFICAR CON NOMBRES REALES
+      // ✅ NOTIFICAR A TODOS LOS CLIENTES CONECTADOS
       this.server.emit('new-vote', {
         electionId,
-        voterName: votanteNombre, // ✅ NOMBRE REAL DEL VOTANTE
-        candidateName: candidatoNombre, // ✅ NOMBRE REAL DEL CANDIDATO
+        voterName: votanteNombre,
+        candidateName: candidatoNombre,
         timestamp: new Date().toISOString(),
         method: 'qr',
-        updatedStats: updatedElection.estadisticas
+        updatedStats: updatedElection?.estadisticas || null
       });
 
+      // ✅ NOTIFICAR A LA SALA ESPECÍFICA DE LA ELECCIÓN
       this.server.to(`election-${electionId}`).emit('election-stats-updated', {
         electionId,
-        stats: updatedElection.estadisticas,
+        stats: updatedElection?.estadisticas || null,
         timestamp: new Date().toISOString()
       });
 
+      // ✅ NOTIFICAR ESTADÍSTICAS GLOBALES ACTUALIZADAS
       this.server.emit('global-stats-updated', {
         summary: globalStats.summary,
         recent_activity: globalStats.recent_activity.slice(0, 10),
@@ -236,65 +221,18 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     }
   }
 
-  // ✅ MÉTODO: Notificar activación de elección
-  async notifyElectionActivated(electionId: number) {
-    try {
-      console.log(`🎯 Notificando activación de elección ${electionId}`);
-      
-      const elections = await this.dashboardService.getRealTimeElections();
-      const activatedElection = elections.find(e => e.id === electionId);
-      
-      if (activatedElection) {
-        this.server.emit('election-activated', {
-          electionId,
-          election: activatedElection,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      console.log(`✅ Notificación de activación enviada`);
-      
-    } catch (error) {
-      console.error('❌ Error notificando activación de elección:', error);
-    }
-  }
-
-  // ✅ MÉTODO: Enviar alerta del sistema
-  async sendSystemAlert(message: string, type: 'info' | 'warning' | 'error' = 'info') {
-    try {
-      console.log(`🚨 Enviando alerta del sistema: ${message}`);
-      
-      this.server.emit('system-alert', {
-        message,
-        type,
-        timestamp: new Date().toISOString()
-      });
-
-      console.log(`✅ Alerta del sistema enviada`);
-      
-    } catch (error) {
-      console.error('❌ Error enviando alerta del sistema:', error);
-    }
-  }
-
-  // ✅ MÉTODO: Obtener número de clientes conectados
+  // ✅ MÉTODO: Obtener clientes conectados
   getConnectedClientsCount(): number {
     return this.connectedClients.size;
   }
 
-  // ✅ MÉTODO: Obtener estadísticas de conexión
-  getConnectionStats() {
-    const clientsByRole = new Map<string, number>();
-    
-    this.connectedClients.forEach(client => {
-      const current = clientsByRole.get(client.userRole) || 0;
-      clientsByRole.set(client.userRole, current + 1);
-    });
+  // ✅ MÉTODO: Broadcast a todos los clientes
+  broadcastToAll(event: string, data: any) {
+    this.server.emit(event, data);
+  }
 
-    return {
-      totalClients: this.connectedClients.size,
-      clientsByRole: Object.fromEntries(clientsByRole),
-      timestamp: new Date().toISOString()
-    };
+  // ✅ MÉTODO: Broadcast a una sala específica
+  broadcastToRoom(room: string, event: string, data: any) {
+    this.server.to(room).emit(event, data);
   }
 }

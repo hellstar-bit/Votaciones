@@ -2,7 +2,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config'; // ✅ AGREGAR ConfigModule
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DashboardService } from './dashboard.service';
 import { DashboardController } from './dashboard.controller';
 import { DashboardGateway } from './dashboard.gateway';
@@ -10,11 +10,11 @@ import { Eleccion } from '../elections/entities/eleccion.entity';
 import { Voto } from '../votes/entities/voto.entity';
 import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 import { Candidato } from '../candidates/entities/candidato.entity';
+import { Persona } from '../users/entities/persona.entity'; // ✅ IMPORTAR
 import { ElectionsModule } from '../elections/elections.module';
 
 @Module({
   imports: [
-    // ✅ IMPORTAR ConfigModule explícitamente
     ConfigModule,
     
     TypeOrmModule.forFeature([
@@ -22,12 +22,11 @@ import { ElectionsModule } from '../elections/elections.module';
       Voto,
       VotanteHabilitado,
       Candidato,
+      Persona, // ✅ AGREGAR PersonaRepository
     ]),
     
-    // ✅ Usar forwardRef para evitar dependencia circular
     forwardRef(() => ElectionsModule),
     
-    // ✅ CONFIGURAR JwtModule correctamente para el módulo
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

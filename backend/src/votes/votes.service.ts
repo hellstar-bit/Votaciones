@@ -1,4 +1,4 @@
-// backend/src/votes/votes.service.ts - Versión completa actualizada
+// 📁 backend/src/votes/votes.service.ts - CORREGIDO para usar entidades correctas
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -54,87 +54,59 @@ export class VotesService {
     const fechaInicio = new Date(eleccion.fecha_inicio);
     const fechaFin = new Date(eleccion.fecha_fin);
 
-    console.log('🕒 Verificando horario:', {
-      ahora: ahora.toISOString(),
-      fecha_inicio: fechaInicio.toISOString(),
-      fecha_fin: fechaFin.toISOString(),
-      puede_votar: ahora >= fechaInicio && ahora <= fechaFin
-    });
-
     if (ahora < fechaInicio) {
       const minutosParaInicio = Math.round((fechaInicio.getTime() - ahora.getTime()) / (1000 * 60));
       throw new BadRequestException(
-        `La votación aún no ha comenzado. Inicia en ${minutosParaInicio} minutos`
+        `La votación aún no ha comenzado. Faltan ${minutosParaInicio} minutos.`
       );
     }
 
     if (ahora > fechaFin) {
-      const minutosDesdeFinalizacion = Math.round((ahora.getTime() - fechaFin.getTime()) / (1000 * 60));
-      throw new BadRequestException(
-        `La votación ya ha finalizado hace ${minutosDesdeFinalizacion} minutos`
-      );
+      throw new BadRequestException('La votación ya ha finalizado');
     }
 
-    console.log('✅ Elección en horario válido');
-
-    // 3. Decodificar y verificar QR/documento
+    // 3. Decodificar y validar QR
     let personaData;
     try {
-      personaData = await this.decodeIdentificationData(qr_code);
-      console.log('✅ Datos de identificación procesados:', personaData);
+      const qrDecoded = Buffer.from(qr_code, 'base64').toString('utf-8');
+      personaData = JSON.parse(qrDecoded);
+      
+      if (!personaData.numero_documento) {
+        throw new Error('QR no contiene número de documento');
+      }
     } catch (error) {
-      console.error('❌ Error procesando datos de identificación:', error);
-      throw new BadRequestException(error.message || 'Datos de identificación inválidos');
+      console.error('❌ Error decodificando QR:', error);
+      throw new BadRequestException('Código QR inválido o corrupto');
     }
 
-    // 4. Buscar la persona
+    // 4. Verificar que la persona existe y está habilitada
     const persona = await this.personaRepository.findOne({
-      where: { 
-        numero_documento: personaData.numero_documento, 
-        estado: 'activo' 
-      },
-      relations: ['centro', 'sede', 'ficha'],
+      where: { numero_documento: personaData.numero_documento },
     });
 
     if (!persona) {
       console.error('❌ Persona no encontrada:', personaData.numero_documento);
-      throw new BadRequestException(
-        `Persona con documento ${personaData.numero_documento} no encontrada o inactiva`
-      );
+      throw new BadRequestException('Persona no encontrada en el sistema');
     }
 
-    console.log('✅ Persona encontrada:', {
-      nombre: persona.nombreCompleto,
-      documento: persona.numero_documento,
-      centro: persona.centro?.nombre_centro,
-      sede: persona.sede?.nombre_sede,
-      ficha: persona.ficha?.numero_ficha
-    });
+    console.log('✅ Persona encontrada:', persona.nombreCompleto);
 
-    // 5. Verificar que la persona está habilitada para votar
+    // ✅ 5. CORREGIDO: Buscar votante habilitado por id_persona
     const votanteHabilitado = await this.votanteHabilitadoRepository.findOne({
-      where: { id_eleccion, id_persona: persona.id_persona },
+      where: { 
+        id_eleccion, 
+        id_persona: persona.id_persona // ✅ USAR id_persona en lugar de documento_votante
+      },
     });
 
     if (!votanteHabilitado) {
-      console.error('❌ Votante no habilitado:', { 
-        eleccion: id_eleccion, 
-        persona: persona.id_persona,
-        documento: persona.numero_documento
-      });
-      throw new ForbiddenException(
-        `${persona.nombreCompleto} no está habilitado para votar en esta elección`
-      );
+      console.error('❌ Votante no habilitado:', personaData.numero_documento);
+      throw new ForbiddenException('No está habilitado para votar en esta elección');
     }
 
     if (votanteHabilitado.ha_votado) {
-      console.error('❌ Ya votó:', {
-        documento: persona.numero_documento,
-        fecha_voto: votanteHabilitado.fecha_voto
-      });
-      throw new BadRequestException(
-        `${persona.nombreCompleto} ya ha votado en esta elección`
-      );
+      console.error('❌ Ya votó:', personaData.numero_documento);
+      throw new BadRequestException('Ya ha emitido su voto en esta elección');
     }
 
     console.log('✅ Votante habilitado y no ha votado');
@@ -169,11 +141,12 @@ export class VotesService {
     const hashData = `${id_eleccion}-${persona.id_persona}-${Date.now()}-${Math.random()}`;
     const hash_verificacion = crypto.createHash('sha256').update(hashData).digest('hex');
 
-    // 8. Registrar el voto
+    // ✅ 8. CORREGIDO: Registrar el voto sin documento_votante
     const voto = this.votoRepository.create({
       id_eleccion,
       id_candidato: id_candidato || null,
       hash_verificacion,
+      // ✅ NO INCLUIR documento_votante ya que no existe en la entidad
     });
 
     await this.votoRepository.save(voto);
@@ -226,122 +199,14 @@ export class VotesService {
       hash_verificacion,
       timestamp: new Date(),
       votante: persona.nombreCompleto, // ✅ NOMBRE COMPLETO DEL VOTANTE
-      candidato: candidato ? candidato.persona.nombreCompleto : 'VOTO EN BLANCO',
-      metodo_identificacion: personaData.metodo,
-      // ✅ INFORMACIÓN ADICIONAL PARA EL FRONTEND
-      votante_info: {
-        nombre_completo: persona.nombreCompleto,
-        documento: persona.numero_documento,
-        email: persona.email,
-        centro: persona.centro?.nombre_centro,
-        sede: persona.sede?.nombre_sede,
-        ficha: persona.ficha?.numero_ficha
-      }
+      candidato: candidato ? 
+        `${candidato.persona.nombres} ${candidato.persona.apellidos}`.trim() : 
+        'Voto en Blanco',
+      eleccion: eleccion.titulo,
     };
 
-    console.log('🎉 Voto procesado exitosamente:', result);
+    console.log('✅ Voto procesado exitosamente:', result);
     return result;
-  }
-
-  /**
-   * Decodifica y valida los datos de identificación del votante
-   * Soporta tanto QR codes como entrada manual de documento
-   */
-  private async decodeIdentificationData(data: string): Promise<{ 
-    numero_documento: string, 
-    metodo: string,
-    timestamp?: number,
-    id?: number,
-    type?: string 
-  }> {
-    try {
-      console.log('🔍 Procesando datos de identificación...');
-      
-      // Intentar parsear como JSON (QR code)
-      try {
-        const parsed = JSON.parse(data);
-        console.log('📱 Datos parseados como JSON:', parsed);
-        
-        // Validar formato del QR SENA
-        if (parsed.type === 'ACCESUM_SENA_LEARNER' || parsed.type === 'MANUAL_INPUT' || parsed.type === 'DIRECT_INPUT') {
-          const documento = parsed.doc || parsed.numero_documento;
-          
-          if (!documento) {
-            throw new Error('QR/datos inválidos: falta número de documento');
-          }
-
-          // Validar que el documento sea numérico
-          if (!/^\d+$/.test(documento.toString())) {
-            throw new Error('Número de documento debe contener solo dígitos');
-          }
-
-          // Validar longitud del documento
-          if (documento.length < 7 || documento.length > 12) {
-            throw new Error('Número de documento debe tener entre 7 y 12 dígitos');
-          }
-
-          return {
-            numero_documento: documento.toString(),
-            metodo: parsed.type === 'MANUAL_INPUT' ? 'manual' : 
-                   parsed.type === 'DIRECT_INPUT' ? 'directo' : 'qr',
-            timestamp: parsed.timestamp,
-            id: parsed.id,
-            type: parsed.type
-          };
-        } 
-        
-        // Formato JSON genérico con numero_documento
-        if (parsed.numero_documento || parsed.doc) {
-          const documento = (parsed.numero_documento || parsed.doc).toString();
-          
-          if (!/^\d+$/.test(documento)) {
-            throw new Error('Número de documento debe contener solo dígitos');
-          }
-
-          if (documento.length < 7 || documento.length > 12) {
-            throw new Error('Número de documento debe tener entre 7 y 12 dígitos');
-          }
-
-          return {
-            numero_documento: documento,
-            metodo: 'json',
-            timestamp: parsed.timestamp || Date.now(),
-            type: parsed.type || 'GENERIC_JSON'
-          };
-        }
-
-        throw new Error('Formato JSON no reconocido');
-        
-      } catch (jsonError) {
-        // No es JSON válido, tratar como número de documento directo
-        console.log('📝 Tratando como número de documento directo');
-        
-        const documento = data.trim();
-        
-        // Validar que solo contenga números
-        if (!/^\d+$/.test(documento)) {
-          throw new Error('El número de documento debe contener solo dígitos');
-        }
-
-        // Validar longitud
-        if (documento.length < 7 || documento.length > 12) {
-          throw new Error('El número de documento debe tener entre 7 y 12 dígitos');
-        }
-
-        return {
-          numero_documento: documento,
-          metodo: 'directo',
-          timestamp: Date.now(),
-          type: 'DIRECT_STRING'
-        };
-      }
-      
-    } catch (error) {
-      console.error('❌ Error procesando datos de identificación:', error);
-      throw new BadRequestException(
-        `Datos de identificación inválidos: ${error.message}`
-      );
-    }
   }
 
   async verifyVote(hash_verificacion: string) {

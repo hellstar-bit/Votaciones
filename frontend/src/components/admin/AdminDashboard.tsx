@@ -1,4 +1,4 @@
-// AdminDashboard.tsx - Diseño coherente con el sistema existente
+// 📁 frontend/src/components/admin/AdminDashboard.tsx - ARCHIVO COMPLETO CORREGIDO
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
@@ -66,10 +66,15 @@ const AdminDashboard = () => {
     try {
       setLoading(true)
 
+      console.log('📊 Iniciando carga de datos del dashboard...')
+
       const [dashboardStats, allElections] = await Promise.all([
         dashboardApi.getStats(),
         electionsApi.getAll()
       ])
+
+      console.log('📈 Dashboard stats recibidas:', dashboardStats)
+      console.log('🗳️ Elecciones recibidas:', allElections)
 
       setStats(dashboardStats)
       setElections(allElections)
@@ -149,9 +154,25 @@ const AdminDashboard = () => {
       case 'configuracion': return <Cog6ToothIcon className="w-4 h-4" />
       case 'finalizada': return <CheckCircleIcon className="w-4 h-4" />
       case 'cancelada': return <ExclamationTriangleIcon className="w-4 h-4" />
-      default: return null
+      default: return <ClockIcon className="w-4 h-4" />
     }
   }
+
+  // ✅ VALORES SEGUROS PARA EVITAR ERRORES UNDEFINED - CORREGIDO
+  const safeStats = {
+    summary: {
+      total_elections: stats?.total_elections || 0,
+      active_elections: stats?.active_elections || 0,
+      total_votes: stats?.total_votes || 0,
+      total_voters: stats?.total_voters || 0,
+      participation_rate: stats?.participation_rate || 0,
+    },
+    recent_activity: stats?.recent_activity || []
+  }
+
+  // ✅ DEBUG: Mostrar estadísticas en consola
+  console.log('🔍 Stats actuales:', stats)
+  console.log('🔍 Safe stats:', safeStats)
 
   if (loading) {
     return (
@@ -160,7 +181,7 @@ const AdminDashboard = () => {
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-12 h-12 border-4 border-sena-500 border-t-transparent rounded-full mx-auto mb-4"
+            className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full mx-auto mb-4"
           />
           <p className="text-gray-600 font-medium">Cargando dashboard...</p>
         </motion.div>
@@ -194,7 +215,7 @@ const AdminDashboard = () => {
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-sena-500 rounded-lg flex items-center justify-center">
+              <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
                 <span className="text-white font-bold text-sm">S</span>
               </div>
               <div>
@@ -209,7 +230,7 @@ const AdminDashboard = () => {
                 <input 
                   type="text" 
                   placeholder="Buscar elecciones..." 
-                  className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-sena-500 focus:border-transparent w-64"
+                  className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent w-64"
                 />
                 <ChartBarIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               </div>
@@ -220,15 +241,26 @@ const AdminDashboard = () => {
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
               </button>
 
+              {/* Dashboard en tiempo real */}
+              <button
+                onClick={() => navigate('/dashboard/real-time')}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+              >
+                <EyeIcon className="w-4 h-4" />
+                <span>Dashboard Tiempo Real</span>
+              </button>
+
               {/* Usuario */}
               <div className="flex items-center space-x-3">
                 <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">{user?.nombre_completo}</p>
-                  <p className="text-xs text-gray-500">{user?.rol}</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {user?.nombre_completo || 'Usuario'}
+                  </p>
+                  <p className="text-xs text-gray-500">{user?.rol || 'Admin'}</p>
                 </div>
                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
                   <span className="text-white font-semibold text-sm">
-                    {user?.nombre_completo?.charAt(0)}
+                    {user?.nombre_completo?.charAt(0) || 'U'}
                   </span>
                 </div>
               </div>
@@ -253,7 +285,7 @@ const AdminDashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Elecciones */}
             <motion.div 
-              className="bg-blue-500 rounded-xl p-5 text-white relative overflow-hidden"
+              className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
@@ -261,9 +293,9 @@ const AdminDashboard = () => {
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-blue-100 text-sm font-medium">Total Elecciones</p>
-                  <p className="text-2xl font-bold mt-1">{stats?.summary.total_elections || 0}</p>
-                  <p className="text-blue-200 text-xs mt-1">En el sistema</p>
+                  <p className="text-gray-300 text-sm font-medium">Total Elecciones</p>
+                  <p className="text-2xl font-bold mt-1">{safeStats.summary.total_elections}</p>
+                  <p className="text-gray-400 text-xs mt-1">En el sistema</p>
                 </div>
                 <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                   <ClipboardDocumentListIcon className="w-6 h-6" />
@@ -274,7 +306,7 @@ const AdminDashboard = () => {
 
             {/* Elecciones Activas */}
             <motion.div 
-              className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden"
+              className="bg-green-600 rounded-xl p-5 text-white relative overflow-hidden"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
@@ -283,7 +315,7 @@ const AdminDashboard = () => {
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-green-100 text-sm font-medium">Elecciones Activas</p>
-                  <p className="text-2xl font-bold mt-1">{stats?.summary.active_elections || 0}</p>
+                  <p className="text-2xl font-bold mt-1">{safeStats.summary.active_elections}</p>
                   <p className="text-green-200 text-xs mt-1">En proceso</p>
                 </div>
                 <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
@@ -295,7 +327,7 @@ const AdminDashboard = () => {
 
             {/* Total Votos */}
             <motion.div 
-              className="bg-purple-500 rounded-xl p-5 text-white relative overflow-hidden"
+              className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
@@ -303,9 +335,9 @@ const AdminDashboard = () => {
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-purple-100 text-sm font-medium">Total Votos</p>
-                  <p className="text-2xl font-bold mt-1">{stats?.summary.total_votes || 0}</p>
-                  <p className="text-purple-200 text-xs mt-1">Registrados</p>
+                  <p className="text-green-100 text-sm font-medium">Total Votos</p>
+                  <p className="text-2xl font-bold mt-1">{safeStats.summary.total_votes}</p>
+                  <p className="text-green-200 text-xs mt-1">Registrados</p>
                 </div>
                 <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                   <UsersIcon className="w-6 h-6" />
@@ -316,7 +348,7 @@ const AdminDashboard = () => {
 
             {/* Participación */}
             <motion.div 
-              className="bg-orange-500 rounded-xl p-5 text-white relative overflow-hidden"
+              className="bg-green-700 rounded-xl p-5 text-white relative overflow-hidden"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
@@ -324,9 +356,9 @@ const AdminDashboard = () => {
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-orange-100 text-sm font-medium">Participación</p>
-                  <p className="text-2xl font-bold mt-1">{stats?.summary.participation_rate.toFixed(1) || 0}%</p>
-                  <p className="text-orange-200 text-xs mt-1">Promedio</p>
+                  <p className="text-green-100 text-sm font-medium">Participación</p>
+                  <p className="text-2xl font-bold mt-1">{safeStats.summary.participation_rate.toFixed(1)}%</p>
+                  <p className="text-green-200 text-xs mt-1">Promedio</p>
                 </div>
                 <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                   <ChartPieIcon className="w-6 h-6" />
@@ -348,14 +380,14 @@ const AdminDashboard = () => {
               >
                 <div className="flex items-center justify-between p-6 border-b border-gray-200">
                   <div className="flex items-center space-x-3">
-                    <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
+                    <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
                       <ClipboardDocumentListIcon className="w-4 h-4 text-white" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900">Elecciones</h3>
                   </div>
                   <button
                     onClick={() => setIsCreateModalOpen(true)}
-                    className="flex items-center space-x-2 px-4 py-2 bg-sena-500 text-white rounded-lg hover:bg-sena-600 transition-colors font-medium"
+                    className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
                   >
                     <PlusIcon className="w-4 h-4" />
                     <span>Nueva Elección</span>
@@ -372,7 +404,7 @@ const AdminDashboard = () => {
                       <p className="text-gray-500 text-sm mb-6">Comienza creando tu primera elección para el sistema</p>
                       <button
                         onClick={() => setIsCreateModalOpen(true)}
-                        className="px-6 py-3 bg-sena-500 text-white rounded-lg hover:bg-sena-600 transition-colors font-medium"
+                        className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
                       >
                         Crear Primera Elección
                       </button>
@@ -469,19 +501,19 @@ const AdminDashboard = () => {
                 transition={{ delay: 0.6 }}
               >
                 <div className="flex items-center space-x-2 mb-4">
-                  <div className="w-6 h-6 bg-orange-500 rounded-lg flex items-center justify-center">
+                  <div className="w-6 h-6 bg-green-600 rounded-lg flex items-center justify-center">
                     <ClockIcon className="w-3 h-3 text-white" />
                   </div>
                   <h3 className="text-sm font-semibold text-gray-900">Actividad Reciente</h3>
                 </div>
-                {stats?.recent_activity && stats.recent_activity.length > 0 ? (
+                {safeStats.recent_activity && safeStats.recent_activity.length > 0 ? (
                   <div className="space-y-2">
-                    {stats.recent_activity.slice(0, 3).map((activity) => (
-                      <div key={activity.id} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
-                        <div className="w-1.5 h-1.5 bg-sena-500 rounded-full"></div>
+                    {safeStats.recent_activity.slice(0, 3).map((activity, index) => (
+                      <div key={activity.id || index} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
+                        <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-gray-900 truncate">{activity.candidate}</p>
-                          <p className="text-xs text-gray-600 truncate">{activity.election}</p>
+                          <p className="text-xs font-medium text-gray-900 truncate">{activity.candidate || 'Actividad'}</p>
+                          <p className="text-xs text-gray-600 truncate">{activity.election || 'Sin especificar'}</p>
                         </div>
                       </div>
                     ))}
@@ -502,7 +534,7 @@ const AdminDashboard = () => {
                 transition={{ delay: 0.7 }}
               >
                 <div className="flex items-center space-x-2 mb-4">
-                  <div className="w-6 h-6 bg-purple-500 rounded-lg flex items-center justify-center">
+                  <div className="w-6 h-6 bg-green-700 rounded-lg flex items-center justify-center">
                     <span className="text-white text-xs">⚡</span>
                   </div>
                   <h3 className="text-sm font-semibold text-gray-900">Acciones Rápidas</h3>
@@ -510,10 +542,18 @@ const AdminDashboard = () => {
                 <div className="space-y-2">
                   <button
                     onClick={() => setIsCreateModalOpen(true)}
-                    className="w-full flex items-center space-x-2 px-3 py-2 bg-sena-500 text-white rounded-lg hover:bg-sena-600 transition-colors text-sm"
+                    className="w-full flex items-center space-x-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
                   >
                     <PlusIcon className="w-4 h-4" />
                     <span>Crear Elección</span>
+                  </button>
+
+                  <button 
+                    onClick={() => navigate('/dashboard/real-time')}
+                    className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                  >
+                    <EyeIcon className="w-4 h-4" />
+                    <span>Dashboard Tiempo Real</span>
                   </button>
 
                   <button className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
@@ -567,7 +607,7 @@ const AdminDashboard = () => {
                   </div>
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-600">Usuarios Activos</span>
-                    <span className="text-gray-900 font-medium">{stats?.summary.total_voters || 0}</span>
+                    <span className="text-gray-900 font-medium">{safeStats.summary.total_voters}</span>
                   </div>
                 </div>
               </motion.div>
