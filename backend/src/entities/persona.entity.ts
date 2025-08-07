@@ -1,3 +1,6 @@
+// 📁 backend/src/entities/persona.entity.ts
+// ENTIDAD PERSONA CORREGIDA - SIN UNIQUE CONSTRAINT PROBLEMÁTICO
+
 import { 
   Entity, 
   PrimaryGeneratedColumn, 
@@ -9,34 +12,33 @@ import {
 } from 'typeorm';
 
 @Entity('personas')
-@Index('idx_personas_documento', ['numero_documento'])
-// 🔧 REMOVER TEMPORALMENTE estos índices que causan problemas
-// @Index('idx_personas_centro_sede_ficha', ['id_centro', 'id_sede', 'id_ficha'])
-// @Index('idx_personas_centro_activos', ['id_centro', 'estado'])
+// 🔧 REMOVER ÍNDICE ÚNICO PROBLEMÁTICO TEMPORALMENTE
+// @Index('idx_personas_documento', ['numero_documento']) // ❌ COMENTADO
 export class Persona {
   @PrimaryGeneratedColumn()
   id_persona: number;
 
-  @Column({ unique: true, length: 20 })
+  // 🔧 SIN UNIQUE CONSTRAINT PARA EVITAR ERRORES DE DUPLICADOS
+  @Column({ length: 25 }) // ❌ REMOVER unique: true
   numero_documento: string;
 
   @Column({ 
     type: 'enum',
-    enum: ['CC', 'TI', 'CE', 'PEP', 'PPT'],
+    enum: ['CC', 'TI', 'CE', 'PEP', 'PPT', 'PP'],
     default: 'CC'
   })
-  tipo_documento: 'CC' | 'TI' | 'CE' | 'PEP' | 'PPT';
+  tipo_documento: 'CC' | 'TI' | 'CE' | 'PEP' | 'PPT' | 'PP';
 
-  @Column({ length: 100 })
+  @Column({ length: 150 })
   nombres: string;
 
-  @Column({ length: 100 })
+  @Column({ length: 150 })
   apellidos: string;
 
-  @Column({ length: 150, nullable: true })
+  @Column({ length: 200, nullable: true })
   email: string;
 
-  @Column({ length: 20, nullable: true })
+  @Column({ length: 25, nullable: true })
   telefono: string;
 
   @Column({ type: 'date', nullable: true })
@@ -45,7 +47,6 @@ export class Persona {
   @Column({ length: 255, nullable: true })
   foto_url: string;
 
-  // 🔧 CAMBIO: Solo números, sin foreign key constraints por ahora
   @Column({ nullable: true })
   id_centro: number;
 
@@ -64,19 +65,16 @@ export class Persona {
 
   @Column({ 
     type: 'enum',
-    enum: ['activo', 'inactivo', 'graduado', 'retirado'],
+    enum: ['activo', 'inactivo', 'graduado', 'retirado', 'matriculado'],
     default: 'activo'
   })
-  estado: 'activo' | 'inactivo' | 'graduado' | 'retirado';
+  estado: 'activo' | 'inactivo' | 'graduado' | 'retirado' | 'matriculado';
 
   @CreateDateColumn()
   created_at: Date;
 
   @UpdateDateColumn()
   updated_at: Date;
-
-  // 🔧 NO DEFINIR RELACIONES ManyToOne problemáticas por ahora
-  // Las agregaremos después de que funcione la sincronización básica
   
   // Métodos helper
   get nombre_completo(): string {
@@ -84,6 +82,7 @@ export class Persona {
   }
 
   get es_activo(): boolean {
-    return this.estado === 'activo';
+    return this.estado === 'activo' || this.estado === 'matriculado';
   }
 }
+

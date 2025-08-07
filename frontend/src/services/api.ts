@@ -62,83 +62,7 @@ api.interceptors.response.use(
     return Promise.reject(error)
   }
 )
-export interface ImportOptions {
-  validateFichas?: boolean
-  createMissingFichas?: boolean
-}
 
-export interface ExcelPreviewResult {
-  success: boolean
-  preview: SheetPreview[]
-  resumen: ImportSummary
-}
-
-export interface SheetPreview {
-  numeroFicha: string
-  nombrePrograma: string
-  totalEstudiantes: number
-  erroresEncontrados: number
-  muestra: StudentSample[]
-  errores: ImportError[]
-}
-
-export interface StudentSample {
-  documento: string
-  nombre: string
-  email: string
-  telefono: string
-}
-
-export interface ImportResult {
-  success: boolean
-  summary: ImportSummary
-  errors: ImportError[]
-  warnings: ImportWarning[]
-  importedRecords: number
-  totalRecords: number
-  executionTime: number
-}
-
-export interface ImportSummary {
-  totalHojas: number
-  totalEstudiantes: number
-  fichas: any
-  totalErrores: number
-  totalFiles: number
-  totalSheets: number
-  totalRecords: number
-  importedRecords: number
-  duplicateRecords: number
-  errorRecords: number
-  fichasProcessed: string[]
-  programasFound: string[]
-}
-
-export interface ImportError {
-  row: number
-  sheet: string
-  field: string
-  value: any
-  message: string
-  severity: 'error' | 'warning'
-}
-
-export interface ImportWarning {
-  row: number
-  sheet: string
-  message: string
-  data: any
-}
-
-export interface ImportHistoryItem {
-  id: number
-  filename: string
-  fecha: string
-  usuario: string
-  registros_importados: number
-  registros_totales: number
-  estado: string
-}
 // INTERFACES Y TIPOS
 export interface DashboardStats {
   summary: {
@@ -215,7 +139,6 @@ export interface VoteData {
   id_eleccion: number
   id_candidato?: number | null
   qr_code: string
-  // ❌ Quitar numero_documento si el backend no lo acepta
 }
 
 export interface VoteResult {
@@ -240,7 +163,7 @@ export interface Candidate {
     nombreCompleto: string
     email: string
     telefono: string
-    foto_url?: string  // ⭐ AGREGADA - Propiedad foto_url
+    foto_url?: string
   }
   eleccion?: {
     id_eleccion: number
@@ -249,18 +172,114 @@ export interface Candidate {
   }
 }
 
-// Interfaces para Import
+// 🔧 INTERFACES DE IMPORTACIÓN ACTUALIZADAS
 export interface ImportOptions {
   validateFichas?: boolean
   createMissingFichas?: boolean
+  updateExisting?: boolean        // 🔧 NUEVA
+  skipDuplicates?: boolean       // 🔧 NUEVA  
+  flexibleValidation?: boolean   // 🔧 NUEVA
+  dryRun?: boolean              // 🔧 NUEVA
+  batchSize?: number            // 🔧 NUEVA
+}
+
+export interface ImportResult {
+  success: boolean
+  summary: ImportSummary
+  errors: ImportError[]
+  warnings: ImportWarning[]
+  importedRecords: number
+  totalRecords: number
+  executionTime: number
+  
+  // 🔧 PROPIEDADES NUEVAS QUE FALTAN
+  duplicatesSkipped?: DuplicateRecord[]
+  recordsUpdated?: number
+  warningsCount?: number
+  validationMode?: 'strict' | 'flexible'
+}
+
+export interface ImportSummary {
+  totalRegistros: number
+  programas: any
+  totalFiles: number
+  totalSheets: number
+  totalRecords: number
+  importedRecords: number
+  duplicateRecords: number
+  errorRecords: number
+  fichasProcessed: string[]
+  programasFound: string[]
+  
+  // 🔧 PROPIEDADES PARA COMPATIBILIDAD CON PREVIEW
+  totalHojas?: number           
+  totalEstudiantes?: number     
+  totalErrores?: number         
+  fichas?: string[]            
+  
+  // 🔧 PROPIEDADES NUEVAS
+  updatedRecords?: number
+  skippedRecords?: number
+  createdFichas?: string[]
+  processingTime?: number
+}
+
+export interface ImportError {
+  row: number
+  sheet: string
+  field: string
+  value: any
+  message: string
+  severity: 'error' | 'warning'
+  
+  // 🔧 CONTEXTO ADICIONAL
+  originalValue?: any
+  suggestedFix?: string
+  errorCode?: string
+}
+
+export interface ImportWarning {
+  row: number
+  sheet: string
+  message: string
+  data: any
+  
+  // 🔧 TIPO DE WARNING
+  type?: 'validation' | 'data_cleanup' | 'mapping' | 'duplicate'
+  resolved?: boolean
+}
+
+// 🔧 NUEVA INTERFAZ PARA DUPLICADOS
+export interface DuplicateRecord {
+  documento: string
+  nombre: string
+  razon: string
+  filaOriginal?: number
+  datosExistentes?: any
+  datosNuevos?: any
 }
 
 export interface ExcelPreviewResult {
   success: boolean
-  preview: SheetPreview[]
+  preview: PreviewRecord[]      // 🔧 CAMBIO: De SheetPreview[] a PreviewRecord[]
   resumen: ImportSummary
+  errores?: ImportError[]
+  advertencias?: ImportWarning[]
 }
 
+// 🔧 NUEVA INTERFAZ PARA PREVIEW RECORDS (con 'documento')
+export interface PreviewRecord {
+  documento: string            // 🔧 ESTO RESUELVE EL ERROR
+  nombre: string
+  email: string
+  telefono: string
+  tipoDocumento?: string
+  estado?: string
+  ficha?: string
+  programa?: string
+}
+
+// 🔧 MANTENER SheetPreview PARA COMPATIBILIDAD
 export interface SheetPreview {
   numeroFicha: string
   nombrePrograma: string
@@ -277,51 +296,50 @@ export interface StudentSample {
   telefono: string
 }
 
-export interface ImportResult {
-  success: boolean
-  summary: ImportSummary
-  errors: ImportError[]
-  warnings: ImportWarning[]
-  importedRecords: number
-  totalRecords: number
-  executionTime: number
-}
-
-export interface ImportSummary {
-  totalFiles: number
-  totalSheets: number
-  totalRecords: number
-  importedRecords: number
-  duplicateRecords: number
-  errorRecords: number
-  fichasProcessed: string[]
-  programasFound: string[]
-}
-
-export interface ImportError {
-  row: number
-  sheet: string
-  field: string
-  value: any
-  message: string
-  severity: 'error' | 'warning'
-}
-
-export interface ImportWarning {
-  row: number
-  sheet: string
-  message: string
-  data: any
-}
-
 export interface ImportHistoryItem {
   id: number
   filename: string
-  fecha: string
+  originalFilename?: string
+  fecha: string | Date
   usuario: string
   registros_importados: number
   registros_totales: number
   estado: string
+  tipoImportacion?: string
+  executionTime?: number
+  opciones?: ImportOptions
+  createdAt?: string | Date
+}
+
+// 🔧 NUEVAS INTERFACES PARA ENDPOINTS ADICIONALES
+export interface FileValidationResponse {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+  fileInfo: FileInfo
+  suggestions?: string[]
+}
+
+export interface FileInfo {
+  name: string
+  size: number
+  type: string
+  extension?: string
+  sheets?: string[]
+  encoding?: string
+}
+
+export interface DocumentTypeStats {
+  total: number
+  byType: DocumentTypeStat[]
+  timestamp: Date
+  error?: string
+}
+
+export interface DocumentTypeStat {
+  tipo: string
+  cantidad: number
+  porcentaje: string
 }
 
 export interface Aprendiz {
@@ -334,7 +352,7 @@ export interface Aprendiz {
   email: string
   telefono: string
   foto_url?: string
-  estado?: string  // ✅ AGREGAR PROPIEDAD ESTADO
+  estado?: string
   jornada?: string
   ficha?: {
     id_ficha: number
@@ -350,7 +368,6 @@ export interface Aprendiz {
     id_centro: number
     nombre_centro: string
   }
-  // ✅ AGREGAR CAMPOS ADICIONALES QUE PUEDEN VENIR DEL BACKEND
   fecha_nacimiento?: string
   direccion?: string
   ciudad?: string
@@ -379,6 +396,7 @@ export interface Ficha {
   }
 }
 
+// 🔧 API DE IMPORTACIÓN ACTUALIZADA
 export const importApi = {
   // Preview de importación Excel
   previewExcel: async (file: File): Promise<ExcelPreviewResult> => {
@@ -393,7 +411,7 @@ export const importApi = {
     return response.data
   },
 
-  // Importar aprendices desde Excel
+  // 🔧 IMPORTAR CON OPCIONES EXTENDIDAS
   importExcel: async (
     file: File, 
     options: ImportOptions = {}
@@ -401,16 +419,14 @@ export const importApi = {
     const formData = new FormData()
     formData.append('file', file)
     
-    // Agregar opciones como query params
-    const params = new URLSearchParams()
-    if (options.validateFichas !== undefined) {
-      params.append('validateFichas', options.validateFichas.toString())
-    }
-    if (options.createMissingFichas !== undefined) {
-      params.append('createMissingFichas', options.createMissingFichas.toString())
-    }
+    // 🔧 AGREGAR TODAS LAS OPCIONES AL BODY (no como query params)
+    Object.keys(options).forEach(key => {
+      if (options[key as keyof ImportOptions] !== undefined) {
+        formData.append(key, String(options[key as keyof ImportOptions]))
+      }
+    })
 
-    const response = await api.post(`/import/excel/aprendices?${params.toString()}`, formData, {
+    const response = await api.post('/import/excel/aprendices', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -431,14 +447,31 @@ export const importApi = {
     })
     return response.data
   },
+
+  // 🔧 NUEVO: Validar archivo sin importar
+  validateFile: async (file: File): Promise<FileValidationResponse> => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await api.post('/import/excel/validate', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  },
+
+  // 🔧 NUEVO: Obtener estadísticas de tipos de documento
+  getDocumentTypeStats: async (): Promise<DocumentTypeStats> => {
+    const response = await api.get('/import/stats/document-types')
+    return response.data
+  }
 }
 
 // SERVICIOS DE API
 
 // Dashboard API
 export const dashboardApi = {
-
-  
   // Obtener estadísticas del dashboard
   getStats: async (): Promise<DashboardStats> => {
     const response = await api.get('/dashboard/stats')
@@ -521,7 +554,7 @@ export const electionsApi = {
     return response.data
   },
 
-  // ✅ NUEVO: Verificar si se puede eliminar una elección
+  // Verificar si se puede eliminar una elección
   canDelete: async (id: number): Promise<{
     canDelete: boolean;
     reason?: string;
@@ -568,7 +601,7 @@ export const candidatesApi = {
     return response.data
   },
 
-  // 🆕 AGREGAR: Actualizar datos de candidato (para funcionalidad de edición)
+  // Actualizar datos de candidato
   update: async (id: number, data: {
     numero_lista?: number;
     nombres?: string;
@@ -580,7 +613,7 @@ export const candidatesApi = {
     return response.data
   },
 
-  // 🆕 AGREGAR: Actualizar estado con motivo (método alternativo más específico)
+  // Actualizar estado con motivo
   updateStatus: async (id: number, estado: string, motivo?: string): Promise<{ message: string }> => {
     const body = motivo ? { estado, motivo } : { estado }
     const response = await api.patch(`/candidates/${id}/status`, body)
@@ -599,7 +632,7 @@ export const candidatesApi = {
     return response.data
   },
 
-  // 🆕 AGREGAR: Alias para compatibilidad (algunos componentes usan 'delete' en lugar de 'remove')
+  // Alias para compatibilidad
   delete: async (id: number): Promise<{ message: string }> => {
     const response = await api.delete(`/candidates/${id}`)
     return response.data

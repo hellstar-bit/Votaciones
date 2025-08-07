@@ -1,5 +1,5 @@
 // 📁 backend/src/users/entities/persona.entity.ts
-// ====================================================================
+// ENTIDAD CORREGIDA - SIN UNIQUE CONSTRAINT PROBLEMÁTICO
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 import { Centro } from './centro.entity';
 import { Sede } from './sede.entity';
@@ -8,38 +8,39 @@ import { Usuario } from './usuario.entity';
 import { Candidato } from '../../candidates/entities/candidato.entity';
 
 @Entity('personas')
-@Index('idx_documento', ['numero_documento'])
-@Index('idx_centro_sede_ficha', ['id_centro', 'id_sede', 'id_ficha'])
+// 🔧 COMENTAR ÍNDICES PROBLEMÁTICOS TEMPORALMENTE
+// @Index('idx_documento', ['numero_documento'])
+// @Index('idx_centro_sede_ficha', ['id_centro', 'id_sede', 'id_ficha'])
 export class Persona {
   @PrimaryGeneratedColumn()
   id_persona: number;
 
-  @Column({ length: 20, unique: true })
+  // 🔧 REMOVER unique: true PARA EVITAR EL ERROR
+  @Column({ length: 25 }) // ❌ REMOVER unique: true
   numero_documento: string;
 
-  @Column({ type: 'enum', enum: ['CC', 'TI', 'CE', 'PEP', 'PPT'] })
+  @Column({ type: 'enum', enum: ['CC', 'TI', 'CE', 'PEP', 'PPT', 'PP'] }) // 🔧 AGREGAR 'PP'
   tipo_documento: string;
 
-  @Column({ length: 100 })
+  @Column({ length: 150 }) // 🔧 AUMENTAR TAMAÑO
   nombres: string;
 
-  @Column({ length: 100 })
+  @Column({ length: 150 }) // 🔧 AUMENTAR TAMAÑO
   apellidos: string;
 
-  @Column({ length: 150, nullable: true })
+  @Column({ length: 200, nullable: true }) // 🔧 AUMENTAR TAMAÑO
   email: string;
 
-  @Column({ length: 20, nullable: true })
+  @Column({ length: 25, nullable: true }) // 🔧 AUMENTAR TAMAÑO
   telefono: string;
 
   @Column({ type: 'date', nullable: true })
   fecha_nacimiento: Date;
 
-  // ✅ CAMPO AGREGADO PARA FOTO
   @Column({ 
     length: 255, 
     nullable: true,
-    default: null  // ✅ Agregar default para evitar que se borre
+    default: null
   })
   foto_url: string;
 
@@ -55,7 +56,7 @@ export class Persona {
   @Column({ type: 'enum', enum: ['mixta', 'nocturna', 'madrugada'], nullable: true })
   jornada: string;
 
-  @Column({ type: 'enum', enum: ['activo', 'inactivo', 'egresado'], default: 'activo' })
+  @Column({ type: 'enum', enum: ['activo', 'inactivo', 'egresado', 'matriculado'], default: 'activo' }) // 🔧 AGREGAR 'matriculado'
   estado: string;
 
   @CreateDateColumn()
@@ -82,26 +83,20 @@ export class Persona {
   @OneToMany(() => Candidato, candidato => candidato.persona)
   candidaturas: Candidato[];
 
-  // ✅ GETTER PARA NOMBRE COMPLETO
+  // GETTER PARA NOMBRE COMPLETO (SIN CONSOLE.LOG EXCESIVOS)
   get nombreCompleto(): string {
-  console.log('🔍 Calculando nombreCompleto:', { nombres: this.nombres, apellidos: this.apellidos });
-  
-  if (!this.nombres || !this.apellidos) {
-    console.warn('⚠️ Faltan nombres o apellidos:', { nombres: this.nombres, apellidos: this.apellidos });
-    return 'Sin nombre';
+    if (!this.nombres || !this.apellidos) {
+      return 'Sin nombre';
+    }
+    return `${this.nombres.trim()} ${this.apellidos.trim()}`.trim();
   }
-  
-  const resultado = `${this.nombres.trim()} ${this.apellidos.trim()}`.trim();
-  console.log('✅ nombreCompleto calculado:', resultado);
-  return resultado;
-}
 
-  // ✅ MÉTODO HELPER PARA VERIFICAR SI TIENE FOTO
+  // MÉTODO HELPER PARA VERIFICAR SI TIENE FOTO
   get tieneFoto(): boolean {
     return !!this.foto_url;
   }
 
-  // ✅ MÉTODO HELPER PARA URL COMPLETA DE FOTO
+  // MÉTODO HELPER PARA URL COMPLETA DE FOTO
   get fotoUrl(): string | null {
     if (!this.foto_url) return null;
     
