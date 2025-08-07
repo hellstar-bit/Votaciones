@@ -120,7 +120,7 @@ export class InitialIndexes1234567890123 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Eliminar índices en orden inverso
+    // 🔧 FIX: Corregir nombres de índices para que coincidan con los creados en up()
     await queryRunner.query(`DROP INDEX IF EXISTS idx_sesion_token ON sesiones_mesa_votacion`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_sesion_mesa ON sesiones_mesa_votacion`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_sesion_eleccion ON sesiones_mesa_votacion`);
@@ -146,6 +146,7 @@ export class InitialIndexes1234567890123 implements MigrationInterface {
     await queryRunner.query(`DROP INDEX IF EXISTS idx_elecciones_fechas ON elecciones`);
     
     await queryRunner.query(`DROP INDEX IF EXISTS idx_personas_centro_activos ON personas`);
+    // 🔧 FIX: Usar el nombre correcto del índice
     await queryRunner.query(`DROP INDEX IF EXISTS idx_personas_centro_sede_ficha ON personas`);
     await queryRunner.query(`DROP INDEX IF EXISTS idx_personas_documento ON personas`);
   }

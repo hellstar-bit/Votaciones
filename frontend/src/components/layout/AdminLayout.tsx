@@ -1,4 +1,4 @@
-// AdminLayout.tsx
+// 📁 frontend/src/components/layout/AdminLayout.tsx - ACTUALIZADO
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -13,10 +13,12 @@ import {
   Bars3Icon,
   XMarkIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  AcademicCapIcon,        // ✅ NUEVO: Para gestión de aprendices
+  ArrowUpTrayIcon,        // ✅ NUEVO: Para importación
+  PresentationChartBarIcon // ✅ NUEVO: Para dashboard tiempo real
 } from '@heroicons/react/24/outline'
 import { useAuthStore } from '../../stores/authStore'
-import Button from '../ui/Button'
 
 interface AdminLayoutProps {
   children: React.ReactNode
@@ -34,6 +36,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
     navigate('/login')
   }
 
+  // ✅ ACTUALIZADO: Array de menuItems con las nuevas opciones
   const menuItems = [
     {
       name: 'Dashboard',
@@ -42,31 +45,52 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       current: location.pathname === '/admin'
     },
     {
+      name: 'Gestión de Usuarios',
+      href: '/admin/users',
+      icon: UsersIcon,
+      current: location.pathname === '/admin/users',
+      disabled: true // Mantener deshabilitado por ahora
+    },
+    // ✅ NUEVO: Gestión de Aprendices
+    {
+      name: 'Gestión de Aprendices',
+      href: '/admin/aprendices',
+      icon: AcademicCapIcon,
+      current: location.pathname === '/admin/aprendices'
+    },
+    // ✅ NUEVO: Importar Aprendices
+    {
+      name: 'Importar Aprendices',
+      href: '/admin/import',
+      icon: ArrowUpTrayIcon,
+      current: location.pathname === '/admin/import'
+    },
+    {
       name: 'Mesa de Votación',
       href: '/admin/voting',
       icon: QueueListIcon,
       current: location.pathname === '/admin/voting'
     },
     {
-      name: 'Gestión de Usuarios',
-      href: '/admin/users',
-      icon: UsersIcon,
-      current: location.pathname === '/admin/users',
-      disabled: true
-    },
-    {
       name: 'Reportes',
       href: '/admin/reports',
       icon: ChartBarIcon,
       current: location.pathname === '/admin/reports',
-      disabled: true
+      disabled: true // Mantener deshabilitado por ahora
+    },
+    // ✅ NUEVO: Dashboard Tiempo Real
+    {
+      name: 'Dashboard Tiempo Real',
+      href: '/real-time-dashboard',
+      icon: PresentationChartBarIcon,
+      current: location.pathname === '/real-time-dashboard'
     },
     {
       name: 'Configuración',
       href: '/admin/settings',
       icon: Cog6ToothIcon,
       current: location.pathname === '/admin/settings',
-      disabled: true
+      disabled: true // Mantener deshabilitado por ahora
     }
   ]
 
@@ -232,139 +256,133 @@ const SidebarContent = ({
               onClick={onToggleCollapse}
               className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              {collapsed ? (
-                <ChevronRightIcon className="w-5 h-5" />
-              ) : (
+              {collapsed ? 
+                <ChevronRightIcon className="w-5 h-5" /> : 
                 <ChevronLeftIcon className="w-5 h-5" />
-              )}
+              }
             </button>
           )
         )}
       </div>
 
       {/* Información del usuario */}
-      {(!collapsed || mobile) && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          className="px-4 py-4 bg-gradient-to-r from-sena-50 to-green-50 border-b border-sena-100"
-        >
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-sena-100 rounded-full flex items-center justify-center ring-2 ring-sena-200">
-              <span className="text-sena-600 font-semibold text-sm">
-                {user?.nombres?.charAt(0)}{user?.apellidos?.charAt(0)}
-              </span>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {user?.nombre_completo}
-              </p>
-              <p className="text-xs text-sena-600 font-medium">{user?.rol}</p>
+      <div className="p-4 border-b border-gray-200">
+        <AnimatePresence mode="wait">
+          {(!collapsed || mobile) && (
+            <motion.div
+              key="user-info"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              className="flex items-center space-x-3"
+            >
+              <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                <UsersIcon className="w-5 h-5 text-gray-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {user?.nombre_completo || 'Admin'}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {user?.rol || 'Administrador'}
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        
+        {collapsed && !mobile && (
+          <div className="flex justify-center">
+            <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+              <UsersIcon className="w-4 h-4 text-gray-600" />
             </div>
           </div>
-        </motion.div>
-      )}
-
-      {/* Avatar colapsado */}
-      {collapsed && !mobile && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="px-4 py-4 flex justify-center"
-        >
-          <div className="w-10 h-10 bg-sena-100 rounded-full flex items-center justify-center ring-2 ring-sena-200">
-            <span className="text-sena-600 font-semibold text-sm">
-              {user?.nombres?.charAt(0)}{user?.apellidos?.charAt(0)}
-            </span>
-          </div>
-        </motion.div>
-      )}
+        )}
+      </div>
 
       {/* Navegación */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon
-          return (
-            <div key={item.name} className="relative group">
-              <button
-                onClick={() => onNavigate(item.href, item.disabled)}
-                disabled={item.disabled}
-                className={`w-full flex items-center px-3 py-2.5 rounded-xl text-left transition-all duration-200 ${
-                  item.current
-                    ? 'bg-gradient-to-r from-sena-500 to-sena-600 text-white shadow-lg'
-                    : item.disabled
-                    ? 'text-gray-400 cursor-not-allowed'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                } ${collapsed && !mobile ? 'justify-center' : 'space-x-3'}`}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                
-                <AnimatePresence>
-                  {(!collapsed || mobile) && (
-                    <motion.div
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: "auto" }}
-                      exit={{ opacity: 0, width: 0 }}
-                      className="flex items-center justify-between flex-1 min-w-0"
-                    >
-                      <span className="font-medium truncate">{item.name}</span>
-                      {item.disabled && (
-                        <span className="text-xs bg-gray-200 text-gray-500 px-2 py-1 rounded-full ml-2 flex-shrink-0">
-                          Próximo
-                        </span>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </button>
+          const isActive = item.current
+          const isDisabled = item.disabled
 
-              {/* Tooltip para modo colapsado */}
-              {collapsed && !mobile && (
-                <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-                  {item.name}
-                  {item.disabled && (
-                    <span className="ml-1 text-gray-300">(Próximamente)</span>
-                  )}
-                </div>
+          return (
+            <motion.button
+              key={item.name}
+              onClick={() => onNavigate(item.href, isDisabled)}
+              disabled={isDisabled}
+              whileHover={!isDisabled ? { scale: 1.02 } : {}}
+              whileTap={!isDisabled ? { scale: 0.98 } : {}}
+              className={`
+                w-full flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200
+                ${isActive 
+                  ? 'bg-sena-50 text-sena-700 border-r-4 border-sena-500 shadow-sm' 
+                  : isDisabled
+                    ? 'text-gray-400 cursor-not-allowed'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }
+                ${collapsed && !mobile ? 'justify-center px-2' : ''}
+              `}
+            >
+              <Icon className={`
+                ${collapsed && !mobile ? 'w-6 h-6' : 'w-5 h-5 mr-3'} 
+                ${isActive ? 'text-sena-500' : isDisabled ? 'text-gray-400' : 'text-gray-400'}
+              `} />
+              
+              <AnimatePresence mode="wait">
+                {(!collapsed || mobile) && (
+                  <motion.span
+                    key="text"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    className="truncate"
+                  >
+                    {item.name}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+
+              {/* Indicador de deshabilitado */}
+              {isDisabled && (!collapsed || mobile) && (
+                <span className="ml-auto text-xs bg-gray-200 text-gray-500 px-2 py-1 rounded">
+                  Próximamente
+                </span>
               )}
-            </div>
+            </motion.button>
           )
         })}
       </nav>
 
       {/* Footer con botón de logout */}
-      <div className="p-3 border-t border-gray-200">
-        <div className="relative group">
-          <Button
-            variant="outline"
-            onClick={onLogout}
-            className={`w-full border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 ${
-              collapsed && !mobile ? 'px-2' : 'justify-start'
-            }`}
-            icon={<ArrowRightOnRectangleIcon className="w-4 h-4" />}
-          >
-            <AnimatePresence>
-              {(!collapsed || mobile) && (
-                <motion.span
-                  initial={{ opacity: 0, width: 0 }}
-                  animate={{ opacity: 1, width: "auto" }}
-                  exit={{ opacity: 0, width: 0 }}
-                  className="ml-2"
-                >
-                  Cerrar Sesión
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </Button>
-
-          {/* Tooltip para logout colapsado */}
-          {collapsed && !mobile && (
-            <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-sm rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50">
-              Cerrar Sesión
-            </div>
-          )}
-        </div>
+      <div className="p-4 border-t border-gray-200">
+        <motion.button
+          onClick={onLogout}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className={`
+            w-full flex items-center px-3 py-2 text-sm font-medium text-red-600 rounded-lg hover:bg-red-50 transition-colors
+            ${collapsed && !mobile ? 'justify-center px-2' : ''}
+          `}
+        >
+          <ArrowRightOnRectangleIcon className={`
+            ${collapsed && !mobile ? 'w-6 h-6' : 'w-5 h-5 mr-3'}
+          `} />
+          
+          <AnimatePresence mode="wait">
+            {(!collapsed || mobile) && (
+              <motion.span
+                key="logout-text"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+              >
+                Cerrar Sesión
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </motion.button>
       </div>
     </div>
   )

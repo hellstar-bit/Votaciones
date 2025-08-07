@@ -1,5 +1,3 @@
-// 📁 src/main.ts
-// ====================================================================
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -13,7 +11,6 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
-  // Configuración global
   const configService = app.get(ConfigService);
   
   // 🆕 Crear carpetas de uploads si no existen
@@ -34,31 +31,57 @@ async function bootstrap() {
   app.useStaticAssets(uploadsPath, {
     prefix: '/uploads/',
     setHeaders: (res, path) => {
-      // Configurar headers para imágenes
       if (path.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-        res.set('Cache-Control', 'public, max-age=31536000'); // Cache por 1 año
+        res.set('Cache-Control', 'public, max-age=31536000');
         res.set('Content-Type', 'image/*');
       }
     }
   });
   
-  // Seguridad - 🔧 Modificado para permitir imágenes
+  // Seguridad
   app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" }, // Permitir carga de imágenes
+    crossOriginResourcePolicy: { policy: "cross-origin" },
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "blob:", "*"], // Permitir imágenes de cualquier origen
+        imgSrc: ["'self'", "data:", "blob:", "*"],
       },
     },
   }));
   
   app.use(compression());
   
-  // CORS
+  // 🔧 CORS MEJORADO - Manejar múltiples orígenes y limpiar barras finales
+  const corsOrigin = configService.get('CORS_ORIGIN');
+  let allowedOrigins: string[] = [];
+  
+  if (corsOrigin) {
+    // Si viene del .env, puede ser una cadena o múltiples separados por coma
+    if (typeof corsOrigin === 'string') {
+      allowedOrigins = corsOrigin
+        .split(',')
+        .map(origin => origin.trim())
+        .map(origin => origin.endsWith('/') ? origin.slice(0, -1) : origin) // 🔧 Remover barra final
+        .filter(origin => origin.length > 0);
+    }
+  }
+  
+  // Orígenes por defecto para desarrollo
+  const defaultOrigins = [
+    'http://localhost:3001', // Frontend principal
+    'http://localhost:3000', // Backup
+    'http://localhost:5173', // Vite default
+  ];
+  
+  const finalOrigins = allowedOrigins.length > 0 ? allowedOrigins : defaultOrigins;
+  
+  console.log('🌐 CORS configurado para:', finalOrigins);
+  
   app.enableCors({
-    origin: configService.get('CORS_ORIGIN') || ['http://localhost:5173', 'http://localhost:3000'],
+    origin: finalOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
   
   // Validación global
