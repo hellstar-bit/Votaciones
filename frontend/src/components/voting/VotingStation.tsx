@@ -10,7 +10,7 @@ import {
   IdentificationIcon
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { electionsApi, candidatesApi, votesApi, handleApiError, type Election, type Candidate } from '../../services/api'
+import { electionsApi, candidatesApi, votesApi, handleApiError, type Election, type Candidate, personasApi } from '../../services/api'
 import Button from '../ui/Button'
 import QRScanner from './QRScanner'
 import VoteConfirmation from './VoteConfirmation'
@@ -68,63 +68,96 @@ const VotingStation = () => {
   }
 
   // Manejar datos de identificación (QR o manual) - ACTUALIZADO
-  const handleIdentificationData = (data: any) => {
-    if (isProcessingQR) {
-      console.log('🚫 Ya procesando identificación, ignorando...')
-      return
+  const handleIdentificationData = async (data: any) => {
+  if (isProcessingQR) {
+    console.log('🚫 Ya procesando identificación, ignorando...')
+    return
+  }
+  
+  setIsProcessingQR(true)
+  
+  try {
+    console.log('🔍 Datos recibidos:', data)
+    
+    let parsedData = data
+    
+    // ✅ Si los datos son un string, intentar parsearlo como JSON
+    if (typeof data === 'string') {
+      try {
+        parsedData = JSON.parse(data)
+        console.log('🔄 JSON parseado exitosamente:', parsedData)
+      } catch (parseError) {
+        console.log('⚠️ No es JSON, tratando como documento directo:', data)
+        parsedData = { 
+          type: 'DIRECT_INPUT',
+          doc: data, 
+          numero_documento: data,
+          timestamp: Date.now()
+        }
+      }
     }
     
-    setIsProcessingQR(true)
-    
+    // ✅ Asegurar que tenemos el documento
+    const documento = parsedData?.doc || parsedData?.numero_documento
+    if (!documento) {
+      toast.error('No se pudo obtener el número de documento')
+      return
+    }
+
+    // ✅ BUSCAR INFORMACIÓN DEL VOTANTE POR DOCUMENTO
     try {
-      console.log('🔍 Datos recibidos:', data)
+      console.log('🔍 Buscando información del votante:', documento)
+      const personaInfo = await personasApi.getByDocumento(documento)
       
-      let parsedData = data
-      
-      // ✅ Si los datos son un string, intentar parsearlo como JSON
-      if (typeof data === 'string') {
-        try {
-          parsedData = JSON.parse(data)
-          console.log('🔄 JSON parseado exitosamente:', parsedData)
-        } catch (parseError) {
-          console.log('⚠️ No es JSON, tratando como documento directo:', data)
-          // Si no es JSON, crear estructura para documento manual
-          parsedData = { 
-            type: 'DIRECT_INPUT',
-            doc: data, 
-            numero_documento: data,
-            timestamp: Date.now()
-          }
+      // Agregar información del votante a los datos escaneados
+      parsedData = {
+        ...parsedData,
+        persona_info: {
+          nombre_completo: personaInfo.nombreCompleto,
+          nombres: personaInfo.nombres,
+          apellidos: personaInfo.apellidos,
+          documento: personaInfo.numero_documento,
+          email: personaInfo.email,
+          telefono: personaInfo.telefono
         }
       }
       
-      // ✅ Asegurar que tenemos el documento
-      const documento = parsedData?.doc || parsedData?.numero_documento
-      if (!documento) {
-        toast.error('No se pudo obtener el número de documento')
-        return
-      }
-      
-      console.log('✅ Datos finales para guardar:', parsedData)
-      setScannedData(parsedData)
-      setCurrentStep('voting')
-      
-      // Mostrar mensaje específico según el método
-      const metodo = parsedData?.type === 'MANUAL_INPUT' ? 'Ingreso Manual' : 
-                     parsedData?.type === 'ACCESUM_SENA_LEARNER' ? 'QR SENA' : 
-                     parsedData?.type === 'DIRECT_INPUT' ? 'Entrada Directa' :
-                     'QR'
-      toast.success(`Identificación exitosa (${metodo})`)
+      console.log('✅ Información del votante encontrada:', personaInfo.nombreCompleto)
       
     } catch (error) {
-      console.error('❌ Error procesando identificación:', error)
-      toast.error('Error procesando los datos de identificación')
-    } finally {
-      setTimeout(() => {
-        setIsProcessingQR(false)
-      }, 1000)
+      console.warn('⚠️ No se pudo obtener información completa del votante:', error)
+      // Continuar con solo el documento
+      parsedData = {
+        ...parsedData,
+        persona_info: {
+          nombre_completo: 'Votante',
+          documento: documento
+        }
+      }
     }
+    
+    console.log('✅ Datos finales para guardar:', parsedData)
+    setScannedData(parsedData)
+    setCurrentStep('voting')
+    
+    // Mostrar mensaje específico según el método
+    const metodo = parsedData?.type === 'MANUAL_INPUT' ? 'Ingreso Manual' : 
+                   parsedData?.type === 'ACCESUM_SENA_LEARNER' ? 'QR SENA' : 
+                   parsedData?.type === 'DIRECT_INPUT' ? 'Entrada Directa' :
+                   'QR'
+    
+    const nombreVotante = parsedData?.persona_info?.nombre_completo || 'Votante'
+    toast.success(`Bienvenido ${nombreVotante} (${metodo})`)
+    
+  } catch (error) {
+    console.error('❌ Error procesando identificación:', error)
+    toast.error('Error procesando los datos de identificación')
+  } finally {
+    setTimeout(() => {
+      setIsProcessingQR(false)
+    }, 1000)
   }
+}
 
   // Seleccionar candidato
   const handleCandidateSelection = (candidateId: number | null) => {
@@ -142,51 +175,64 @@ const VotingStation = () => {
 
   // Procesar voto - ACTUALIZADO para manejar ambos métodos
   const handleProcessVote = async () => {
-    try {
-      setProcessing(true)
-      
-      // ✅ Preparar datos para enviar al backend
-      let qrCodeData: string
-      
-      // Si tenemos un objeto (QR o manual), convertirlo a JSON string
-      if (typeof scannedData === 'object' && scannedData !== null) {
-        qrCodeData = JSON.stringify(scannedData)
-      } else {
-        // Si es string directo, enviarlo tal como está
-        qrCodeData = scannedData?.toString() || ''
-      }
-      
-      console.log('📤 Datos a enviar al backend:', {
-        qr_code: qrCodeData,
-        scannedData: scannedData
-      })
-      
-      if (!qrCodeData) {
-        toast.error('No se pudo obtener los datos de identificación')
-        return
-      }
-      
-      const voteData = {
-        id_eleccion: selectedElection!.id_eleccion,
-        id_candidato: selectedCandidate,
-        qr_code: qrCodeData  // Enviar los datos completos como string
-      }
-      
-      console.log('📤 VoteData final:', voteData)
-
-      const result = await votesApi.cast(voteData)
-      setVoteResult(result)
-      setCurrentStep('success')
-      toast.success('¡Voto registrado exitosamente!')
-      
-    } catch (error) {
-      const errorMessage = handleApiError(error)
-      toast.error(`Error registrando voto: ${errorMessage}`)
-      console.error('❌ Error registrando voto:', error)
-    } finally {
-      setProcessing(false)
+  try {
+    setProcessing(true)
+    
+    // ✅ Preparar datos para enviar al backend
+    let qrCodeData: string
+    
+    if (typeof scannedData === 'object' && scannedData !== null) {
+      qrCodeData = JSON.stringify(scannedData)
+    } else {
+      qrCodeData = scannedData?.toString() || ''
     }
+    
+    console.log('📤 Datos a enviar al backend:', {
+      qr_code: qrCodeData,
+      scannedData: scannedData
+    })
+    
+    if (!qrCodeData) {
+      toast.error('No se pudo obtener los datos de identificación')
+      return
+    }
+    
+    const voteData = {
+      id_eleccion: selectedElection!.id_eleccion,
+      id_candidato: selectedCandidate,
+      qr_code: qrCodeData
+    }
+    
+    console.log('📤 VoteData final:', voteData)
+
+    const result = await votesApi.cast(voteData)
+    
+    // ✅ AGREGAR INFORMACIÓN DEL VOTANTE AL RESULTADO
+    const enhancedResult = {
+      ...result,
+      votante_info: {
+        nombre_completo: scannedData?.persona_info?.nombre_completo || 'Votante',
+        documento: scannedData?.doc || scannedData?.numero_documento,
+        metodo: scannedData?.type === 'MANUAL_INPUT' ? 'Ingreso Manual' : 
+                scannedData?.type === 'ACCESUM_SENA_LEARNER' ? 'QR SENA' : 
+                'QR'
+      }
+    }
+    
+    setVoteResult(enhancedResult)
+    setCurrentStep('success')
+    
+    const nombreVotante = scannedData?.persona_info?.nombre_completo || 'Votante'
+    toast.success(`¡Voto registrado exitosamente para ${nombreVotante}!`)
+    
+  } catch (error) {
+    const errorMessage = handleApiError(error)
+    toast.error(`Error registrando voto: ${errorMessage}`)
+    console.error('❌ Error registrando voto:', error)
+  } finally {
+    setProcessing(false)
   }
+}
 
   // Reiniciar para nuevo voto
   const handleRestart = () => {
@@ -362,25 +408,39 @@ const VotingStation = () => {
                   </div>
 
                   {/* Información del votante - ACTUALIZADA */}
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                    <div className="flex items-center">
-                      <CheckCircleIcon className="w-6 h-6 text-green-600 mr-3" />
-                      <div>
-                        <p className="text-green-800 font-medium">Votante identificado</p>
-                        <p className="text-green-700 text-sm">
-                          Documento: {scannedData?.doc || scannedData?.numero_documento}
-                          {scannedData?.type && (
-                            <span className="ml-2 text-xs bg-green-200 px-2 py-1 rounded">
-                              {scannedData.type === 'ACCESUM_SENA_LEARNER' ? 'QR SENA' : 
-                               scannedData.type === 'MANUAL_INPUT' ? 'Ingreso Manual' : 
-                               scannedData.type === 'DIRECT_INPUT' ? 'Entrada Directa' :
-                               'QR'}
-                            </span>
-                          )}
-                        </p>
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                      <div className="flex items-center">
+                        <CheckCircleIcon className="w-6 h-6 text-green-600 mr-3" />
+                        <div className="flex-1">
+                          <p className="text-green-800 font-medium">Votante identificado</p>
+                          <div className="space-y-1">
+                            {/* ✅ MOSTRAR NOMBRE COMPLETO SI ESTÁ DISPONIBLE */}
+                            {scannedData?.persona_info?.nombre_completo && (
+                              <p className="text-green-900 font-semibold text-lg">
+                                {scannedData.persona_info.nombre_completo}
+                              </p>
+                            )}
+                            <p className="text-green-700 text-sm">
+                              Documento: {scannedData?.doc || scannedData?.numero_documento}
+                              {scannedData?.type && (
+                                <span className="ml-2 text-xs bg-green-200 px-2 py-1 rounded">
+                                  {scannedData.type === 'ACCESUM_SENA_LEARNER' ? 'QR SENA' : 
+                                  scannedData.type === 'MANUAL_INPUT' ? 'Ingreso Manual' : 
+                                  scannedData.type === 'DIRECT_INPUT' ? 'Entrada Directa' :
+                                  'QR'}
+                                </span>
+                              )}
+                            </p>
+                            {/* ✅ MOSTRAR INFORMACIÓN ADICIONAL SI ESTÁ DISPONIBLE */}
+                            {scannedData?.persona_info?.email && (
+                              <p className="text-green-600 text-xs">
+                                Email: {scannedData.persona_info.email}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
                   {/* Lista de candidatos */}
                   <div className="space-y-4">
@@ -525,12 +585,48 @@ const VotingStation = () => {
 
                   {voteResult && (
                     <div className="bg-green-50 border border-green-200 rounded-xl p-6">
-                      <div className="space-y-2 text-sm">
-                        <p><strong>Hash de verificación:</strong> {voteResult.hash_verificacion}</p>
-                        <p><strong>Votante:</strong> {voteResult.votante}</p>
-                        <p><strong>Candidato:</strong> {voteResult.candidato}</p>
-                        <p><strong>Método:</strong> {voteResult.metodo_identificacion}</p>
-                        <p><strong>Fecha:</strong> {new Date(voteResult.timestamp).toLocaleString()}</p>
+                      <div className="space-y-3">
+                        <div className="border-b border-green-200 pb-3">
+                          <h4 className="font-semibold text-green-800">Información del Voto</h4>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-green-600 font-medium">Votante:</p>
+                            <p className="text-green-800">
+                              {voteResult.votante_info?.nombre_completo || voteResult.votante}
+                            </p>
+                            <p className="text-green-600 text-xs">
+                              Doc: {voteResult.votante_info?.documento}
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-green-600 font-medium">Candidato:</p>
+                            <p className="text-green-800">{voteResult.candidato}</p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-green-600 font-medium">Método:</p>
+                            <p className="text-green-800">
+                              {voteResult.votante_info?.metodo || voteResult.metodo_identificacion}
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-green-600 font-medium">Fecha:</p>
+                            <p className="text-green-800">
+                              {new Date(voteResult.timestamp).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="border-t border-green-200 pt-3">
+                          <p className="text-green-600 font-medium text-xs">Hash de verificación:</p>
+                          <p className="text-green-800 font-mono text-xs break-all">
+                            {voteResult.hash_verificacion}
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}

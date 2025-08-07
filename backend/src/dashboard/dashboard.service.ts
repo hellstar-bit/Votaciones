@@ -1,4 +1,4 @@
-// backend/src/dashboard/dashboard.service.ts - Versión corregida con queries funcionales
+// backend/src/dashboard/dashboard.service.ts - Versión completa y corregida
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -29,29 +29,35 @@ export class DashboardService {
 
     const totalVotes = await this.votoRepository
       .createQueryBuilder('voto')
-      .innerJoin('voto.eleccion', 'eleccion')
+      .innerJoin('elecciones', 'eleccion', 'eleccion.id_eleccion = voto.id_eleccion')
       .where('eleccion.estado = :estado', { estado: 'activa' })
       .getCount();
 
     const totalEnabledVoters = await this.votanteHabilitadoRepository
       .createQueryBuilder('votante')
-      .innerJoin('votante.eleccion', 'eleccion')
+      .innerJoin('elecciones', 'eleccion', 'eleccion.id_eleccion = votante.id_eleccion')
       .where('eleccion.estado = :estado', { estado: 'activa' })
       .getCount();
 
-    // ✅ QUERY SIMPLIFICADA para actividad reciente
+    // ✅ ACTIVIDAD RECIENTE CON NOMBRES DE VOTANTES REALES
     const recentActivity = await this.votoRepository
       .createQueryBuilder('voto')
       .innerJoin('elecciones', 'eleccion', 'eleccion.id_eleccion = voto.id_eleccion')
+      .innerJoin('votantes_habilitados', 'vh', 'vh.id_eleccion = voto.id_eleccion AND vh.ha_votado = true')
+      .innerJoin('personas', 'votantePersona', 'votantePersona.id_persona = vh.id_persona')
       .leftJoin('candidatos', 'candidato', 'candidato.id_candidato = voto.id_candidato')
       .leftJoin('personas', 'candidatoPersona', 'candidatoPersona.id_persona = candidato.id_persona')
       .select([
         'voto.timestamp_voto as timestamp',
+        'voto.id_voto as voto_id',
         'eleccion.titulo as eleccion_titulo',
+        'votantePersona.nombres as votante_nombres',
+        'votantePersona.apellidos as votante_apellidos',
         'candidatoPersona.nombres as candidato_nombres',
         'candidatoPersona.apellidos as candidato_apellidos'
       ])
       .where('eleccion.estado IN (:...estados)', { estados: ['activa', 'finalizada'] })
+      .andWhere('ABS(TIMESTAMPDIFF(SECOND, voto.timestamp_voto, vh.fecha_voto)) <= 120') // Relacionar por tiempo (2 minutos de tolerancia)
       .orderBy('voto.timestamp_voto', 'DESC')
       .limit(20)
       .getRawMany();
@@ -67,8 +73,10 @@ export class DashboardService {
           : 0,
       },
       recent_activity: recentActivity.map((activity, index) => ({
-        id: Date.now() + index,
-        votante_nombre: 'Votante', // Por privacidad no mostramos el nombre real
+        id: activity.voto_id || (Date.now() + index),
+        votante_nombre: activity.votante_nombres && activity.votante_apellidos
+          ? `${activity.votante_nombres} ${activity.votante_apellidos}`
+          : 'Votante',
         eleccion_titulo: activity.eleccion_titulo,
         candidato_nombre: activity.candidato_nombres && activity.candidato_apellidos 
           ? `${activity.candidato_nombres} ${activity.candidato_apellidos}`
@@ -159,7 +167,7 @@ export class DashboardService {
     return electionsWithStats;
   }
 
-  // ✅ MÉTODO CORREGIDO: Obtener estadísticas globales en tiempo real
+  // ✅ MÉTODO ACTUALIZADO: Con nombres reales de votantes
   async getGlobalRealTimeStats() {
     const activeElections = await this.eleccionRepository.count({
       where: { estado: 'activa' },
@@ -179,10 +187,12 @@ export class DashboardService {
       .where('eleccion.estado = :estado', { estado: 'activa' })
       .getCount();
 
-    // ✅ ACTIVIDAD RECIENTE SIMPLIFICADA (sin nombres de votantes por privacidad)
+    // ✅ ACTIVIDAD RECIENTE CON NOMBRES REALES
     const recentActivity = await this.votoRepository
       .createQueryBuilder('voto')
       .innerJoin('elecciones', 'eleccion', 'eleccion.id_eleccion = voto.id_eleccion')
+      .innerJoin('votantes_habilitados', 'vh', 'vh.id_eleccion = voto.id_eleccion AND vh.ha_votado = true')
+      .innerJoin('personas', 'votantePersona', 'votantePersona.id_persona = vh.id_persona')
       .leftJoin('candidatos', 'candidato', 'candidato.id_candidato = voto.id_candidato')
       .leftJoin('personas', 'candidatoPersona', 'candidatoPersona.id_persona = candidato.id_persona')
       .select([
@@ -190,10 +200,13 @@ export class DashboardService {
         'voto.id_voto as voto_id',
         'eleccion.titulo as eleccion_titulo',
         'eleccion.id_eleccion as eleccion_id',
+        'votantePersona.nombres as votante_nombres',
+        'votantePersona.apellidos as votante_apellidos',
         'candidatoPersona.nombres as candidato_nombres',
         'candidatoPersona.apellidos as candidato_apellidos'
       ])
       .where('eleccion.estado IN (:...estados)', { estados: ['activa', 'finalizada'] })
+      .andWhere('ABS(TIMESTAMPDIFF(SECOND, voto.timestamp_voto, vh.fecha_voto)) <= 120') // Relacionar por tiempo
       .orderBy('voto.timestamp_voto', 'DESC')
       .limit(20)
       .getRawMany();
@@ -210,7 +223,9 @@ export class DashboardService {
       },
       recent_activity: recentActivity.map((activity, index) => ({
         id: activity.voto_id || (Date.now() + index),
-        votante_nombre: 'Votante', // Por privacidad
+        votante_nombre: activity.votante_nombres && activity.votante_apellidos
+          ? `${activity.votante_nombres} ${activity.votante_apellidos}`
+          : 'Votante',
         eleccion_titulo: activity.eleccion_titulo,
         candidato_nombre: activity.candidato_nombres && activity.candidato_apellidos 
           ? `${activity.candidato_nombres} ${activity.candidato_apellidos}`
@@ -221,7 +236,7 @@ export class DashboardService {
     };
   }
 
-  // ✅ MÉTODO SIMPLIFICADO: Obtener lista de votantes de una elección
+  // ✅ MÉTODO ACTUALIZADO: Obtener lista de votantes con nombres reales
   async getElectionVoters(electionId: number) {
     const voters = await this.votanteHabilitadoRepository
       .createQueryBuilder('vh')

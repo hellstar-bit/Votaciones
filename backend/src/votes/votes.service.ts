@@ -1,4 +1,4 @@
-// votes.service.ts - Actualizado para manejar el nuevo formato de QR
+// backend/src/votes/votes.service.ts - Versión completa actualizada
 import { Injectable, BadRequestException, ForbiddenException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -205,22 +205,38 @@ export class VotesService {
 
     console.log('✅ Contadores actualizados');
 
-    // 12. Notificar al dashboard
+    // ✅ 12. NOTIFICAR AL DASHBOARD CON INFORMACIÓN COMPLETA
     try {
       if (this.dashboardGateway) {
-        await this.dashboardGateway.notifyNewVote(id_eleccion);
+        // Enviar documento del votante y ID del candidato para que el gateway obtenga los nombres
+        await this.dashboardGateway.notifyNewVote(
+          id_eleccion, 
+          personaData.numero_documento, // ✅ Documento del votante
+          id_candidato // ✅ ID del candidato (null si es voto en blanco)
+        );
+        console.log('📡 Notificación enviada al dashboard en tiempo real');
       }
     } catch (error) {
       console.warn('⚠️ No se pudo notificar al dashboard:', error.message);
     }
 
+    // ✅ 13. RESULTADO CON INFORMACIÓN COMPLETA
     const result = {
       message: 'Voto registrado exitosamente',
       hash_verificacion,
       timestamp: new Date(),
-      votante: persona.nombreCompleto,
+      votante: persona.nombreCompleto, // ✅ NOMBRE COMPLETO DEL VOTANTE
       candidato: candidato ? candidato.persona.nombreCompleto : 'VOTO EN BLANCO',
-      metodo_identificacion: personaData.metodo
+      metodo_identificacion: personaData.metodo,
+      // ✅ INFORMACIÓN ADICIONAL PARA EL FRONTEND
+      votante_info: {
+        nombre_completo: persona.nombreCompleto,
+        documento: persona.numero_documento,
+        email: persona.email,
+        centro: persona.centro?.nombre_centro,
+        sede: persona.sede?.nombre_sede,
+        ficha: persona.ficha?.numero_ficha
+      }
     };
 
     console.log('🎉 Voto procesado exitosamente:', result);
@@ -247,7 +263,7 @@ export class VotesService {
         console.log('📱 Datos parseados como JSON:', parsed);
         
         // Validar formato del QR SENA
-        if (parsed.type === 'ACCESUM_SENA_LEARNER' || parsed.type === 'MANUAL_INPUT') {
+        if (parsed.type === 'ACCESUM_SENA_LEARNER' || parsed.type === 'MANUAL_INPUT' || parsed.type === 'DIRECT_INPUT') {
           const documento = parsed.doc || parsed.numero_documento;
           
           if (!documento) {
@@ -266,7 +282,8 @@ export class VotesService {
 
           return {
             numero_documento: documento.toString(),
-            metodo: parsed.type === 'MANUAL_INPUT' ? 'manual' : 'qr',
+            metodo: parsed.type === 'MANUAL_INPUT' ? 'manual' : 
+                   parsed.type === 'DIRECT_INPUT' ? 'directo' : 'qr',
             timestamp: parsed.timestamp,
             id: parsed.id,
             type: parsed.type
@@ -274,8 +291,8 @@ export class VotesService {
         } 
         
         // Formato JSON genérico con numero_documento
-        if (parsed.numero_documento) {
-          const documento = parsed.numero_documento.toString();
+        if (parsed.numero_documento || parsed.doc) {
+          const documento = (parsed.numero_documento || parsed.doc).toString();
           
           if (!/^\d+$/.test(documento)) {
             throw new Error('Número de documento debe contener solo dígitos');
@@ -288,7 +305,8 @@ export class VotesService {
           return {
             numero_documento: documento,
             metodo: 'json',
-            timestamp: parsed.timestamp
+            timestamp: parsed.timestamp || Date.now(),
+            type: parsed.type || 'GENERIC_JSON'
           };
         }
 
@@ -313,7 +331,8 @@ export class VotesService {
         return {
           numero_documento: documento,
           metodo: 'directo',
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          type: 'DIRECT_STRING'
         };
       }
       
@@ -391,5 +410,96 @@ export class VotesService {
       porcentaje_blanco: totalVotos > 0 ? Math.round((votosBlanco / totalVotos) * 10000) / 100 : 0,
       candidatos: resultados.sort((a, b) => b.votos - a.votos),
     };
+  }
+
+  // ✅ NUEVO: Método para obtener estadísticas de una elección específica
+  async getElectionStats(id_eleccion: number) {
+    const eleccion = await this.eleccionRepository.findOne({
+      where: { id_eleccion },
+      relations: ['candidatos', 'candidatos.persona'],
+    });
+
+    if (!eleccion) {
+      throw new NotFoundException('Elección no encontrada');
+    }
+
+    const totalVotantes = eleccion.total_votantes_habilitados;
+    const totalVotos = eleccion.total_votos_emitidos;
+    const porcentajeParticipacion = totalVotantes > 0 ? (totalVotos / totalVotantes) * 100 : 0;
+    
+    // Obtener votos en blanco
+    const votosBlanco = await this.votoRepository.count({
+      where: { id_eleccion, id_candidato: null },
+    });
+    
+    const candidatosConVotos = eleccion.candidatos.map(candidato => ({
+      id: candidato.id_candidato,
+      nombre: candidato.persona.nombreCompleto,
+      numero_lista: candidato.numero_lista,
+      votos: candidato.votos_recibidos,
+      porcentaje: totalVotos > 0 ? Math.round((candidato.votos_recibidos / totalVotos) * 10000) / 100 : 0,
+    }));
+
+    return {
+      eleccion: {
+        id: eleccion.id_eleccion,
+        titulo: eleccion.titulo,
+        estado: eleccion.estado,
+        fecha_inicio: eleccion.fecha_inicio,
+        fecha_fin: eleccion.fecha_fin,
+      },
+      estadisticas: {
+        total_votantes: totalVotantes,
+        total_votos: totalVotos,
+        votos_blanco: votosBlanco,
+        porcentaje_participacion: Math.round(porcentajeParticipacion * 100) / 100,
+      },
+      candidatos: candidatosConVotos.sort((a, b) => b.votos - a.votos),
+    };
+  }
+
+  // ✅ NUEVO: Método para obtener la lista de votantes de una elección
+  async getElectionVoters(id_eleccion: number) {
+    const votantes = await this.votanteHabilitadoRepository.find({
+      where: { id_eleccion },
+      relations: ['persona'],
+      order: { fecha_voto: 'DESC' }
+    });
+
+    return votantes.map(votante => ({
+      id: votante.id_votante_habilitado,
+      persona: {
+        nombre_completo: votante.persona.nombreCompleto,
+        numero_documento: votante.persona.numero_documento,
+        email: votante.persona.email,
+      },
+      ha_votado: votante.ha_votado,
+      fecha_voto: votante.fecha_voto,
+      ip_voto: votante.ip_voto,
+      dispositivo_voto: votante.dispositivo_voto,
+    }));
+  }
+
+  // ✅ NUEVO: Método para obtener tendencias de votación por hora
+  async getVotingTrends(id_eleccion: number, dias: number = 7) {
+    const trends = await this.votoRepository
+      .createQueryBuilder('voto')
+      .select([
+        'DATE(voto.timestamp_voto) as fecha',
+        'HOUR(voto.timestamp_voto) as hora',
+        'COUNT(*) as votos'
+      ])
+      .where('voto.id_eleccion = :id_eleccion', { id_eleccion })
+      .andWhere('voto.timestamp_voto >= DATE_SUB(NOW(), INTERVAL :dias DAY)', { dias })
+      .groupBy('DATE(voto.timestamp_voto), HOUR(voto.timestamp_voto)')
+      .orderBy('voto.timestamp_voto', 'ASC')
+      .getRawMany();
+
+    return trends.map(trend => ({
+      fecha: trend.fecha,
+      hora: parseInt(trend.hora),
+      votos: parseInt(trend.votos),
+      timestamp: `${trend.fecha} ${trend.hora.toString().padStart(2, '0')}:00:00`
+    }));
   }
 }

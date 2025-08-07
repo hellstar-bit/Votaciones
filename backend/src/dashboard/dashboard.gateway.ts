@@ -1,4 +1,4 @@
-// backend/src/dashboard/dashboard.gateway.ts - Versión actualizada
+// backend/src/dashboard/dashboard.gateway.ts - Con nombres reales de votantes
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -10,8 +10,12 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { DashboardService } from './dashboard.service';
 import { ElectionsService } from '../elections/elections.service';
+import { Persona } from '../users/entities/persona.entity';
+import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 
 @WebSocketGateway({
   cors: {
@@ -29,6 +33,10 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     private jwtService: JwtService,
     private dashboardService: DashboardService,
     private electionsService: ElectionsService,
+    @InjectRepository(Persona)
+    private personaRepository: Repository<Persona>,
+    @InjectRepository(VotanteHabilitado)
+    private votanteHabilitadoRepository: Repository<VotanteHabilitado>,
   ) {}
 
   async handleConnection(client: Socket) {
@@ -48,7 +56,6 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
       
       console.log(`✅ Cliente autenticado: ${client.id}, Rol: ${userRole}`);
       
-      // Verificar permisos para el dashboard
       const allowedRoles = ['ADMIN', 'DASHBOARD'];
       if (!allowedRoles.includes(userRole)) {
         console.log(`❌ Rol no autorizado: ${userRole}`);
@@ -57,13 +64,11 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
         return;
       }
 
-      // Guardar información del cliente
       this.connectedClients.set(client.id, {
         userId: payload.sub,
         userRole: userRole,
       });
 
-      // Enviar datos iniciales
       await this.sendInitialDashboardData(client, userRole);
       
       console.log(`📊 Cliente conectado al dashboard: ${client.id}`);
@@ -80,15 +85,11 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     this.connectedClients.delete(client.id);
   }
 
-  // ✅ Enviar datos iniciales al cliente
   private async sendInitialDashboardData(client: Socket, userRole: string) {
     try {
       console.log(`📈 Enviando datos iniciales para rol: ${userRole}`);
       
-      // Obtener elecciones con estadísticas
       const elections = await this.dashboardService.getRealTimeElections();
-      
-      // Obtener estadísticas globales
       const globalStats = await this.dashboardService.getGlobalRealTimeStats();
       
       const dashboardData = {
@@ -99,12 +100,6 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
         timestamp: new Date().toISOString(),
       };
 
-      console.log(`📊 Enviando datos iniciales:`, {
-        elecciones: dashboardData.activeElections,
-        total_elections: dashboardData.elections.length,
-        usuario_rol: userRole
-      });
-
       client.emit('initial-dashboard-data', dashboardData);
       
     } catch (error) {
@@ -113,7 +108,6 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     }
   }
 
-  // ✅ Unirse a sala de elección específica
   @SubscribeMessage('join-election-room')
   handleJoinElectionRoom(
     @ConnectedSocket() client: Socket,
@@ -122,12 +116,8 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     const room = `election-${data.electionId}`;
     client.join(room);
     console.log(`📊 Cliente ${client.id} se unió a la sala de elección ${data.electionId}`);
-    
-    // Enviar estadísticas específicas de la elección
-    this.sendElectionSpecificData(client, data.electionId);
   }
 
-  // ✅ Salir de sala de elección
   @SubscribeMessage('leave-election-room')
   handleLeaveElectionRoom(
     @ConnectedSocket() client: Socket,
@@ -138,39 +128,49 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     console.log(`📊 Cliente ${client.id} salió de la sala de elección ${data.electionId}`);
   }
 
-  // ✅ Enviar datos específicos de una elección
-  private async sendElectionSpecificData(client: Socket, electionId: number) {
-    try {
-      // Obtener datos específicos de la elección
-      const elections = await this.dashboardService.getRealTimeElections();
-      const election = elections.find(e => e.id === electionId);
-      
-      if (election) {
-        // Obtener tendencias por hora
-        const hourlyTrends = await this.dashboardService.getElectionHourlyTrends(electionId);
-        
-        // Obtener participación por ubicación
-        const participationByLocation = await this.dashboardService.getParticipationByLocation(electionId);
-        
-        client.emit('election-specific-data', {
-          election,
-          hourlyTrends,
-          participationByLocation,
-          timestamp: new Date().toISOString()
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error enviando datos específicos de elección:', error);
-      client.emit('error', { message: 'Error obteniendo datos de la elección' });
-    }
-  }
-
-  // ✅ MÉTODO PRINCIPAL: Notificar nuevo voto
-  async notifyNewVote(electionId: number, voteData?: any) {
+  // ✅ MÉTODO PRINCIPAL ACTUALIZADO: Notificar nuevo voto con nombre real
+  async notifyNewVote(electionId: number, votanteDocumento?: string, candidatoId?: number) {
     try {
       console.log(`🗳️ Notificando nuevo voto en elección ${electionId}`);
       
-      // Obtener estadísticas actualizadas de la elección
+      // ✅ OBTENER NOMBRE REAL DEL VOTANTE
+      let votanteNombre = 'Votante';
+      if (votanteDocumento) {
+        try {
+          const persona = await this.personaRepository.findOne({
+            where: { numero_documento: votanteDocumento.toString() }
+          });
+          
+          if (persona) {
+            votanteNombre = persona.nombreCompleto;
+            console.log(`👤 Votante identificado: ${votanteNombre}`);
+          }
+        } catch (error) {
+          console.warn('⚠️ No se pudo obtener nombre del votante:', error);
+        }
+      }
+
+      // ✅ OBTENER NOMBRE DEL CANDIDATO
+      let candidatoNombre = 'Voto en Blanco';
+      if (candidatoId) {
+        try {
+          const candidato = await this.personaRepository
+            .createQueryBuilder('persona')
+            .innerJoin('candidatos', 'candidato', 'candidato.id_persona = persona.id_persona')
+            .select(['persona.nombres', 'persona.apellidos'])
+            .where('candidato.id_candidato = :candidatoId', { candidatoId })
+            .getRawOne();
+          
+          if (candidato) {
+            candidatoNombre = `${candidato.persona_nombres} ${candidato.persona_apellidos}`;
+            console.log(`🏆 Candidato identificado: ${candidatoNombre}`);
+          }
+        } catch (error) {
+          console.warn('⚠️ No se pudo obtener nombre del candidato:', error);
+        }
+      }
+
+      // Obtener estadísticas actualizadas
       const elections = await this.dashboardService.getRealTimeElections();
       const updatedElection = elections.find(e => e.id === electionId);
       
@@ -179,34 +179,31 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
         return;
       }
 
-      // Obtener estadísticas globales actualizadas
       const globalStats = await this.dashboardService.getGlobalRealTimeStats();
 
-      // Notificar a todos los clientes conectados
+      // ✅ NOTIFICAR CON NOMBRES REALES
       this.server.emit('new-vote', {
         electionId,
-        voterName: voteData?.voterName || 'Votante',
-        candidateName: voteData?.candidateName || 'Candidato',
+        voterName: votanteNombre, // ✅ NOMBRE REAL DEL VOTANTE
+        candidateName: candidatoNombre, // ✅ NOMBRE REAL DEL CANDIDATO
         timestamp: new Date().toISOString(),
-        method: voteData?.method || 'qr',
+        method: 'qr',
         updatedStats: updatedElection.estadisticas
       });
 
-      // Notificar estadísticas actualizadas de la elección específica
       this.server.to(`election-${electionId}`).emit('election-stats-updated', {
         electionId,
         stats: updatedElection.estadisticas,
         timestamp: new Date().toISOString()
       });
 
-      // Notificar estadísticas globales actualizadas
       this.server.emit('global-stats-updated', {
         summary: globalStats.summary,
-        recent_activity: globalStats.recent_activity.slice(0, 10), // Solo los últimos 10
+        recent_activity: globalStats.recent_activity.slice(0, 10),
         timestamp: new Date().toISOString()
       });
 
-      console.log(`✅ Notificación de voto enviada a todos los clientes`);
+      console.log(`✅ Notificación enviada: ${votanteNombre} → ${candidatoNombre}`);
       
     } catch (error) {
       console.error('❌ Error notificando nuevo voto:', error);
@@ -218,17 +215,14 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     try {
       console.log(`🏁 Notificando finalización de elección ${electionId}`);
       
-      // Obtener resultados finales
       const finalResults = await this.dashboardService.getFinalResults(electionId);
       
-      // Notificar a todos los clientes
       this.server.emit('election-finalized', {
         electionId,
         results: finalResults,
         timestamp: new Date().toISOString()
       });
 
-      // Notificar específicamente a los clientes en la sala de la elección
       this.server.to(`election-${electionId}`).emit('election-final-results', {
         electionId,
         results: finalResults,
@@ -247,7 +241,6 @@ export class DashboardGateway implements OnGatewayConnection, OnGatewayDisconnec
     try {
       console.log(`🎯 Notificando activación de elección ${electionId}`);
       
-      // Obtener datos de la elección activada
       const elections = await this.dashboardService.getRealTimeElections();
       const activatedElection = elections.find(e => e.id === electionId);
       

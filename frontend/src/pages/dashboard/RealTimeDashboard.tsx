@@ -1,4 +1,3 @@
-// RealTimeDashboard.tsx - Versión completamente refaccionada
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { io, Socket } from 'socket.io-client'
@@ -29,9 +28,10 @@ import {
 } from 'recharts'
 import { dashboardApi } from '../../services/api'
 import { useAuthStore } from '../../stores/authStore'
+import AdminLayout from '../../components/layout/AdminLayout' // ✅ IMPORTAR LAYOUT
 import toast from 'react-hot-toast'
 
-// Interfaces
+// Interfaces (mantener las mismas)
 interface ElectionStats {
   id: number
   titulo: string
@@ -98,13 +98,8 @@ const RealTimeDashboard = () => {
       try {
         console.log('📊 Cargando datos iniciales del dashboard...')
         
-        // Cargar elecciones en tiempo real
         const electionsResponse = await dashboardApi.getRealTimeElections()
-        console.log('✅ Elecciones cargadas:', electionsResponse)
-        
-        // Cargar estadísticas globales
         const globalStats = await dashboardApi.getGlobalStats()
-        console.log('✅ Estadísticas globales:', globalStats)
         
         const initialData: DashboardData = {
           activeElections: electionsResponse.length,
@@ -115,7 +110,6 @@ const RealTimeDashboard = () => {
         
         setDashboardData(initialData)
         
-        // Seleccionar primera elección activa automáticamente
         if (electionsResponse.length > 0) {
           setSelectedElection(electionsResponse[0])
           generateVoteHistory(electionsResponse[0])
@@ -144,8 +138,6 @@ const RealTimeDashboard = () => {
   const setupWebSocket = () => {
     if (!token) return
 
-    console.log('🔌 Configurando WebSocket...')
-    
     const socket = io(import.meta.env.VITE_API_URL?.replace('/api/v1', '') || 'http://localhost:3000', {
       auth: { token },
       transports: ['websocket', 'polling']
@@ -154,18 +146,15 @@ const RealTimeDashboard = () => {
     socketRef.current = socket
 
     socket.on('connect', () => {
-      console.log('✅ WebSocket conectado')
       setIsConnected(true)
       toast.success('Dashboard conectado en tiempo real')
     })
 
     socket.on('disconnect', () => {
-      console.log('❌ WebSocket desconectado')
       setIsConnected(false)
       toast.error('Conexión perdida. Reintentando...')
     })
 
-    // Escuchar nuevos votos
     socket.on('new-vote', (data: { 
       electionId: number, 
       voterName: string, 
@@ -173,9 +162,7 @@ const RealTimeDashboard = () => {
       timestamp: string,
       method: string
     }) => {
-      console.log('🗳️ Nuevo voto recibido:', data)
-      
-      // Actualizar datos de elecciones
+      // Actualizar datos y notificaciones
       setDashboardData(prev => {
         if (!prev) return prev
         
@@ -206,7 +193,6 @@ const RealTimeDashboard = () => {
         }
       })
 
-      // Actualizar historial de votos si es la elección seleccionada
       if (selectedElection?.id === data.electionId) {
         setVoteHistory(prev => {
           const newEntry = {
@@ -214,56 +200,15 @@ const RealTimeDashboard = () => {
             votes: (selectedElection?.estadisticas.total_votos || 0) + 1,
             participation: (((selectedElection?.estadisticas.total_votos || 0) + 1) / (selectedElection?.estadisticas.total_votantes_habilitados || 1)) * 100
           }
-          return [...prev.slice(-19), newEntry] // Mantener últimos 20 puntos
+          return [...prev.slice(-19), newEntry]
         })
       }
 
-      // Mostrar notificación
-      toast.success(`Nuevo voto registrado en ${data.candidateName}`)
-    })
-
-    // Escuchar estadísticas actualizadas
-    socket.on('election-stats-updated', (data: { electionId: number, stats: any }) => {
-      setDashboardData(prev => {
-        if (!prev) return prev
-        
-        return {
-          ...prev,
-          elections: prev.elections.map(election => 
-            election.id === data.electionId
-              ? { ...election, estadisticas: data.stats }
-              : election
-          )
-        }
-      })
-
-      if (selectedElection?.id === data.electionId) {
-        setSelectedElection(prev => prev ? { ...prev, estadisticas: data.stats } : null)
-      }
-    })
-
-    // Escuchar finalizaciones de elecciones
-    socket.on('election-finalized', (data: { electionId: number, results: any }) => {
-      console.log('🏁 Elección finalizada:', data)
-      toast.success(`Elección ${data.electionId} ha finalizado`)
-      
-      // Actualizar estado de la elección
-      setDashboardData(prev => {
-        if (!prev) return prev
-        
-        return {
-          ...prev,
-          elections: prev.elections.map(election => 
-            election.id === data.electionId
-              ? { ...election, estado: 'finalizada' }
-              : election
-          )
-        }
-      })
+      toast.success(`Nuevo voto: ${data.voterName} → ${data.candidateName}`)
     })
   }
 
-  // Generar historial de votos simulado para la visualización inicial
+  // Resto de funciones (mantener las mismas)
   const generateVoteHistory = (election: ElectionStats) => {
     const history = []
     const currentVotes = election.estadisticas.total_votos
@@ -286,18 +231,15 @@ const RealTimeDashboard = () => {
     setVoteHistory(history)
   }
 
-  // Seleccionar elección
   const handleElectionSelect = (election: ElectionStats) => {
     setSelectedElection(election)
     generateVoteHistory(election)
     
-    // Unirse a la sala de WebSocket para esta elección
     if (socketRef.current) {
       socketRef.current.emit('join-election-room', { electionId: election.id })
     }
   }
 
-  // Funciones de utilidad
   const formatPercentage = (value: number) => `${Math.round(value)}%`
   const formatTime = (timestamp: string) => new Date(timestamp).toLocaleTimeString('es-ES', { 
     hour: '2-digit', 
@@ -306,208 +248,213 @@ const RealTimeDashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-sena-500 to-sena-600 rounded-xl flex items-center justify-center shadow-lg mb-6 mx-auto">
-            <ArrowPathIcon className="w-8 h-8 text-white animate-spin" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Cargando Dashboard</h2>
-          <p className="text-gray-600 mb-4">Sistema de Votaciones SENA</p>
-          <div className="flex items-center justify-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-sm text-gray-500">
-              {isConnected ? 'Conectado' : 'Desconectado'}
-            </span>
+      <AdminLayout>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gradient-to-br from-sena-500 to-sena-600 rounded-xl flex items-center justify-center shadow-lg mb-6 mx-auto">
+              <ArrowPathIcon className="w-8 h-8 text-white animate-spin" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Cargando Dashboard</h2>
+            <p className="text-gray-600 mb-4">Sistema de Votaciones SENA</p>
+            <div className="flex items-center justify-center space-x-2">
+              <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className="text-sm text-gray-500">
+                {isConnected ? 'Conectado' : 'Desconectado'}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      </AdminLayout>
     )
   }
 
   if (!dashboardData) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <ExclamationTriangleIcon className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error cargando datos</h2>
-          <p className="text-gray-600">No se pudieron cargar los datos del dashboard</p>
+      <AdminLayout>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <ExclamationTriangleIcon className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Error cargando datos</h2>
+            <p className="text-gray-600">No se pudieron cargar los datos del dashboard</p>
+          </div>
         </div>
-      </div>
+      </AdminLayout>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-                <BoltIcon className="w-8 h-8 text-sena-600 mr-3" />
-                Dashboard en Tiempo Real
-              </h1>
-              <p className="text-gray-600 mt-1">Monitoreo de votaciones activas</p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className={`flex items-center px-3 py-2 rounded-full ${
-                isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                <div className={`w-2 h-2 rounded-full mr-2 ${
-                  isConnected ? 'bg-green-500' : 'bg-red-500'
-                }`}></div>
-                <span className="text-sm font-medium">
-                  {isConnected ? 'Conectado' : 'Desconectado'}
-                </span>
+    <AdminLayout>
+      <div className="min-h-screen bg-gray-50">
+        <div className="container mx-auto px-4 py-6">
+          {/* Header */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 flex items-center">
+                  <BoltIcon className="w-8 h-8 text-sena-600 mr-3" />
+                  Dashboard en Tiempo Real
+                </h1>
+                <p className="text-gray-600 mt-1">Monitoreo de votaciones activas</p>
               </div>
-              <div className="text-sm text-gray-500">
-                Última actualización: {new Date().toLocaleTimeString()}
+              <div className="flex items-center space-x-3">
+                <div className={`flex items-center px-3 py-2 rounded-full ${
+                  isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                }`}>
+                  <div className={`w-2 h-2 rounded-full mr-2 ${
+                    isConnected ? 'bg-green-500' : 'bg-red-500'
+                  }`}></div>
+                  <span className="text-sm font-medium">
+                    {isConnected ? 'Conectado' : 'Desconectado'}
+                  </span>
+                </div>
+                <div className="text-sm text-gray-500">
+                  Última actualización: {new Date().toLocaleTimeString()}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Estadísticas globales */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Elecciones Activas</p>
-                <p className="text-2xl font-bold text-sena-600">
-                  {dashboardData.summary.active_elections}
-                </p>
+          {/* Estadísticas globales */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Elecciones Activas</p>
+                  <p className="text-2xl font-bold text-sena-600">
+                    {dashboardData.summary.active_elections}
+                  </p>
+                </div>
+                <ChartBarIcon className="w-8 h-8 text-sena-600" />
               </div>
-              <ChartBarIcon className="w-8 h-8 text-sena-600" />
-            </div>
-          </motion.div>
+            </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Votos</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {dashboardData.summary.total_votes.toLocaleString()}
-                </p>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Votos</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {dashboardData.summary.total_votes.toLocaleString()}
+                  </p>
+                </div>
+                <UsersIcon className="w-8 h-8 text-blue-600" />
               </div>
-              <UsersIcon className="w-8 h-8 text-blue-600" />
-            </div>
-          </motion.div>
+            </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Votantes Habilitados</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  {dashboardData.summary.total_voters.toLocaleString()}
-                </p>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Votantes Habilitados</p>
+                  <p className="text-2xl font-bold text-purple-600">
+                    {dashboardData.summary.total_voters.toLocaleString()}
+                  </p>
+                </div>
+                <EyeIcon className="w-8 h-8 text-purple-600" />
               </div>
-              <EyeIcon className="w-8 h-8 text-purple-600" />
-            </div>
-          </motion.div>
+            </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Participación Global</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {formatPercentage(dashboardData.summary.participation_rate)}
-                </p>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white rounded-lg p-6 shadow-sm border border-gray-200"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Participación Global</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatPercentage(dashboardData.summary.participation_rate)}
+                  </p>
+                </div>
+                <TrophyIcon className="w-8 h-8 text-green-600" />
               </div>
-              <TrophyIcon className="w-8 h-8 text-green-600" />
-            </div>
-          </motion.div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Lista de elecciones */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <ChartBarIcon className="w-5 h-5 mr-2 text-sena-600" />
-                  Elecciones Activas
-                </h3>
-              </div>
-              <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
-                {dashboardData.elections.length === 0 ? (
-                  <div className="p-6 text-center">
-                    <ClockIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-500">No hay elecciones activas</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 p-4">
-                    {dashboardData.elections.map((election) => (
-                      <motion.div
-                        key={election.id}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                          selectedElection?.id === election.id
-                            ? 'border-sena-500 bg-sena-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                        onClick={() => handleElectionSelect(election)}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold text-gray-900 text-sm">
-                            {election.titulo}
-                          </h4>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            election.estado === 'activa' 
-                              ? 'bg-green-100 text-green-800'
-                              : election.estado === 'finalizada'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {election.estado}
-                          </span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-xs">
-                            <span className="text-gray-600">Participación:</span>
-                            <span className="font-medium">
-                              {formatPercentage(election.estadisticas.participacion_porcentaje)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-xs">
-                            <span className="text-gray-600">Votos:</span>
-                            <span className="font-medium">
-                              {election.estadisticas.total_votos} / {election.estadisticas.total_votantes_habilitados}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                          <div 
-                            className="bg-sena-600 h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${Math.min(100, election.estadisticas.participacion_porcentaje)}%` }}
-                          ></div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            </motion.div>
           </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Lista de elecciones */}
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div className="p-4 border-b border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <ChartBarIcon className="w-5 h-5 mr-2 text-sena-600" />
+                    Elecciones Activas
+                  </h3>
+                </div>
+                <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
+                  {dashboardData.elections.length === 0 ? (
+                    <div className="p-6 text-center">
+                      <ClockIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-500">No hay elecciones activas</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 p-4">
+                      {dashboardData.elections.map((election) => (
+                        <motion.div
+                          key={election.id}
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                            selectedElection?.id === election.id
+                              ? 'border-sena-500 bg-sena-50'
+                              : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => handleElectionSelect(election)}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-semibold text-gray-900 text-sm">
+                              {election.titulo}
+                            </h4>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              election.estado === 'activa' 
+                                ? 'bg-green-100 text-green-800'
+                                : election.estado === 'finalizada'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {election.estado}
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-600">Participación:</span>
+                              <span className="font-medium">
+                                {formatPercentage(election.estadisticas.participacion_porcentaje)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-gray-600">Votos:</span>
+                              <span className="font-medium">
+                                {election.estadisticas.total_votos} / {election.estadisticas.total_votantes_habilitados}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                            <div 
+                              className="bg-sena-600 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${Math.min(100, election.estadisticas.participacion_porcentaje)}%` }}
+                            ></div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
           {/* Panel principal de estadísticas */}
           <div className="lg:col-span-3 space-y-6">
@@ -794,7 +741,7 @@ const RealTimeDashboard = () => {
         </AnimatePresence>
       </div>
     </div>
+  </AdminLayout>
   )
 }
-
 export default RealTimeDashboard
