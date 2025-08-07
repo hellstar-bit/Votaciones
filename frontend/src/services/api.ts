@@ -63,6 +63,145 @@ api.interceptors.response.use(
   }
 )
 
+// ✅ NUEVAS INTERFACES PARA EL DASHBOARD
+export interface ElectionRealTimeStats {
+  id: number
+  titulo: string
+  estado: string
+  fecha_inicio: string
+  fecha_fin: string
+  estadisticas: {
+    total_votos: number
+    total_votantes_habilitados: number
+    participacion_porcentaje: number
+    votos_por_candidato: Array<{
+      candidato_id: number
+      candidato_nombre: string
+      votos: number
+      porcentaje: number
+    }>
+  }
+}
+
+export interface GlobalRealTimeStats {
+  summary: {
+    total_elections: number
+    active_elections: number
+    total_votes: number
+    total_voters: number
+    participation_rate: number
+  }
+  recent_activity: Array<{
+    id: number
+    votante_nombre: string
+    eleccion_titulo: string
+    candidato_nombre: string
+    timestamp: string
+    metodo_identificacion: string
+  }>
+}
+
+export interface ElectionVoter {
+  nombre: string
+  documento: string
+  ha_votado: boolean
+  fecha_voto?: string
+  ip_voto?: string
+  dispositivo_voto?: string
+}
+
+export interface ElectionHourlyTrend {
+  fecha: string
+  hora: number
+  votos: number
+  timestamp: string
+}
+
+export interface ParticipationByLocation {
+  location: string
+  total_voters: number
+  voted: number
+  participation_rate: number
+}
+
+export interface FinalElectionResults {
+  eleccion: {
+    id: number
+    titulo: string
+    fecha_inicio: string
+    fecha_fin: string
+  }
+  estadisticas: {
+    total_votantes_habilitados: number
+    total_votos_emitidos: number
+    participacion_porcentaje: number
+    votos_blanco: number
+  }
+  resultados: Array<{
+    posicion: number
+    candidato_id: number
+    candidato_nombre: string
+    votos: number
+    porcentaje: number
+    es_ganador: boolean
+  }>
+}
+
+// ✅ DASHBOARD API ACTUALIZADA
+export const dashboardApi = {
+  // Obtener estadísticas generales del dashboard
+  getStats: async (): Promise<DashboardStats> => {
+    const response = await api.get('/dashboard/stats')
+    return response.data
+  },
+
+  // ✅ NUEVO: Obtener elecciones con estadísticas en tiempo real
+  getRealTimeElections: async (): Promise<ElectionRealTimeStats[]> => {
+    const response = await api.get('/dashboard/real-time/elections')
+    return response.data
+  },
+
+  // ✅ NUEVO: Obtener estadísticas globales en tiempo real
+  getGlobalStats: async (): Promise<GlobalRealTimeStats> => {
+    const response = await api.get('/dashboard/real-time/global-stats')
+    return response.data
+  },
+
+  // ✅ NUEVO: Obtener lista de votantes de una elección
+  getElectionVoters: async (electionId: number): Promise<ElectionVoter[]> => {
+    const response = await api.get(`/dashboard/election/${electionId}/voters`)
+    return response.data
+  },
+
+  // ✅ NUEVO: Obtener tendencias por hora de una elección
+  getElectionHourlyTrends: async (electionId: number): Promise<ElectionHourlyTrend[]> => {
+    const response = await api.get(`/dashboard/election/${electionId}/hourly-trends`)
+    return response.data
+  },
+
+  // ✅ NUEVO: Obtener participación por ubicación
+  getParticipationByLocation: async (electionId: number): Promise<ParticipationByLocation[]> => {
+    const response = await api.get(`/dashboard/election/${electionId}/participation-by-location`)
+    return response.data
+  },
+
+  // ✅ NUEVO: Obtener resultados finales
+  getFinalResults: async (electionId: number): Promise<FinalElectionResults> => {
+    const response = await api.get(`/dashboard/election/${electionId}/final-results`)
+    return response.data
+  },
+
+  // ✅ Mantener métodos heredados para compatibilidad
+  getElectionTrends: async (electionId: number) => {
+    const response = await api.get(`/dashboard/election/${electionId}/trends`)
+    return response.data
+  },
+
+  getParticipation: async (electionId: number) => {
+    const response = await api.get(`/dashboard/election/${electionId}/participation`)
+    return response.data
+  },
+}
 // INTERFACES Y TIPOS
 export interface DashboardStats {
   summary: {
@@ -470,26 +609,7 @@ export const importApi = {
 
 // SERVICIOS DE API
 
-// Dashboard API
-export const dashboardApi = {
-  // Obtener estadísticas del dashboard
-  getStats: async (): Promise<DashboardStats> => {
-    const response = await api.get('/dashboard/stats')
-    return response.data
-  },
-
-  // Obtener tendencias de una elección
-  getElectionTrends: async (electionId: number) => {
-    const response = await api.get(`/dashboard/election/${electionId}/trends`)
-    return response.data
-  },
-
-  // Obtener participación por ubicación
-  getParticipationByLocation: async (electionId: number) => {
-    const response = await api.get(`/dashboard/election/${electionId}/participation`)
-    return response.data
-  },
-}
+// Dashboard AP
 
 // Elections API
 export const electionsApi = {

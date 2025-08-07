@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { 
   XMarkIcon, 
-  CameraIcon, 
   ExclamationTriangleIcon,
   IdentificationIcon,
   QrCodeIcon,

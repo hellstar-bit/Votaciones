@@ -1,6 +1,16 @@
-// 📁 backend/src/users/entities/sede.entity.ts
-// ====================================================================
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+// 📁 backend/src/users/entities/sede.entity.ts - VERSIÓN CORREGIDA
+// ========================================
+
+import { 
+  Entity, 
+  PrimaryGeneratedColumn, 
+  Column, 
+  ManyToOne, 
+  OneToMany, 
+  JoinColumn, 
+  CreateDateColumn, 
+  UpdateDateColumn 
+} from 'typeorm';
 import { Centro } from './centro.entity';
 import { Ficha } from './ficha.entity';
 import { Persona } from './persona.entity';
@@ -10,19 +20,27 @@ export class Sede {
   @PrimaryGeneratedColumn()
   id_sede: number;
 
-  @Column()
+  // ✅ ID como número simple
+  @Column({ nullable: true })
   id_centro: number;
 
-  @Column({ length: 10 })
+  @Column({ length: 20 })
   codigo_sede: string;
 
-  @Column({ length: 100 })
+  @Column({ length: 200 })
   nombre_sede: string;
 
   @Column({ length: 200, nullable: true })
   direccion: string;
 
-  @Column({ type: 'enum', enum: ['activo', 'inactivo'], default: 'activo' })
+  @Column({ length: 25, nullable: true })
+  telefono: string;
+
+  @Column({ 
+    type: 'enum', 
+    enum: ['activa', 'inactiva'], 
+    default: 'activa' 
+  })
   estado: string;
 
   @CreateDateColumn()
@@ -31,14 +49,14 @@ export class Sede {
   @UpdateDateColumn()
   updated_at: Date;
 
-  @ManyToOne(() => Centro, centro => centro.sedes)
+  // ✅ Relación opcional con onDelete: SET NULL
+  @ManyToOne(() => Centro, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'id_centro' })
   centro: Centro;
 
   @OneToMany(() => Ficha, ficha => ficha.sede)
   fichas: Ficha[];
 
-  // ✅ RELACIÓN AGREGADA
   @OneToMany(() => Persona, persona => persona.sede)
   personas: Persona[];
 }
