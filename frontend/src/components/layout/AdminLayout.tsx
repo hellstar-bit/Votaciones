@@ -44,13 +44,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       icon: HomeIcon,
       current: location.pathname === '/admin'
     },
-    {
-      name: 'Gestión de Usuarios',
-      href: '/admin/users',
-      icon: UsersIcon,
-      current: location.pathname === '/admin/users',
-      disabled: true // Mantener deshabilitado por ahora
-    },
+   
     // ✅ NUEVO: Gestión de Aprendices
     {
       name: 'Gestión de Aprendices',
