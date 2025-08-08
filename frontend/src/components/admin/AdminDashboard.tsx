@@ -1,6 +1,6 @@
 // 📁 frontend/src/components/admin/AdminDashboard.tsx - ARCHIVO COMPLETO CORREGIDO
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import {  AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
@@ -177,14 +177,12 @@ const AdminDashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <motion.div className="text-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+        <div className="text-center">
+          <div
             className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full mx-auto mb-4"
           />
           <p className="text-gray-600 font-medium">Cargando dashboard...</p>
-        </motion.div>
+        </div>
       </div>
     )
   }
@@ -284,12 +282,8 @@ const AdminDashboard = () => {
           {/* Estadísticas - más compactas y coherentes */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Elecciones */}
-            <motion.div 
+            <div 
               className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              whileHover={{ y: -2 }}
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -302,15 +296,11 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
-            </motion.div>
+            </div>
 
             {/* Elecciones Activas */}
-            <motion.div 
+            <div 
               className="bg-green-600 rounded-xl p-5 text-white relative overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              whileHover={{ y: -2 }}
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -323,15 +313,12 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
-            </motion.div>
+            </div>
 
             {/* Total Votos */}
-            <motion.div 
+            <div 
               className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              whileHover={{ y: -2 }}
+              
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -344,15 +331,12 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
-            </motion.div>
+            </div>
 
             {/* Participación */}
-            <motion.div 
+            <div 
               className="bg-green-700 rounded-xl p-5 text-white relative overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              whileHover={{ y: -2 }}
+           
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -365,18 +349,16 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
-            </motion.div>
+            </div>
           </div>
 
           {/* Grid Principal - ocupa todo el espacio disponible */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-300px)]">
             {/* Lista de Elecciones - más ancha */}
             <div className="lg:col-span-3">
-              <motion.div 
+              <div 
                 className="bg-white rounded-xl border border-gray-200 h-full flex flex-col"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 }}
+
               >
                 <div className="flex items-center justify-between p-6 border-b border-gray-200">
                   <div className="flex items-center space-x-3">
@@ -412,13 +394,9 @@ const AdminDashboard = () => {
                   ) : (
                     <div className="space-y-4">
                       <AnimatePresence>
-                        {elections.map((election, index) => (
-                          <motion.div
+                        {elections.map((election, _index) => (
+                          <div
                             key={election.id_eleccion}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ delay: index * 0.1 }}
                             className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
                           >
                             <div className="flex items-center justify-between">
@@ -482,23 +460,20 @@ const AdminDashboard = () => {
                                 )}
                               </div>
                             </div>
-                          </motion.div>
+                          </div>
                         ))}
                       </AnimatePresence>
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
             </div>
 
             {/* Sidebar Derecho - más compacto */}
             <div className="space-y-4 overflow-y-auto">
               {/* Actividad Reciente */}
-              <motion.div 
+              <div 
                 className="bg-white rounded-xl border border-gray-200 p-4"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.6 }}
               >
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-600 rounded-lg flex items-center justify-center">
@@ -524,14 +499,12 @@ const AdminDashboard = () => {
                     <p className="text-gray-500 text-xs">No hay actividad reciente</p>
                   </div>
                 )}
-              </motion.div>
+              </div>
 
               {/* Acciones Rápidas */}
-              <motion.div 
+              <div 
                 className="bg-white rounded-xl border border-gray-200 p-4"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.7 }}
+                
               >
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-700 rounded-lg flex items-center justify-center">
@@ -571,14 +544,12 @@ const AdminDashboard = () => {
                     <span>Configuración</span>
                   </button>
                 </div>
-              </motion.div>
+              </div>
 
               {/* Estado del Sistema */}
-              <motion.div 
+              <div 
                 className="bg-white rounded-xl border border-gray-200 p-4"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.8 }}
+               
               >
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-500 rounded-lg flex items-center justify-center">
@@ -610,7 +581,7 @@ const AdminDashboard = () => {
                     <span className="text-gray-900 font-medium">{safeStats.summary.total_voters}</span>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </div>
