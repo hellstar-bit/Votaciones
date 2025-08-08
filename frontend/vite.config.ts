@@ -1,51 +1,65 @@
 // 📁 frontend/vite.config.ts
-// ====================================================================
-// 🔧 CONFIGURACIÓN DE VITE PARA SPA Y VERCEL
-// ====================================================================
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react({
+      // 🔧 Configuración específica para React 18
+      jsxRuntime: 'automatic',
+    })
+  ],
   
-  // 🔧 Configuración para SPA
+  // 🔧 Optimizaciones para evitar conflictos DOM
+  optimizeDeps: {
+    include: [
+      'react', 
+      'react-dom', 
+      'framer-motion',
+      'react-router-dom'
+    ],
+    exclude: ['@vitejs/plugin-react']
+  },
+  
   build: {
     outDir: 'dist',
-    assetsDir: 'assets',
-    sourcemap: false, // Desactivar en producción para mejorar rendimiento
+    sourcemap: false,
+    
+    // 🔧 Configuración específica para evitar conflictos
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          ui: ['framer-motion', '@heroicons/react']
+          'react-vendor': ['react', 'react-dom'],
+          'motion': ['framer-motion'],
+          'router': ['react-router-dom']
         }
       }
-    }
+    },
+    
+    // 🔧 Aumentar límite de chunk size
+    chunkSizeWarningLimit: 1000
   },
   
-  // 🔧 Optimizaciones
-  optimizeDeps: {
-    include: ['framer-motion', 'react-router-dom']
-  },
-  
-  // 🔧 Configuración del servidor de desarrollo
   server: {
     port: 3001,
     host: true,
   },
   
-  // 🔧 Preview server (para testing local)
   preview: {
     port: 3001,
-    host: true,
+    host: true
   },
   
-  // 🔧 Base URL (ajustar si despliegas en subdirectorio)
-  base: '/',
+  // 🔧 Resolver aliases para evitar conflictos
+  resolve: {
+    alias: {
+      '@': '/src'
+    }
+  },
   
   // 🔧 Variables de entorno
   define: {
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+    __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production')
   }
 })
