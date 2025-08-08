@@ -1,6 +1,5 @@
 // 📁 frontend/src/components/admin/AdminDashboard.tsx - ARCHIVO COMPLETO CORREGIDO
 import { useState, useEffect } from 'react'
-import {  AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
@@ -36,6 +35,8 @@ const AdminDashboard = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [currentView, setCurrentView] = useState<'dashboard' | 'candidates' | 'settings'>('dashboard')
   const [selectedElectionId, setSelectedElectionId] = useState<number | null>(null)
+
+ 
 
   // Cargar datos del dashboard desde la API
   useEffect(() => {
@@ -393,12 +394,10 @@ const AdminDashboard = () => {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <AnimatePresence>
-                        {elections.map((election, _index) => (
-                          <div
-                            key={election.id_eleccion}
+                        {elections.map((election) => (
+                            <div key={`election-${election.id_eleccion}`}>
                             className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
-                          >
+                          
                             <div className="flex items-center justify-between">
                               <div className="flex-1">
                                 <div className="flex items-center space-x-3 mb-2">
@@ -462,7 +461,6 @@ const AdminDashboard = () => {
                             </div>
                           </div>
                         ))}
-                      </AnimatePresence>
                     </div>
                   )}
                 </div>
