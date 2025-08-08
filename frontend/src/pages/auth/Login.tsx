@@ -1,8 +1,9 @@
+// 📁 frontend/src/pages/auth/Login.tsx - NAVEGACIÓN CORREGIDA PARA REACT ROUTER V7
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { useForm } from 'react-hook-form'
-import { useNavigate } from 'react-router-dom'
-import { EyeIcon, EyeSlashIcon, UserIcon, LockClosedIcon } from '@heroicons/react/24/outline'
+import { EyeIcon, EyeSlashIcon, UserIcon, LockClosedIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import toast from 'react-hot-toast'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import { AuthLayout } from '../../components/layout/Layout'
@@ -15,9 +16,7 @@ interface LoginForm {
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false)
-  const navigate = useNavigate()
   
-  // 🔧 CORREGIR: Extraer correctamente login e isLoading del store
   const { login, isLoading } = useAuthStore()
   
   const {
@@ -27,13 +26,50 @@ const Login = () => {
     setError
   } = useForm<LoginForm>()
 
-  // 🔧 FUNCIÓN CORREGIDA DE SUBMIT
+  // 🔧 SOLUCIÓN: Función de navegación que evita el error insertBefore
+  const navigateAfterLogin = (user: any) => {
+    // Pequeño delay para permitir que el state se actualice completamente
+    setTimeout(() => {
+      // 🔧 CRÍTICO: Usar window.location.href en lugar de navigate()
+      // Esto fuerza un reload completo y evita problemas de React Router v7
+      switch (user.rol) {
+        case 'ADMIN':
+          window.location.href = '/admin'
+          break
+        case 'DASHBOARD':
+          window.location.href = '/real-time-dashboard'
+          break
+        case 'MESA_VOTACION':
+          window.location.href = '/voting'
+          break
+        case 'INSTRUCTOR':
+          window.location.href = '/instructor'
+          break
+        default:
+          window.location.href = '/dashboard'
+      }
+    }, 100)
+  }
+
   const onSubmit = async (data: LoginForm) => {
     try {
       console.log('🔐 Iniciando proceso de login...')
+      
       await login(data)
-      console.log('✅ Login exitoso, redirigiendo...')
-      navigate('/dashboard')
+      console.log('✅ Login exitoso')
+      
+      toast.success('¡Bienvenido al sistema!')
+      
+      // 🔧 CORRECCIÓN: Obtener el usuario del store después del login exitoso
+      const { user } = useAuthStore.getState()
+      
+      if (user) {
+        navigateAfterLogin(user)
+      } else {
+        // Fallback si hay algún problema
+        window.location.href = '/dashboard'
+      }
+      
     } catch (error: any) {
       console.error('❌ Error en login:', error)
       setError('root', {
@@ -59,6 +95,16 @@ const Login = () => {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Error general */}
+          {errors.root && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <ExclamationTriangleIcon className="w-5 h-5 text-red-400 mr-3" />
+                <p className="text-sm text-red-700">{errors.root.message}</p>
+              </div>
+            </div>
+          )}
+
           {/* Campo Usuario */}
           <div>
             <Input
@@ -96,76 +142,37 @@ const Login = () => {
             />
             <button
               type="button"
-              className="absolute right-3 top-9 text-gray-400 hover:text-gray-600 transition-colors"
+              className="absolute inset-y-0 right-0 top-6 pr-3 flex items-center"
               onClick={() => setShowPassword(!showPassword)}
             >
               {showPassword ? (
-                <EyeSlashIcon className="w-5 h-5" />
+                <EyeSlashIcon className="h-5 w-5 text-gray-400" />
               ) : (
-                <EyeIcon className="w-5 h-5" />
+                <EyeIcon className="h-5 w-5 text-gray-400" />
               )}
             </button>
           </div>
 
-          {/* Error General */}
-          {errors.root && (
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-red-50 border border-red-200 rounded-lg p-3"
-            >
-              <p className="text-red-600 text-sm font-medium">
-                {errors.root.message}
-              </p>
-            </motion.div>
-          )}
-
-          {/* Botón Login */}
+          {/* Submit Button */}
           <Button
             type="submit"
             size="lg"
             loading={isLoading}
             className="w-full"
           >
-            {isLoading ? 'Verificando...' : 'Iniciar Sesión'}
+            {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
           </Button>
+
+          {/* Links adicionales */}
+          <div className="text-center">
+            <p className="text-sm text-gray-600">
+              ¿Problemas para acceder?{' '}
+              <a href="#" className="font-medium text-green-600 hover:text-green-500">
+                Contacta al administrador
+              </a>
+            </p>
+          </div>
         </form>
-
-        {/* Información de prueba */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="mt-8 p-4 bg-gray-50 rounded-lg"
-        >
-          <h3 className="text-sm font-medium text-gray-900 mb-2">
-            Credenciales de prueba:
-          </h3>
-          <div className="text-xs text-gray-600 space-y-1">
-            <div><strong>Admin:</strong> admin / Admin123!</div>
-            <div><strong>Mesa:</strong> mesa / Mesa123!</div>
-            <div><strong>Instructor:</strong> instructor / Instructor123!</div>
-          </div>
-        </motion.div>
-
-        {/* Enlaces adicionales */}
-        <div className="mt-6 text-center">
-          <div className="text-sm text-gray-500">
-            ¿Problemas para acceder?{' '}
-            <a href="#" className="text-sena-600 hover:text-sena-700 font-medium">
-              Contacta al administrador
-            </a>
-          </div>
-          
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <button 
-              onClick={() => navigate('/')}
-              className="text-sm text-gray-500 hover:text-sena-600 transition-colors"
-            >
-              ← Volver al inicio
-            </button>
-          </div>
-        </div>
       </motion.div>
     </AuthLayout>
   )
