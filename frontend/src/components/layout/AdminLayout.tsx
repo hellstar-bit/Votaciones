@@ -1,6 +1,11 @@
 // 📁 frontend/src/components/layout/AdminLayout.tsx - ACTUALIZADO
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+const motion = {
+  div: (props: any) => React.createElement('div', props),
+  button: (props: any) => React.createElement('button', props),
+  span: (props: any) => React.createElement('span', props)
+}
+const AnimatePresence = ({ children }: any) => children
 import { useNavigate, useLocation } from 'react-router-dom'
 import { 
   HomeIcon,
@@ -19,6 +24,7 @@ import {
   PresentationChartBarIcon // ✅ NUEVO: Para dashboard tiempo real
 } from '@heroicons/react/24/outline'
 import { useAuthStore } from '../../stores/authStore'
+import React from 'react'
 
 interface AdminLayoutProps {
   children: React.ReactNode
