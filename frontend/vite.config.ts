@@ -1,65 +1,60 @@
-// 📁 frontend/vite.config.ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [
     react({
-      // 🔧 Configuración específica para React 18
-      jsxRuntime: 'automatic',
+      // 🔧 Configuración para evitar problemas de hidratación
+      babel: {
+        plugins: [
+          // Evitar problemas con keys en desarrollo vs producción
+          ['babel-plugin-transform-react-remove-prop-types', { removeImport: true }]
+        ]
+      }
     })
   ],
   
-  // 🔧 Optimizaciones para evitar conflictos DOM
-  optimizeDeps: {
-    include: [
-      'react', 
-      'react-dom', 
-      'framer-motion',
-      'react-router-dom'
-    ],
-    exclude: ['@vitejs/plugin-react']
-  },
-  
+  // 🔧 Configuración específica para producción
   build: {
-    outDir: 'dist',
-    sourcemap: false,
-    
-    // 🔧 Configuración específica para evitar conflictos
     rollupOptions: {
       output: {
+        // Evitar chunks muy grandes que pueden causar problemas de hidratación
         manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'motion': ['framer-motion'],
-          'router': ['react-router-dom']
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          ui: ['framer-motion', '@headlessui/react', '@heroicons/react']
         }
       }
     },
-    
-    // 🔧 Aumentar límite de chunk size
-    chunkSizeWarningLimit: 1000
+    // 🔧 Optimizaciones para estabilidad
+    minify: 'terser',
+   
   },
   
+  // 🔧 Configuración de desarrollo que coincida con producción
   server: {
-    port: 3001,
-    host: true,
-  },
-  
-  preview: {
-    port: 3001,
-    host: true
-  },
-  
-  // 🔧 Resolver aliases para evitar conflictos
-  resolve: {
-    alias: {
-      '@': '/src'
+    strictPort: true,
+    hmr: {
+      overlay: true
     }
   },
   
-  // 🔧 Variables de entorno
+  // 🔧 Optimización de dependencias
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'framer-motion'
+    ],
+    exclude: [
+      // Excluir módulos que pueden causar problemas de hidratación
+    ]
+  },
+  
+  // 🔧 Definir variables de entorno
   define: {
-    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
-    __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production')
+    // Asegurar que el entorno esté bien definido
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
   }
 })
