@@ -1,3 +1,4 @@
+// 📁 backend/src/config/database.config.ts
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
@@ -16,10 +17,18 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
   
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
-  synchronize: configService.get('NODE_ENV') === 'development', // Solo en desarrollo
+  
+  // 🔧 AQUÍ PUEDES CAMBIAR EL SYNCHRONIZE
+  synchronize: false, // Solo en desarrollo
+
+  // 🔧 SI QUIERES FORZAR SYNCHRONIZE EN PRODUCCIÓN (NO RECOMENDADO):
+  // synchronize: true, // ⚠️ PELIGROSO EN PRODUCCIÓN
+  
+  // 🔧 SI QUIERES DESACTIVAR SYNCHRONIZE EN DESARROLLO:
+  // synchronize: false, // Para usar solo migraciones
+  
   logging: configService.get('NODE_ENV') === 'development',
   
-  // 🔧 TIMEZONE PARA POSTGRESQL  
   // 🔧 CONFIGURACIONES ADICIONALES PARA POSTGRESQL
   extra: {
     connectionLimit: 10,
