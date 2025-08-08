@@ -93,7 +93,7 @@ async function bootstrap() {
   // Orígenes por defecto
   const defaultOrigins = isProduction 
     ? [] // En producción, solo usar los configurados
-    : [
+    : [ 'https://votaciones-ochre.vercel.app',
         'http://localhost:3001',
         'http://localhost:3000',
         'http://localhost:5173',
