@@ -23,7 +23,7 @@ export class Candidate {
   @Column({ length: 500, nullable: true })
   foto_url: string
 
-  @Column({ type: 'tinyint', default: 0 })
+  @Column({ type: 'boolean', default: 0 })
   validado: boolean
 
   @Column({ nullable: true })
@@ -42,11 +42,11 @@ export class Candidate {
   })
   estado: 'pendiente' | 'validado' | 'rechazado' | 'retirado'
 
-  @Column({ type: 'datetime', precision: 6, default: () => 'CURRENT_TIMESTAMP(6)' })
+  @Column({ type: 'timestamp', precision: 6, default: () => 'CURRENT_TIMESTAMP(6)' })
   created_at: Date
 
   @Column({ 
-    type: 'datetime', 
+    type: 'timestamp', 
     precision: 6, 
     default: () => 'CURRENT_TIMESTAMP(6)',
     onUpdate: 'CURRENT_TIMESTAMP(6)'

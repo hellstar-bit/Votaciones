@@ -30,11 +30,11 @@ export class Centro {
   })
   estado: 'activo' | 'inactivo';
 
-  @Column({ type: 'datetime', precision: 6, default: () => 'CURRENT_TIMESTAMP(6)' })
+  @Column({ type: 'timestamp', precision: 6, default: () => 'CURRENT_TIMESTAMP(6)' })
   created_at: Date;
 
   @Column({ 
-    type: 'datetime', 
+    type: 'timestamp', 
     precision: 6, 
     default: () => 'CURRENT_TIMESTAMP(6)',
     onUpdate: 'CURRENT_TIMESTAMP(6)'

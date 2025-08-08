@@ -32,10 +32,10 @@ export class Election {
   })
   jornada: string
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   fecha_inicio: Date
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   fecha_fin: Date
 
   @Column({ 
@@ -45,7 +45,7 @@ export class Election {
   })
   estado: 'configuracion' | 'activa' | 'finalizada' | 'cancelada'
 
-  @Column({ type: 'tinyint', default: 1 })
+  @Column({ type: 'boolean', default: 1 })
   permite_voto_blanco: boolean
 
   @Column({ default: 0 })
@@ -58,11 +58,11 @@ export class Election {
   @Column({ nullable: true })
   created_by: number
 
-  @Column({ type: 'datetime', precision: 6, default: () => 'CURRENT_TIMESTAMP(6)' })
+  @Column({ type: 'timestamp', precision: 6, default: () => 'CURRENT_TIMESTAMP(6)' })
   created_at: Date
 
   @Column({ 
-    type: 'datetime', 
+    type: 'timestamp', 
     precision: 6, 
     default: () => 'CURRENT_TIMESTAMP(6)',
     onUpdate: 'CURRENT_TIMESTAMP(6)'

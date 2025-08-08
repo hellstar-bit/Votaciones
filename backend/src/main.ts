@@ -1,3 +1,7 @@
+// 📁 backend/src/main.ts
+// ====================================================================
+// 🚀 MAIN.TS OPTIMIZADO PARA RENDER/PRODUCCIÓN
+// ====================================================================
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -12,19 +16,26 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
   const configService = app.get(ConfigService);
+  const isProduction = configService.get('NODE_ENV') === 'production';
+  
+  console.log(`🚀 Iniciando aplicación en modo: ${isProduction ? 'PRODUCCIÓN' : 'DESARROLLO'}`);
   
   // 🆕 Crear carpetas de uploads si no existen
   const uploadsPath = join(process.cwd(), 'uploads');
   const candidatesPath = join(uploadsPath, 'candidates');
   
-  if (!fs.existsSync(uploadsPath)) {
-    fs.mkdirSync(uploadsPath, { recursive: true });
-    console.log('📁 Carpeta uploads creada');
-  }
-  
-  if (!fs.existsSync(candidatesPath)) {
-    fs.mkdirSync(candidatesPath, { recursive: true });
-    console.log('📁 Carpeta uploads/candidates creada');
+  try {
+    if (!fs.existsSync(uploadsPath)) {
+      fs.mkdirSync(uploadsPath, { recursive: true });
+      console.log('📁 Carpeta uploads creada');
+    }
+    
+    if (!fs.existsSync(candidatesPath)) {
+      fs.mkdirSync(candidatesPath, { recursive: true });
+      console.log('📁 Carpeta uploads/candidates creada');
+    }
+  } catch (error) {
+    console.warn('⚠️ No se pudieron crear carpetas de uploads:', error.message);
   }
 
   // 🆕 Servir archivos estáticos desde /uploads
@@ -38,69 +49,103 @@ async function bootstrap() {
     }
   });
   
-  // Seguridad
-  app.use(helmet({
-    crossOriginResourcePolicy: { policy: "cross-origin" },
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "blob:", "*"],
+  // 🔐 Seguridad mejorada para producción
+  if (isProduction) {
+    app.use(helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          imgSrc: ["'self'", "data:", "blob:", "*"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          connectSrc: ["'self'", "wss:", "ws:"],
+        },
       },
-    },
-  }));
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      }
+    }));
+  } else {
+    app.use(helmet({
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+      contentSecurityPolicy: false, // Desactivar en desarrollo
+    }));
+  }
   
+  // 🗜️ Compresión
   app.use(compression());
   
-  // 🔧 CORS MEJORADO - Manejar múltiples orígenes y limpiar barras finales
+  // 🌐 CORS configuración dinámica
   const corsOrigin = configService.get('CORS_ORIGIN');
   let allowedOrigins: string[] = [];
   
   if (corsOrigin) {
-    // Si viene del .env, puede ser una cadena o múltiples separados por coma
-    if (typeof corsOrigin === 'string') {
-      allowedOrigins = corsOrigin
-        .split(',')
-        .map(origin => origin.trim())
-        .map(origin => origin.endsWith('/') ? origin.slice(0, -1) : origin) // 🔧 Remover barra final
-        .filter(origin => origin.length > 0);
-    }
+    allowedOrigins = corsOrigin
+      .split(',')
+      .map(origin => origin.trim())
+      .map(origin => origin.endsWith('/') ? origin.slice(0, -1) : origin)
+      .filter(origin => origin.length > 0);
   }
   
-  // Orígenes por defecto para desarrollo
-  const defaultOrigins = [
-    'http://localhost:3001', // Frontend principal
-    'http://localhost:3000', // Backup
-    'http://localhost:5173', // Vite default
-  ];
+  // Orígenes por defecto
+  const defaultOrigins = isProduction 
+    ? [] // En producción, solo usar los configurados
+    : [
+        'http://localhost:3001',
+        'http://localhost:3000',
+        'http://localhost:5173',
+      ];
   
   const finalOrigins = allowedOrigins.length > 0 ? allowedOrigins : defaultOrigins;
   
   console.log('🌐 CORS configurado para:', finalOrigins);
   
   app.enableCors({
-    origin: finalOrigins,
+    origin: finalOrigins.length > 0 ? finalOrigins : true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
   
-  // Validación global
+  // ✅ Validación global
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     forbidNonWhitelisted: true,
     transform: true,
+    disableErrorMessages: isProduction, // No mostrar detalles en producción
   }));
   
-  // Prefijo global para APIs
+  // 🚀 Prefijo global para APIs
   app.setGlobalPrefix('api/v1');
   
-  const port = configService.get('PORT') || 3000;
-  await app.listen(port);
+  // 🔌 Puerto dinámico para Render
+  const port = configService.get('PORT') || process.env.PORT || 3000;
+  
+  // 🚀 Iniciar servidor
+  await app.listen(port, '0.0.0.0'); // Bind a todas las interfaces para Render
   
   console.log(`🚀 Backend corriendo en: http://localhost:${port}`);
-  console.log(`📖 Documentación: http://localhost:${port}/api/v1`);
+  console.log(`📖 API Base: http://localhost:${port}/api/v1`);
+  console.log(`💚 Health Check: http://localhost:${port}/health`);
   console.log(`📁 Archivos estáticos: http://localhost:${port}/uploads/`);
-  console.log(`📸 Fotos candidatos: http://localhost:${port}/uploads/candidates/`);
+  
+  if (isProduction) {
+    console.log('🔒 Modo producción activado');
+    console.log('🛡️ Seguridad mejorada habilitada');
+  }
 }
+
+// 🔧 Manejo de errores no capturados
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
 
 bootstrap();

@@ -169,16 +169,16 @@ export class ImportLog {
   };
 
   // Campos de auditoría
-  @CreateDateColumn({ type: 'datetime', precision: 6 })
+  @CreateDateColumn({ type: 'timestamp', precision: 6 })
   created_at: Date;
 
-  @UpdateDateColumn({ type: 'datetime', precision: 6 })
+  @UpdateDateColumn({ type: 'timestamp', precision: 6 })
   updated_at: Date;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   started_at: Date;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   completed_at: Date;
 
   // Relaciones

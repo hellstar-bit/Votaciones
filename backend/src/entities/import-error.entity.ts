@@ -101,7 +101,7 @@ export class ImportError {
   @Column({ type: 'text', nullable: true })
   resolution_notes: string;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   resolved_at: Date;
 
   @Column({ nullable: true })
@@ -130,10 +130,10 @@ export class ImportError {
   };
 
   // Campos de auditoría
-  @CreateDateColumn({ type: 'datetime', precision: 6 })
+  @CreateDateColumn({ type: 'timestamp', precision: 6 })
   created_at: Date;
 
-  @Column({ type: 'datetime', precision: 6, nullable: true })
+  @Column({ type: 'timestamp', precision: 6, nullable: true })
   updated_at: Date;
 
   // Relación

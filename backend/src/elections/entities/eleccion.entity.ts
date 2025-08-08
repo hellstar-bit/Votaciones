@@ -38,10 +38,10 @@ export class Eleccion {
   @Column({ type: 'enum', enum: ['mixta', 'nocturna', 'madrugada'], nullable: true })
   jornada: string;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   fecha_inicio: Date;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   fecha_fin: Date;
 
   @Column({ type: 'enum', enum: ['configuracion', 'activa', 'finalizada', 'cancelada'], default: 'configuracion' })
