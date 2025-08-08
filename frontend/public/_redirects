@@ -1,0 +1,15 @@
+# 📁 frontend/public/_redirects
+# ====================================================================
+# 🔧 REDIRECTS PARA NETLIFY SPA
+# ====================================================================
+
+# Redirigir todas las rutas a index.html para SPA
+/*    /index.html   200
+
+# Rutas específicas (si necesitas manejar algunas de manera especial)
+/api/*  https://votaciones-z002.onrender.com/api/:splat  200
+
+# Redirects para archivos estáticos (opcional)
+/favicon.ico  /favicon.ico  200
+/robots.txt   /robots.txt   200
+/sitemap.xml  /sitemap.xml  200
