@@ -1,5 +1,5 @@
-// 📁 frontend/src/components/admin/AdminDashboard.tsx - SOLUCIÓN PARA REACT ROUTER V7
-import { useState, useEffect, useMemo, useCallback, Suspense } from 'react'
+// 📁 frontend/src/components/admin/AdminDashboard.tsx - SOLUCIÓN DEFINITIVA SIN FRAMER MOTION
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
@@ -21,15 +21,31 @@ import {
 import { useAuthStore } from '../../stores/authStore'
 import { dashboardApi, electionsApi, type Election, type DashboardStats, handleApiError } from '../../services/api'
 
-// Lazy loading para evitar problemas de inserción
+// Componentes importados dinámicamente para evitar problemas
+let CreateElectionModal: any = null
+let CandidatesManagement: any = null
+let ElectionSettings: any = null
 
+// Cargar componentes de forma async
+const loadComponents = async () => {
+  if (!CreateElectionModal) {
+    CreateElectionModal = (await import('../modals/CreateElectionModal')).default
+  }
+  if (!CandidatesManagement) {
+    CandidatesManagement = (await import('../candidates/CandidatesManagement')).default
+  }
+  if (!ElectionSettings) {
+    ElectionSettings = (await import('../candidates/ElectionSettings')).default
+  }
+}
 
-// Loading Fallback simplificado
-const LoadingFallback = () => (
-  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+// Spinner simple sin animaciones
+const SimpleSpinner = () => (
+  <div className="flex justify-center items-center p-8">
+    <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+  </div>
 )
 
-// Componente principal simplificado para evitar conflictos DOM
 const AdminDashboard = () => {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
@@ -38,37 +54,21 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [elections, setElections] = useState<Election[]>([])
   const [loading, setLoading] = useState(true)
+  const [componentsLoaded, setComponentsLoaded] = useState(false)
+  
+  // Estados de UI
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [currentView, setCurrentView] = useState<'dashboard' | 'candidates' | 'settings'>('dashboard')
   const [selectedElectionId, setSelectedElectionId] = useState<number | null>(null)
 
-  // Estados para componentes lazy
-  const [CreateModal, setCreateModal] = useState<any>(null)
-  const [CandidatesComp, setCandidatesComp] = useState<any>(null)
-  const [SettingsComp, setSettingsComp] = useState<any>(null)
-
-  // Cargar componentes lazy
+  // Cargar componentes al montar
   useEffect(() => {
-    const loadComponents = async () => {
-      try {
-        const [createModal, candidates, settings] = await Promise.all([
-          import('../modals/CreateElectionModal').then(m => m.default),
-          import('../candidates/CandidatesManagement').then(m => m.default),
-          import('../candidates/ElectionSettings').then(m => m.default)
-        ])
-        
-        setCreateModal(() => createModal)
-        setCandidatesComp(() => candidates)
-        setSettingsComp(() => settings)
-      } catch (error) {
-        console.error('Error loading components:', error)
-      }
-    }
-    
-    loadComponents()
+    loadComponents().then(() => {
+      setComponentsLoaded(true)
+    }).catch(console.error)
   }, [])
 
-  // Cargar datos iniciales
+  // Datos iniciales y polling
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true)
@@ -80,7 +80,7 @@ const AdminDashboard = () => {
       setElections(allElections)
     } catch (error) {
       const errorMessage = handleApiError(error, 'cargando datos')
-      toast.error(`Error cargando datos: ${errorMessage}`)
+      toast.error(`Error: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -88,49 +88,34 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData()
-    
-    const interval = setInterval(async () => {
-      try {
-        const [dashboardStats, allElections] = await Promise.all([
-          dashboardApi.getStats(),
-          electionsApi.getAll()
-        ])
-        setStats(dashboardStats)
-        setElections(allElections)
-      } catch (error) {
-        console.error('Error actualizando datos:', error)
-      }
-    }, 30000)
-    
+    const interval = setInterval(fetchDashboardData, 30000)
     return () => clearInterval(interval)
   }, [fetchDashboardData])
 
-  // Handlers memoizados
+  // Event handlers
   const handleActivateElection = useCallback(async (electionId: number) => {
     try {
       await electionsApi.activate(electionId)
-      toast.success('Elección activada exitosamente')
+      toast.success('Elección activada')
       await fetchDashboardData()
     } catch (error) {
-      const errorMessage = handleApiError(error, 'activando elección')
-      toast.error(`Error activando elección: ${errorMessage}`)
+      toast.error(`Error: ${handleApiError(error, 'activando elección')}`)
     }
   }, [fetchDashboardData])
 
   const handleFinalizeElection = useCallback(async (electionId: number) => {
     try {
       await electionsApi.finalize(electionId)
-      toast.success('Elección finalizada exitosamente')
+      toast.success('Elección finalizada')
       await fetchDashboardData()
     } catch (error) {
-      const errorMessage = handleApiError(error, 'finalizando elección')
-      toast.error(`Error finalizando elección: ${errorMessage}`)
+      toast.error(`Error: ${handleApiError(error, 'finalizando elección')}`)
     }
   }, [fetchDashboardData])
 
   const handleElectionCreated = useCallback(async () => {
     await fetchDashboardData()
-    toast.success('Los datos se han actualizado')
+    toast.success('Datos actualizados')
   }, [fetchDashboardData])
 
   const handleViewCandidates = useCallback((electionId: number) => {
@@ -150,32 +135,31 @@ const AdminDashboard = () => {
 
   const handleLogout = useCallback(() => {
     logout()
-    // Usar replace para evitar problemas de navegación
     navigate('/login', { replace: true })
   }, [logout, navigate])
 
-  // Funciones para estilos
-  const getStatusColor = useCallback((estado: string) => {
-    switch (estado) {
-      case 'activa': return 'bg-green-100 text-green-800'
-      case 'configuracion': return 'bg-yellow-100 text-yellow-800'
-      case 'finalizada': return 'bg-blue-100 text-blue-800'
-      case 'cancelada': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+  // Helpers
+  const getStatusColor = (estado: string) => {
+    const colors = {
+      'activa': 'bg-green-100 text-green-800',
+      'configuracion': 'bg-yellow-100 text-yellow-800',
+      'finalizada': 'bg-blue-100 text-blue-800',
+      'cancelada': 'bg-red-100 text-red-800'
     }
-  }, [])
+    return colors[estado as keyof typeof colors] || 'bg-gray-100 text-gray-800'
+  }
 
-  const getStatusIcon = useCallback((estado: string) => {
-    switch (estado) {
-      case 'activa': return <PlayIcon className="w-4 h-4" />
-      case 'configuracion': return <Cog6ToothIcon className="w-4 h-4" />
-      case 'finalizada': return <CheckCircleIcon className="w-4 h-4" />
-      case 'cancelada': return <ExclamationTriangleIcon className="w-4 h-4" />
-      default: return <ClockIcon className="w-4 h-4" />
+  const getStatusIcon = (estado: string) => {
+    const icons = {
+      'activa': <PlayIcon className="w-4 h-4" />,
+      'configuracion': <Cog6ToothIcon className="w-4 h-4" />,
+      'finalizada': <CheckCircleIcon className="w-4 h-4" />,
+      'cancelada': <ExclamationTriangleIcon className="w-4 h-4" />
     }
-  }, [])
+    return icons[estado as keyof typeof icons] || <ClockIcon className="w-4 h-4" />
+  }
 
-  // Stats memoizadas
+  // Stats seguros
   const safeStats = useMemo(() => ({
     summary: {
       total_elections: stats?.total_elections || 0,
@@ -188,43 +172,43 @@ const AdminDashboard = () => {
   }), [stats])
 
   // Loading state
-  if (loading) {
+  if (loading || !componentsLoaded) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <LoadingFallback />
-          <p className="text-gray-600 font-medium mt-4">Cargando dashboard...</p>
+          <SimpleSpinner />
+          <p className="text-gray-600 mt-4">Cargando dashboard...</p>
         </div>
       </div>
     )
   }
 
-  // Renderizado condicional para evitar conflictos de inserción
-  if (currentView === 'candidates' && selectedElectionId && CandidatesComp) {
+  // Vistas condicionales SIN FRAMER MOTION
+  if (currentView === 'candidates' && selectedElectionId && CandidatesManagement) {
     return (
-      <Suspense fallback={<LoadingFallback />}>
-        <CandidatesComp
+      <div key={`candidates-${selectedElectionId}`}>
+        <CandidatesManagement
           electionId={selectedElectionId}
           onBack={handleBackToDashboard}
         />
-      </Suspense>
+      </div>
     )
   }
 
-  if (currentView === 'settings' && selectedElectionId && SettingsComp) {
+  if (currentView === 'settings' && selectedElectionId && ElectionSettings) {
     return (
-      <Suspense fallback={<LoadingFallback />}>
-        <SettingsComp
+      <div key={`settings-${selectedElectionId}`}>
+        <ElectionSettings
           electionId={selectedElectionId}
           onBack={handleBackToDashboard}
         />
-      </Suspense>
+      </div>
     )
   }
 
   return (
     <div className="h-full bg-gray-50 overflow-hidden">
-      {/* Header */}
+      {/* Header Simple */}
       <header className="bg-white border-b border-gray-200">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
@@ -244,7 +228,7 @@ const AdminDashboard = () => {
                 <input 
                   type="text" 
                   placeholder="Buscar elecciones..." 
-                  className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent w-64"
+                  className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-64"
                 />
                 <ChartBarIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               </div>
@@ -257,7 +241,7 @@ const AdminDashboard = () => {
 
               {/* Dashboard tiempo real */}
               <button
-                onClick={() => navigate('/dashboard/real-time', { replace: true })}
+                onClick={() => navigate('/real-time-dashboard')}
                 className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
               >
                 <EyeIcon className="w-4 h-4" />
@@ -292,11 +276,12 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Contenido Principal */}
       <main className="h-[calc(100vh-80px)] overflow-y-auto">
         <div className="p-6 space-y-6">
-          {/* Stats Cards */}
+          {/* Estadísticas */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Total Elecciones */}
             <div className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -308,8 +293,10 @@ const AdminDashboard = () => {
                   <ClipboardDocumentListIcon className="w-6 h-6" />
                 </div>
               </div>
+              <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
             </div>
 
+            {/* Elecciones Activas */}
             <div className="bg-green-600 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -321,8 +308,10 @@ const AdminDashboard = () => {
                   <PlayIcon className="w-6 h-6" />
                 </div>
               </div>
+              <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
             </div>
 
+            {/* Total Votos */}
             <div className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -334,8 +323,10 @@ const AdminDashboard = () => {
                   <UsersIcon className="w-6 h-6" />
                 </div>
               </div>
+              <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
             </div>
 
+            {/* Participación */}
             <div className="bg-green-700 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -347,12 +338,13 @@ const AdminDashboard = () => {
                   <ChartPieIcon className="w-6 h-6" />
                 </div>
               </div>
+              <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
             </div>
           </div>
 
-          {/* Main Grid */}
+          {/* Grid Principal */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-300px)]">
-            {/* Elections List */}
+            {/* Lista de Elecciones */}
             <div className="lg:col-span-3">
               <div className="bg-white rounded-xl border border-gray-200 h-full flex flex-col">
                 <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -378,7 +370,7 @@ const AdminDashboard = () => {
                         <ClipboardDocumentListIcon className="w-8 h-8 text-gray-400" />
                       </div>
                       <h4 className="text-lg font-medium text-gray-900 mb-2">No hay elecciones disponibles</h4>
-                      <p className="text-gray-500 text-sm mb-6">Comienza creando tu primera elección para el sistema</p>
+                      <p className="text-gray-500 text-sm mb-6">Comienza creando tu primera elección</p>
                       <button
                         onClick={() => setIsCreateModalOpen(true)}
                         className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
@@ -390,7 +382,7 @@ const AdminDashboard = () => {
                     <div className="space-y-4">
                       {elections.map((election) => (
                         <div 
-                          key={election.id_eleccion}
+                          key={`election-${election.id_eleccion}-v2`}
                           className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
                         >
                           <div className="flex items-center justify-between">
@@ -462,9 +454,9 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Right Sidebar */}
+            {/* Sidebar Derecho */}
             <div className="space-y-4 overflow-y-auto">
-              {/* Recent Activity */}
+              {/* Actividad Reciente */}
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-600 rounded-lg flex items-center justify-center">
@@ -472,10 +464,10 @@ const AdminDashboard = () => {
                   </div>
                   <h3 className="text-sm font-semibold text-gray-900">Actividad Reciente</h3>
                 </div>
-                {safeStats.recent_activity && safeStats.recent_activity.length > 0 ? (
+                {safeStats.recent_activity.length > 0 ? (
                   <div className="space-y-2">
                     {safeStats.recent_activity.slice(0, 3).map((activity, index) => (
-                      <div key={index} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
+                      <div key={`activity-${index}-${Date.now()}`} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
                         <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-900 truncate">{activity.candidate || 'Actividad'}</p>
@@ -492,7 +484,7 @@ const AdminDashboard = () => {
                 )}
               </div>
 
-              {/* Quick Actions */}
+              {/* Acciones Rápidas */}
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-700 rounded-lg flex items-center justify-center">
@@ -510,31 +502,29 @@ const AdminDashboard = () => {
                   </button>
 
                   <button 
-                    onClick={() => navigate('/dashboard/real-time', { replace: true })}
+                    onClick={() => navigate('/real-time-dashboard')}
                     className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
                   >
                     <EyeIcon className="w-4 h-4" />
                     <span>Dashboard Tiempo Real</span>
                   </button>
 
-                  <button className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                  <button 
+                    onClick={() => navigate('/admin/aprendices')}
+                    className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                  >
                     <UsersIcon className="w-4 h-4" />
-                    <span>Gestionar Usuarios</span>
+                    <span>Gestionar Aprendices</span>
                   </button>
 
                   <button className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
                     <ChartPieIcon className="w-4 h-4" />
                     <span>Ver Reportes</span>
                   </button>
-
-                  <button className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
-                    <Cog6ToothIcon className="w-4 h-4" />
-                    <span>Configuración</span>
-                  </button>
                 </div>
               </div>
 
-              {/* System Status */}
+              {/* Estado del Sistema */}
               <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-500 rounded-lg flex items-center justify-center">
@@ -558,10 +548,6 @@ const AdminDashboard = () => {
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-600">Última Actualización</span>
-                    <span className="text-gray-900 font-medium">Hace 30s</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-600">Usuarios Activos</span>
                     <span className="text-gray-900 font-medium">{safeStats.summary.total_voters}</span>
                   </div>
@@ -572,15 +558,13 @@ const AdminDashboard = () => {
         </div>
       </main>
 
-      {/* Modal - Solo renderizar si está disponible */}
-      {isCreateModalOpen && CreateModal && (
-        <Suspense fallback={<LoadingFallback />}>
-          <CreateModal
-            isOpen={isCreateModalOpen}
-            onClose={() => setIsCreateModalOpen(false)}
-            onElectionCreated={handleElectionCreated}
-          />
-        </Suspense>
+      {/* Modal Crear Elección - Renderizado condicional simple */}
+      {isCreateModalOpen && CreateElectionModal && (
+        <CreateElectionModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onElectionCreated={handleElectionCreated}
+        />
       )}
     </div>
   )
