@@ -101,14 +101,8 @@ export default defineConfig({
     '__PROD__': JSON.stringify(process.env.NODE_ENV === 'production')
   },
 
-  // 🔧 Configuración CSS específica
+  // 🔧 Configuración CSS específica - SIN require()
   css: {
-    postcss: {
-      plugins: [
-        require('tailwindcss'),
-        require('autoprefixer'),
-      ]
-    },
     // 🔧 NO usar CSS modules que pueden causar problemas
     modules: false
   },
