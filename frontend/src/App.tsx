@@ -8,7 +8,7 @@ import Landing from './pages/public/Landing'
 import Login from './pages/auth/Login'
 
 // Admin Pages
-import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+// import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import AdminImportPage from './pages/admin/AdminImportPage'
 import AdminReportsPage from './pages/admin/AdminReportsPage'
@@ -106,12 +106,13 @@ function App() {
           {/* Auto-redirect Dashboard */}
           <Route path="/dashboard" element={<Dashboard />} />
 
-          {/* Rutas de Administrador */}
           <Route path="/admin" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminDashboardPage />
-            </ProtectedRoute>
-          } />
+  <ProtectedRoute allowedRoles={['ADMIN']}>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <h1>Dashboard Test (sin Framer Motion)</h1>
+    </div>
+  </ProtectedRoute>
+} />
 
           <Route path="/admin/users" element={
             <ProtectedRoute allowedRoles={['ADMIN']}>
