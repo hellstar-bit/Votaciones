@@ -36,8 +36,6 @@ const AdminDashboard = () => {
   const [currentView, setCurrentView] = useState<'dashboard' | 'candidates' | 'settings'>('dashboard')
   const [selectedElectionId, setSelectedElectionId] = useState<number | null>(null)
 
- 
-
   // Cargar datos del dashboard desde la API
   useEffect(() => {
     fetchDashboardData()
@@ -179,9 +177,7 @@ const AdminDashboard = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div
-            className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full mx-auto mb-4"
-          />
+          <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full mx-auto mb-4 animate-spin" />
           <p className="text-gray-600 font-medium">Cargando dashboard...</p>
         </div>
       </div>
@@ -283,14 +279,12 @@ const AdminDashboard = () => {
           {/* Estadísticas - más compactas y coherentes */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Elecciones */}
-            <div 
-              className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden"
-            >
+            <div className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-gray-300 text-sm font-medium">Total Elecciones</p>
+                  <p className="text-green-100 text-sm font-medium">Total Elecciones</p>
                   <p className="text-2xl font-bold mt-1">{safeStats.summary.total_elections}</p>
-                  <p className="text-gray-400 text-xs mt-1">En el sistema</p>
+                  <p className="text-green-200 text-xs mt-1">En el sistema</p>
                 </div>
                 <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                   <ClipboardDocumentListIcon className="w-6 h-6" />
@@ -300,9 +294,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Elecciones Activas */}
-            <div 
-              className="bg-green-600 rounded-xl p-5 text-white relative overflow-hidden"
-            >
+            <div className="bg-green-600 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-green-100 text-sm font-medium">Elecciones Activas</p>
@@ -317,10 +309,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Total Votos */}
-            <div 
-              className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden"
-              
-            >
+            <div className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-green-100 text-sm font-medium">Total Votos</p>
@@ -335,10 +324,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Participación */}
-            <div 
-              className="bg-green-700 rounded-xl p-5 text-white relative overflow-hidden"
-           
-            >
+            <div className="bg-green-700 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-green-100 text-sm font-medium">Participación</p>
@@ -357,10 +343,7 @@ const AdminDashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-300px)]">
             {/* Lista de Elecciones - más ancha */}
             <div className="lg:col-span-3">
-              <div 
-                className="bg-white rounded-xl border border-gray-200 h-full flex flex-col"
-
-              >
+              <div className="bg-white rounded-xl border border-gray-200 h-full flex flex-col">
                 <div className="flex items-center justify-between p-6 border-b border-gray-200">
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
@@ -394,73 +377,74 @@ const AdminDashboard = () => {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                        {elections.map((election) => (
-                            <div key={`election-${election.id_eleccion}`}>
-                            className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
-                          
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-3 mb-2">
-                                  <h4 className="text-base font-medium text-gray-900">{election.titulo}</h4>
-                                  <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(election.estado)}`}>
-                                    {getStatusIcon(election.estado)}
-                                    <span className="capitalize">{election.estado}</span>
-                                  </span>
-                                </div>
-                                <p className="text-gray-600 text-sm mb-2">{election.descripcion || 'Sin descripción'}</p>
-                                <div className="flex items-center space-x-4 text-sm text-gray-500">
-                                  <span className="flex items-center space-x-1">
-                                    <CalendarIcon className="w-4 h-4" />
-                                    <span>{new Date(election.fecha_inicio).toLocaleDateString()}</span>
-                                  </span>
-                                  <span className="flex items-center space-x-1">
-                                    <UsersIcon className="w-4 h-4" />
-                                    <span>{election.total_votos_emitidos}/{election.total_votantes_habilitados} votos</span>
-                                  </span>
-                                  {election.tipoEleccion && (
-                                    <span className="bg-white px-2 py-1 rounded text-xs border">
-                                      {election.tipoEleccion.nombre_tipo}
-                                    </span>
-                                  )}
-                                </div>
+                      {elections.map((election) => (
+                        <div 
+                          key={`election-${election.id_eleccion}`}
+                          className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3 mb-2">
+                                <h4 className="text-base font-medium text-gray-900">{election.titulo}</h4>
+                                <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(election.estado)}`}>
+                                  {getStatusIcon(election.estado)}
+                                  <span className="capitalize">{election.estado}</span>
+                                </span>
                               </div>
-                              <div className="flex items-center space-x-2 ml-4">
-                                <button
-                                  onClick={() => handleViewCandidates(election.id_eleccion)}
-                                  className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
-                                  title="Ver candidatos"
-                                >
-                                  <EyeIcon className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleElectionSettings(election.id_eleccion)}
-                                  className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
-                                  title="Configuración"
-                                >
-                                  <Cog6ToothIcon className="w-4 h-4" />
-                                </button>
-                                {election.estado === 'configuracion' && (
-                                  <button
-                                    onClick={() => handleActivateElection(election.id_eleccion)}
-                                    className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
-                                    title="Activar elección"
-                                  >
-                                    <PlayIcon className="w-4 h-4" />
-                                  </button>
-                                )}
-                                {election.estado === 'activa' && (
-                                  <button
-                                    onClick={() => handleFinalizeElection(election.id_eleccion)}
-                                    className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-                                    title="Finalizar elección"
-                                  >
-                                    <CheckCircleIcon className="w-4 h-4" />
-                                  </button>
+                              <p className="text-gray-600 text-sm mb-2">{election.descripcion || 'Sin descripción'}</p>
+                              <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                <span className="flex items-center space-x-1">
+                                  <CalendarIcon className="w-4 h-4" />
+                                  <span>{new Date(election.fecha_inicio).toLocaleDateString()}</span>
+                                </span>
+                                <span className="flex items-center space-x-1">
+                                  <UsersIcon className="w-4 h-4" />
+                                  <span>{election.total_votos_emitidos || 0}/{election.total_votantes_habilitados || 0} votos</span>
+                                </span>
+                                {election.tipoEleccion && (
+                                  <span className="bg-white px-2 py-1 rounded text-xs border">
+                                    {election.tipoEleccion.nombre_tipo}
+                                  </span>
                                 )}
                               </div>
                             </div>
+                            <div className="flex items-center space-x-2 ml-4">
+                              <button
+                                onClick={() => handleViewCandidates(election.id_eleccion)}
+                                className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                                title="Ver candidatos"
+                              >
+                                <EyeIcon className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleElectionSettings(election.id_eleccion)}
+                                className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                                title="Configuración"
+                              >
+                                <Cog6ToothIcon className="w-4 h-4" />
+                              </button>
+                              {election.estado === 'configuracion' && (
+                                <button
+                                  onClick={() => handleActivateElection(election.id_eleccion)}
+                                  className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                                  title="Activar elección"
+                                >
+                                  <PlayIcon className="w-4 h-4" />
+                                </button>
+                              )}
+                              {election.estado === 'activa' && (
+                                <button
+                                  onClick={() => handleFinalizeElection(election.id_eleccion)}
+                                  className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                  title="Finalizar elección"
+                                >
+                                  <CheckCircleIcon className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        ))}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -470,9 +454,7 @@ const AdminDashboard = () => {
             {/* Sidebar Derecho - más compacto */}
             <div className="space-y-4 overflow-y-auto">
               {/* Actividad Reciente */}
-              <div 
-                className="bg-white rounded-xl border border-gray-200 p-4"
-              >
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-600 rounded-lg flex items-center justify-center">
                     <ClockIcon className="w-3 h-3 text-white" />
@@ -482,7 +464,7 @@ const AdminDashboard = () => {
                 {safeStats.recent_activity && safeStats.recent_activity.length > 0 ? (
                   <div className="space-y-2">
                     {safeStats.recent_activity.slice(0, 3).map((activity, index) => (
-                      <div key={activity.id || index} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
+                      <div key={`activity-${activity.id || index}`} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
                         <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-900 truncate">{activity.candidate || 'Actividad'}</p>
@@ -500,10 +482,7 @@ const AdminDashboard = () => {
               </div>
 
               {/* Acciones Rápidas */}
-              <div 
-                className="bg-white rounded-xl border border-gray-200 p-4"
-                
-              >
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-700 rounded-lg flex items-center justify-center">
                     <span className="text-white text-xs">⚡</span>
@@ -545,10 +524,7 @@ const AdminDashboard = () => {
               </div>
 
               {/* Estado del Sistema */}
-              <div 
-                className="bg-white rounded-xl border border-gray-200 p-4"
-               
-              >
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-500 rounded-lg flex items-center justify-center">
                     <CheckCircleIcon className="w-3 h-3 text-white" />
@@ -586,11 +562,13 @@ const AdminDashboard = () => {
       </main>
 
       {/* Modal Crear Elección */}
-      <CreateElectionModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onElectionCreated={handleElectionCreated}
-      />
+      {isCreateModalOpen && (
+        <CreateElectionModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onElectionCreated={handleElectionCreated}
+        />
+      )}
     </div>
   )
 }
