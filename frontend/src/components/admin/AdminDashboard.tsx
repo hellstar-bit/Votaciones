@@ -22,9 +22,7 @@ import { useAuthStore } from '../../stores/authStore'
 import { dashboardApi, electionsApi, type Election, type DashboardStats, handleApiError } from '../../services/api'
 
 // Lazy loading para evitar problemas de inserción
-const CreateElectionModal = import('../../components/modals/CreateElectionModal').then(m => m.default).catch(() => null)
-const CandidatesManagement = import('../../components/candidates/CandidatesManagement').then(m => m.default).catch(() => null)
-const ElectionSettings = import('../../components/candidates/ElectionSettings').then(m => m.default).catch(() => null)
+
 
 // Loading Fallback simplificado
 const LoadingFallback = () => (
