@@ -785,20 +785,21 @@ const ResultsStep: React.FC<{
         <div className="text-xs text-gray-600">Importados</div>
       </div>
       
-      {(results.recordsUpdated ?? 0) > 0 && results.recordsUpdated !== undefined && (
-        <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-          <div className="text-2xl font-bold text-blue-600">{results.recordsUpdated}</div>
-          <div className="text-xs text-gray-600">Actualizados</div>
-        </div>
-      )}
+      {/* ✅ VERIFICACIÓN CORRECTA PARA recordsUpdated */}
+        {results.recordsUpdated !== undefined && results.recordsUpdated > 0 && (
+          <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+            <div className="text-2xl font-bold text-blue-600">{results.recordsUpdated}</div>
+            <div className="text-xs text-gray-600">Actualizados</div>
+          </div>
+        )}
       
-      {results.duplicatesSkipped?.length > 0 && (
-        <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
-          <div className="text-2xl font-bold text-orange-600">{results.duplicatesSkipped?.length ?? 0}</div>
-          <div className="text-xs text-gray-600">Duplicados</div>
-        </div>
-      )}
-      
+      {/* ✅ VERIFICACIÓN CORRECTA PARA duplicatesSkipped */}
+        {results.duplicatesSkipped && results.duplicatesSkipped.length > 0 && (
+          <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
+            <div className="text-2xl font-bold text-orange-600">{results.duplicatesSkipped.length}</div>
+            <div className="text-xs text-gray-600">Duplicados</div>
+          </div>
+        )}
       <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
         <div className={`text-2xl font-bold ${
           (results.errors?.length || 0) > 0 ? 'text-red-600' : 'text-gray-400'

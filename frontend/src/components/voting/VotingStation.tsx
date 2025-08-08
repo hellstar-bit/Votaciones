@@ -555,13 +555,13 @@ const VotingStation = () => {
                   exit={{ opacity: 0, y: -20 }}
                 >
                   <VoteConfirmation
-                    election={selectedElection!}
-                    candidate={selectedCandidate !== null ? candidates.find(c => c.id_candidato === selectedCandidate) || null : null}
-                    voterDocument={scannedData?.doc || scannedData?.numero_documento}
-                    onConfirm={handleProcessVote}
-                    onBack={() => setCurrentStep('voting')}
-                    processing={processing}
-                  />
+                      election={selectedElection!}
+                      candidate={selectedCandidate !== null ? candidates.find(c => c.id_candidato === selectedCandidate) || null : null}
+                      voterData={scannedData}  // ✅ CORRECTO
+                      onConfirm={handleProcessVote}
+                      onCancel={() => setCurrentStep('voting')}  // ✅ CORRECTO
+                      isProcessing={processing}  // ✅ CORRECTO
+                    />
                 </motion.div>
               )}
 

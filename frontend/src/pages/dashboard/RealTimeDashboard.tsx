@@ -190,7 +190,6 @@ const RealTimeDashboard = () => {
       reconnectionAttempts: 3, // ✅ REDUCIR INTENTOS
       reconnectionDelay: 2000, // ✅ AUMENTAR DELAY
       reconnectionDelayMax: 5000,
-      maxReconnectionAttempts: 3
     })
 
     socketRef.current = socket
@@ -828,7 +827,7 @@ const RealTimeDashboard = () => {
                               fill="#8884d8"
                               dataKey="value"
                             >
-                              {formatDistributionData(selectedElection).map((entry, index) => (
+                              {formatDistributionData(selectedElection).map((_entry, index) => (
                                 <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                               ))}
                             </Pie>
