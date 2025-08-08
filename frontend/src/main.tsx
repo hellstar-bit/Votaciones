@@ -1,25 +1,13 @@
-// 📁 frontend/src/main.tsx - QUICK FIX
-import React from 'react'
+// 📁 frontend/src/main.tsx - VERSIÓN ULTRA SEGURA PARA REACT ROUTER V7
+import React, {  } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 
-// 🔧 INTERCEPTOR RÁPIDO - Agregar antes de todo
-window.addEventListener('error', (event) => {
-  if (event.error?.message?.includes('insertBefore') ||
-      event.error?.message?.includes('removeChild') ||
-      event.error?.message?.includes('Node')) {
-    console.warn('🔧 DOM Error silenciado:', event.error.message)
-    event.preventDefault()
-    event.stopPropagation()
-    return false
-  }
-})
-
-// 🔧 Error boundary que ignora errores de DOM
-class QuietErrorBoundary extends React.Component<
+// Error boundary mejorado y más simple
+class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean }
+  { hasError: boolean; error?: Error }
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props)
@@ -27,42 +15,33 @@ class QuietErrorBoundary extends React.Component<
   }
 
   static getDerivedStateFromError(error: Error) {
-    // Ignorar errores de DOM específicos
-    if (error.message.includes('insertBefore') ||
-        error.message.includes('removeChild') ||
-        error.message.includes('Node')) {
-      console.warn('🔧 Error DOM ignorado:', error.message)
-      return { hasError: false } // NO cambiar el estado
-    }
-    
-    return { hasError: true }
+    console.error('React Error Boundary:', error)
+    return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, errorInfo: any) {
-    // Solo loggear errores que NO son de DOM
-    if (!error.message.includes('insertBefore') &&
-        !error.message.includes('removeChild') &&
-        !error.message.includes('Node')) {
-      console.error('Error capturado:', error, errorInfo)
-    }
+    console.error('Error capturado por boundary:', error, errorInfo)
   }
 
   render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="text-center p-8">
+          <div className="text-center p-8 max-w-md">
             <h1 className="text-2xl font-bold text-red-600 mb-4">
               Error en la aplicación
             </h1>
+            <p className="text-gray-600 mb-4">
+              Ha ocurrido un error inesperado. Por favor, recarga la página.
+            </p>
             <button
               onClick={() => {
-                this.setState({ hasError: false })
+                this.setState({ hasError: false, error: undefined })
                 window.location.reload()
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
             >
-              Recargar
+              Recargar Página
             </button>
           </div>
         </div>
@@ -73,16 +52,38 @@ class QuietErrorBoundary extends React.Component<
   }
 }
 
-const rootElement = document.getElementById('root')
-if (!rootElement) throw new Error('Root element not found')
+// Función para inicializar la app de forma segura
+const initApp = () => {
+  const rootElement = document.getElementById('root')
+  
+  if (!rootElement) {
+    console.error('Root element not found')
+    return
+  }
 
-const root = ReactDOM.createRoot(rootElement)
+  const root = ReactDOM.createRoot(rootElement)
 
-// 🔧 Render con error boundary silencioso
-root.render(
-  <QuietErrorBoundary>
-    <App />
-  </QuietErrorBoundary>
-)
+  // 🔧 CRÍTICO: SIN STRICT MODE para evitar problemas con React Router v7
+  // StrictMode puede causar doble renderizado que conflicta con Router v7
+  root.render(
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  )
+}
 
-console.log('🔧 Aplicación iniciada con error silencer activo')
+// Inicializar cuando el DOM esté listo
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp)
+} else {
+  initApp()
+}
+
+// Manejo global de errores no capturados
+window.addEventListener('error', (event) => {
+  console.error('Global error:', event.error)
+})
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason)
+})
