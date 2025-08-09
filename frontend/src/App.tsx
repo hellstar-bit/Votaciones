@@ -1,7 +1,8 @@
-// 📁 frontend/src/App.tsx - AGREGAR TOASTER PARA TEST
+// 📁 frontend/src/App.tsx - AGREGAR HEROICONS PARA TEST
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'  // ← AGREGADO
-import toast from 'react-hot-toast'         // ← AGREGADO
+import { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
+import { UserIcon, LockClosedIcon } from '@heroicons/react/24/outline'  // ← AGREGADO
 
 // ✅ LOGIN ULTRA SIMPLE SIN NADA
 const SimpleLogin = () => {
@@ -19,6 +20,18 @@ const SimpleLogin = () => {
   return (
     <div style={{ padding: '50px', textAlign: 'center' }}>
       <h1>Login Simple</h1>
+      
+      {/* ✅ TEST: AGREGAR ICONOS SVG (SOSPECHOSO #2) */}
+      <div style={{ margin: '20px 0' }}>
+        <UserIcon style={{ width: '24px', height: '24px', display: 'inline-block', marginRight: '10px' }} />
+        <span>Usuario</span>
+      </div>
+      
+      <div style={{ margin: '20px 0' }}>
+        <LockClosedIcon style={{ width: '24px', height: '24px', display: 'inline-block', marginRight: '10px' }} />
+        <span>Contraseña</span>
+      </div>
+      
       <button 
         onClick={handleSubmit}
         style={{ 
@@ -30,7 +43,7 @@ const SimpleLogin = () => {
           cursor: 'pointer'
         }}
       >
-        Ir a Admin (sin SVG, sin iconos)
+        Ir a Admin (con iconos SVG)
       </button>
     </div>
   )
