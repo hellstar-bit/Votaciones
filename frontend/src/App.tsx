@@ -1,9 +1,11 @@
-// 📁 frontend/src/App.tsx - AGREGAR AUTHSTORE PARA TEST
+// 📁 frontend/src/App.tsx - AGREGAR COMPONENTS UI PARA TEST
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import toast from 'react-hot-toast'
 import { UserIcon, LockClosedIcon } from '@heroicons/react/24/outline'
-import { useAuthStore } from './stores/authStore'  // ← AGREGADO
+import { useAuthStore } from './stores/authStore'
+import Button from './components/ui/Button'  // ← AGREGADO (SOSPECHOSO!)
+import Input from './components/ui/Input'    // ← AGREGADO
 
 // ✅ LOGIN CON AUTHSTORE PARA TEST
 const SimpleLogin = () => {
@@ -34,38 +36,57 @@ const SimpleLogin = () => {
 
   return (
     <div style={{ padding: '50px', textAlign: 'center' }}>
-      <h1>Login Simple</h1>
+      <h1>Login con Components UI</h1>
       
-      {/* ✅ TEST: AGREGAR ICONOS SVG (SOSPECHOSO #2) */}
-      <div style={{ margin: '20px 0' }}>
-        <UserIcon style={{ width: '24px', height: '24px', display: 'inline-block', marginRight: '10px' }} />
-        <span>Usuario</span>
+      {/* ✅ TEST: INPUT COMPONENT PERSONALIZADO */}
+      <div style={{ margin: '20px 0', maxWidth: '300px', marginLeft: 'auto', marginRight: 'auto' }}>
+        <Input
+          label="Usuario de prueba"
+          placeholder="Escribe algo..."
+          icon={<UserIcon className="w-5 h-5" />}
+          fullWidth
+        />
       </div>
       
-      <div style={{ margin: '20px 0' }}>
-        <LockClosedIcon style={{ width: '24px', height: '24px', display: 'inline-block', marginRight: '10px' }} />
-        <span>Contraseña</span>
+      <div style={{ margin: '20px 0', maxWidth: '300px', marginLeft: 'auto', marginRight: 'auto' }}>
+        <Input
+          label="Contraseña de prueba"
+          type="password"
+          placeholder="Contraseña..."
+          icon={<LockClosedIcon className="w-5 h-5" />}
+          fullWidth
+        />
       </div>
       
+      {/* ✅ TEST: BUTTON COMPONENT PERSONALIZADO (MUY SOSPECHOSO!) */}
+      <Button
+        onClick={handleSubmit}
+        loading={isLoading}
+        size="lg"
+        icon={<UserIcon className="w-4 h-4" />}
+      >
+        {isLoading ? 'Cargando...' : 'Login con Button Component'}
+      </Button>
+      
+      {/* ✅ BUTTON NATIVO PARA COMPARAR */}
+      <br /><br />
       <button 
         onClick={handleSubmit}
-        disabled={isLoading}
         style={{ 
           padding: '10px 20px', 
-          backgroundColor: isLoading ? '#gray' : '#22c55e', 
+          backgroundColor: '#22c55e', 
           color: 'white', 
           border: 'none', 
           borderRadius: '5px',
-          cursor: isLoading ? 'not-allowed' : 'pointer'
+          cursor: 'pointer'
         }}
       >
-        {isLoading ? 'Cargando...' : 'Login con AuthStore + Zustand'}
+        Button Nativo (sin componente personalizado)
       </button>
       
-      {/* ✅ TEST: MOSTRAR ESTADO DEL USUARIO */}
       {user && (
         <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#f0f0f0' }}>
-          <p>👤 Usuario logueado: {user.username}</p>
+          <p>👤 Usuario: {user.username}</p>
           <p>🔑 Rol: {user.rol}</p>
         </div>
       )}
