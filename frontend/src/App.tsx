@@ -1,10 +1,16 @@
-// 📁 frontend/src/App.tsx - ULTRA MINIMAL PARA TEST FINAL
+// 📁 frontend/src/App.tsx - AGREGAR TOASTER PARA TEST
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'  // ← AGREGADO
+import toast from 'react-hot-toast'         // ← AGREGADO
 
 // ✅ LOGIN ULTRA SIMPLE SIN NADA
 const SimpleLogin = () => {
   const handleSubmit = () => {
     console.log('🔄 Navegando...')
+    
+    // ✅ TEST: ACTIVAR TOASTER
+    toast.success('¡Navegando a admin!')
+    
     setTimeout(() => {
       window.location.href = '/admin'
     }, 100)
@@ -49,6 +55,9 @@ function App() {
         <Route path="/admin" element={<SimpleAdmin />} />
         <Route path="*" element={<SimpleLogin />} />
       </Routes>
+      
+      {/* ✅ TEST: AGREGAR TOASTER (SOSPECHOSO #1) */}
+      <Toaster position="top-right" />
     </Router>
   )
 }
