@@ -106,10 +106,11 @@ function App() {
           {/* Auto-redirect Dashboard */}
           <Route path="/dashboard" element={<Dashboard />} />
 
-          <Route path="/admin" element={
+<Route path="/admin" element={
   <ProtectedRoute allowedRoles={['ADMIN']}>
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <h1>Dashboard Test (sin Framer Motion)</h1>
+    <div style={{ padding: '20px' }}>
+      <h1>TEST - Dashboard Vacío</h1>
+      <p>Si ves esto, el problema NO es ProtectedRoute</p>
     </div>
   </ProtectedRoute>
 } />
