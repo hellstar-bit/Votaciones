@@ -2,10 +2,9 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import toast from 'react-hot-toast'
-import { UserIcon, LockClosedIcon } from '@heroicons/react/24/outline'
+import { UserIcon } from '@heroicons/react/24/outline'
 import { useAuthStore } from './stores/authStore'
 import Button from './components/ui/Button'  // ← AGREGADO (SOSPECHOSO!)
-import Input from './components/ui/Input'    // ← AGREGADO
 
 // ✅ LOGIN CON AUTHSTORE PARA TEST
 const SimpleLogin = () => {
@@ -36,40 +35,29 @@ const SimpleLogin = () => {
 
   return (
     <div style={{ padding: '50px', textAlign: 'center' }}>
-      <h1>Login con Components UI</h1>
+      <h1>Test SIN Input Components</h1>
       
-      {/* ✅ TEST: INPUT COMPONENT PERSONALIZADO */}
-      <div style={{ margin: '20px 0', maxWidth: '300px', marginLeft: 'auto', marginRight: 'auto' }}>
-        <Input
-          label="Usuario de prueba"
-          placeholder="Escribe algo..."
-          icon={<UserIcon className="w-5 h-5" />}
-          fullWidth
-        />
-      </div>
+      {/* ❌ QUITAMOS LOS INPUT COMPONENTS */}
+      {/* 
+      <Input /> components removidos para test
+      */}
       
-      <div style={{ margin: '20px 0', maxWidth: '300px', marginLeft: 'auto', marginRight: 'auto' }}>
-        <Input
-          label="Contraseña de prueba"
-          type="password"
-          placeholder="Contraseña..."
-          icon={<LockClosedIcon className="w-5 h-5" />}
-          fullWidth
-        />
-      </div>
+      <p>Usuario: admin (hardcoded)</p>
+      <p>Password: Admin123! (hardcoded)</p>
       
-      {/* ✅ TEST: BUTTON COMPONENT PERSONALIZADO (MUY SOSPECHOSO!) */}
+      {/* ✅ SOLO BUTTON COMPONENT */}
       <Button
         onClick={handleSubmit}
         loading={isLoading}
         size="lg"
         icon={<UserIcon className="w-4 h-4" />}
       >
-        {isLoading ? 'Cargando...' : 'Login con Button Component'}
+        {isLoading ? 'Cargando...' : 'Login SIN Input Components'}
       </Button>
       
-      {/* ✅ BUTTON NATIVO PARA COMPARAR */}
       <br /><br />
+      
+      {/* ✅ BUTTON NATIVO */}
       <button 
         onClick={handleSubmit}
         style={{ 
@@ -81,7 +69,7 @@ const SimpleLogin = () => {
           cursor: 'pointer'
         }}
       >
-        Button Nativo (sin componente personalizado)
+        Button Nativo SIN Input Components
       </button>
       
       {user && (
