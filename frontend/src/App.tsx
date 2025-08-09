@@ -1,86 +1,54 @@
-// 📁 frontend/src/App.tsx - SIN RUTA /dashboard QUE CAUSA PROBLEMAS
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { Toaster } from 'react-hot-toast'
-import { useAuthStore } from './stores/authStore'
+// 📁 frontend/src/App.tsx - ULTRA MINIMAL PARA TEST FINAL
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 
-// Public Pages
-import Landing from './pages/public/Landing'
-import Login from './pages/auth/Login'
-
-// Admin Pages  
-
-// ✅ PROTECTED ROUTE ULTRA SIMPLE
-const ProtectedRoute = ({ 
-  children, 
-  allowedRoles 
-}: { 
-  children: React.ReactNode
-  allowedRoles: string[] 
-}) => {
-  const user = useAuthStore(state => state.user)
-  const isAuthenticated = useAuthStore(state => state.isAuthenticated)
-
-  console.log('🛡️ ProtectedRoute - isAuthenticated:', isAuthenticated)
-  console.log('🛡️ ProtectedRoute - user:', user)
-
-  if (!isAuthenticated || !user) {
-    console.log('❌ No autenticado, redirigiendo a login')
-    return <Navigate to="/login" replace />
+// ✅ LOGIN ULTRA SIMPLE SIN NADA
+const SimpleLogin = () => {
+  const handleSubmit = () => {
+    console.log('🔄 Navegando...')
+    setTimeout(() => {
+      window.location.href = '/admin'
+    }, 100)
   }
 
-  if (allowedRoles.length > 0 && !allowedRoles.includes(user.rol)) {
-    console.log('❌ Rol no autorizado')
-    return <Navigate to="/unauthorized" replace />
-  }
-
-  console.log('✅ Acceso autorizado')
-  return children as React.ReactElement
-}
-
-// ✅ PLACEHOLDER SIMPLE
-const Unauthorized = () => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-    <div className="text-center">
-      <h1 className="text-2xl font-bold text-red-600 mb-4">Acceso Denegado</h1>
-      <p className="text-gray-600 mb-4">No tienes permisos para esta sección</p>
-      <button
-        onClick={() => useAuthStore.getState().logout()}
-        className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+  return (
+    <div style={{ padding: '50px', textAlign: 'center' }}>
+      <h1>Login Simple</h1>
+      <button 
+        onClick={handleSubmit}
+        style={{ 
+          padding: '10px 20px', 
+          backgroundColor: '#22c55e', 
+          color: 'white', 
+          border: 'none', 
+          borderRadius: '5px',
+          cursor: 'pointer'
+        }}
       >
-        Volver al Login
+        Ir a Admin (sin SVG, sin iconos)
       </button>
     </div>
-  </div>
-)
+  )
+}
+
+// ✅ ADMIN ULTRA SIMPLE
+const SimpleAdmin = () => {
+  return (
+    <div style={{ padding: '50px' }}>
+      <h1>🎯 ADMIN PAGE - ULTRA SIMPLE</h1>
+      <p>Si ves esto sin error, el problema estaba en los componentes complejos</p>
+      <p>Si aún da error, es problema de React 18 + Vite + Router</p>
+    </div>
+  )
+}
 
 function App() {
   return (
     <Router>
-      <div className="App">
-        <Routes>
-          {/* ✅ RUTAS BÁSICAS */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/unauthorized" element={<Unauthorized />} />
-
-          {/* ✅ RUTA ADMIN DIRECTA (sin pasar por /dashboard) */}
-          <Route path="/admin" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <div style={{ padding: '20px', background: '#f0f0f0' }}>
-                <h1>🎯 TEST - ADMIN ROUTE</h1>
-                <p>Si ves esto, ProtectedRoute funciona</p>
-                <p>El error está en AdminDashboardPage</p>
-              </div>
-            </ProtectedRoute>
-          } />
-
-          {/* ✅ CATCH ALL */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-
-        {/* ✅ TOASTER SIMPLE */}
-        <Toaster position="top-right" />
-      </div>
+      <Routes>
+        <Route path="/login" element={<SimpleLogin />} />
+        <Route path="/admin" element={<SimpleAdmin />} />
+        <Route path="*" element={<SimpleLogin />} />
+      </Routes>
     </Router>
   )
 }
