@@ -32,63 +32,119 @@ export class ElectionsService {
 
   
 
-  async create(createElectionDto: CreateElectionDto, userId: number) {
-    const { tipo_eleccion, ...electionData } = createElectionDto;
+  // Método create completo para elections.service.ts
+// Reemplaza todo el método create existente con este código:
 
-    // Buscar tipo de elección
-    const tipoEleccionEntity = await this.tipoEleccionRepository.findOne({
-      where: { nombre_tipo: tipo_eleccion, estado: 'activo' },
-    });
+async create(createElectionDto: CreateElectionDto, userId: number) {
+  console.log('📅 Creando nueva elección:', createElectionDto);
 
-    if (!tipoEleccionEntity) {
-      throw new BadRequestException('Tipo de elección inválido');
-    }
+  const { tipo_eleccion, ...electionData } = createElectionDto;
 
-    // Validar fechas
-    const fechaInicio = new Date(electionData.fecha_inicio);
-    const fechaFin = new Date(electionData.fecha_fin);
-    const ahora = new Date();
+  // Buscar tipo de elección
+  const tipoEleccionEntity = await this.tipoEleccionRepository.findOne({
+    where: { nombre_tipo: tipo_eleccion, estado: 'activo' },
+  });
 
-    if (fechaInicio >= fechaFin) {
-      throw new BadRequestException('La fecha de inicio debe ser anterior a la fecha de fin');
-    }
-
-    // ✅ CAMBIO: Validación más flexible para permitir elecciones el mismo día
-    // Solo validar si la fecha de inicio ya pasó completamente
-    if (fechaInicio <= ahora) {
-      // Verificar si es el mismo día
-      const fechaInicioSolo = new Date(fechaInicio.getFullYear(), fechaInicio.getMonth(), fechaInicio.getDate());
-      const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-      
-      if (fechaInicioSolo.getTime() === hoy.getTime()) {
-        // Es el mismo día, verificar que la hora no haya pasado mucho (permitir crear hasta 1 hora antes)
-        const horasHastaInicio = (fechaInicio.getTime() - ahora.getTime()) / (1000 * 60 * 60);
-        if (horasHastaInicio < -1) {
-          throw new BadRequestException('No se puede crear una elección con más de 1 hora de retraso en el mismo día');
-        }
-      } else {
-        // Es un día anterior, no permitir
-        throw new BadRequestException('La fecha de inicio no puede ser anterior a hoy');
-      }
-    }
-
-    // Crear la elección
-    const nuevaEleccion = this.eleccionRepository.create({
-      ...electionData,
-      id_tipo_eleccion: tipoEleccionEntity.id_tipo_eleccion,
-      created_by: userId,
-      estado: 'configuracion',
-      total_votantes_habilitados: 0,
-      total_votos_emitidos: 0,
-    });
-
-    const eleccionGuardada = await this.eleccionRepository.save(nuevaEleccion);
-
-    // Generar votantes habilitados
-    await this.generateEligibleVoters(eleccionGuardada);
-
-    return this.findOne(eleccionGuardada.id_eleccion);
+  if (!tipoEleccionEntity) {
+    throw new BadRequestException('Tipo de elección inválido');
   }
+
+  // Validar fechas
+  const fechaInicio = new Date(electionData.fecha_inicio);
+  const fechaFin = new Date(electionData.fecha_fin);
+  const ahora = new Date();
+
+  if (fechaInicio >= fechaFin) {
+    throw new BadRequestException('La fecha de inicio debe ser anterior a la fecha de fin');
+  }
+
+  // ✅ VALIDACIÓN SIMPLIFICADA: Solo verificar que no sea una fecha pasada (día anterior completo)
+  // Permitir crear elecciones en cualquier momento del día actual o futuro
+  const fechaInicioSolo = new Date(fechaInicio.getFullYear(), fechaInicio.getMonth(), fechaInicio.getDate());
+  const ayer = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - 1);
+  
+  if (fechaInicioSolo.getTime() <= ayer.getTime()) {
+    throw new BadRequestException('La fecha de inicio no puede ser anterior a hoy');
+  }
+
+  // ✅ COMENTARIO: Se eliminó la validación de 1 hora de retraso en el mismo día
+  // Ahora se permite crear elecciones en cualquier momento del día actual
+
+  // Crear la elección
+  const nuevaEleccion = this.eleccionRepository.create({
+    ...electionData,
+    id_tipo_eleccion: tipoEleccionEntity.id_tipo_eleccion,
+    created_by: userId,
+    estado: 'configuracion',
+    total_votantes_habilitados: 0,
+    total_votos_emitidos: 0,
+  });
+
+  const eleccionGuardada = await this.eleccionRepository.save(nuevaEleccion);
+
+  // Generar votantes habilitados
+  await this.generateEligibleVoters(eleccionGuardada);
+
+  return this.findOne(eleccionGuardada.id_eleccion);
+}
+
+// También necesitas este método helper si no lo tienes:
+private async generateEligibleVoters(eleccion: Eleccion) {
+  let personas: Persona[] = [];
+
+  const tipoEleccion = await this.tipoEleccionRepository.findOne({
+    where: { id_tipo_eleccion: eleccion.id_tipo_eleccion },
+  });
+
+  // Determinar votantes según el tipo de elección
+  switch (tipoEleccion.nivel_aplicacion) {
+    case 'centro':
+      // Todos los aprendices del centro en la jornada específica
+      personas = await this.personaRepository.find({
+        where: {
+          id_centro: eleccion.id_centro,
+          jornada: eleccion.jornada,
+          estado: 'activo',
+        },
+      });
+      break;
+
+    case 'sede':
+      // Todos los aprendices de la sede
+      personas = await this.personaRepository.find({
+        where: {
+          id_sede: eleccion.id_sede,
+          estado: 'activo',
+        },
+      });
+      break;
+
+    case 'ficha':
+      // Todos los aprendices de la ficha
+      personas = await this.personaRepository.find({
+        where: {
+          id_ficha: eleccion.id_ficha,
+          estado: 'activo',
+        },
+      });
+      break;
+  }
+
+  // Crear registros de votantes habilitados
+  const votantesHabilitados = personas.map(persona => 
+    this.votanteHabilitadoRepository.create({
+      id_eleccion: eleccion.id_eleccion,
+      id_persona: persona.id_persona,
+    })
+  );
+
+  await this.votanteHabilitadoRepository.save(votantesHabilitados);
+
+  // Actualizar total de votantes habilitados
+  await this.eleccionRepository.update(eleccion.id_eleccion, {
+    total_votantes_habilitados: personas.length,
+  });
+}
 
   async findAll(userId: number, userRole: string) {
     const whereClause: FindOptionsWhere<Eleccion> = {};
@@ -259,62 +315,7 @@ private async deletePhotoFile(fotoUrl: string): Promise<void> {
   }
 }
 
-  private async generateEligibleVoters(eleccion: Eleccion) {
-    let personas: Persona[] = [];
-
-    const tipoEleccion = await this.tipoEleccionRepository.findOne({
-      where: { id_tipo_eleccion: eleccion.id_tipo_eleccion },
-    });
-
-    // Determinar votantes según el tipo de elección
-    switch (tipoEleccion.nivel_aplicacion) {
-      case 'centro':
-        // Todos los aprendices del centro en la jornada específica
-        personas = await this.personaRepository.find({
-          where: {
-            id_centro: eleccion.id_centro,
-            jornada: eleccion.jornada,
-            estado: 'activo',
-          },
-        });
-        break;
-
-      case 'sede':
-        // Todos los aprendices de la sede
-        personas = await this.personaRepository.find({
-          where: {
-            id_sede: eleccion.id_sede,
-            estado: 'activo',
-          },
-        });
-        break;
-
-      case 'ficha':
-        // Todos los aprendices de la ficha
-        personas = await this.personaRepository.find({
-          where: {
-            id_ficha: eleccion.id_ficha,
-            estado: 'activo',
-          },
-        });
-        break;
-    }
-
-    // Crear registros de votantes habilitados
-    const votantesHabilitados = personas.map(persona => 
-      this.votanteHabilitadoRepository.create({
-        id_eleccion: eleccion.id_eleccion,
-        id_persona: persona.id_persona,
-      })
-    );
-
-    await this.votanteHabilitadoRepository.save(votantesHabilitados);
-
-    // Actualizar total de votantes habilitados
-    await this.eleccionRepository.update(eleccion.id_eleccion, {
-      total_votantes_habilitados: personas.length,
-    });
-  }
+  
 
   async getActiveElections() {
     const ahora = new Date();
