@@ -67,17 +67,53 @@ export class VotesService {
 
     // 3. Decodificar y validar QR
     let personaData;
-    try {
-      const qrDecoded = Buffer.from(qr_code, 'base64').toString('utf-8');
-      personaData = JSON.parse(qrDecoded);
-      
-      if (!personaData.numero_documento) {
-        throw new Error('QR no contiene número de documento');
-      }
-    } catch (error) {
-      console.error('❌ Error decodificando QR:', error);
-      throw new BadRequestException('Código QR inválido o corrupto');
+try {
+  console.log('🔍 Procesando QR/datos de identificación:', qr_code.substring(0, 100) + '...');
+  
+  // ✅ NUEVA LÓGICA: Intentar diferentes formatos
+  let qrDecoded: string;
+  
+  // Primero, verificar si ya es un JSON válido (datos manuales)
+  try {
+    const testParse = JSON.parse(qr_code);
+    if (testParse && (testParse.numero_documento || testParse.doc)) {
+      console.log('✅ Datos detectados como JSON directo (votante manual)');
+      qrDecoded = qr_code; // Ya es un JSON string
+    } else {
+      throw new Error('No es formato de datos de votante válido');
     }
+  } catch (jsonError) {
+    // Si no es JSON válido, intentar decodificar como base64
+    try {
+      console.log('🔄 Intentando decodificar como base64 (QR tradicional)');
+      qrDecoded = Buffer.from(qr_code, 'base64').toString('utf-8');
+      console.log('✅ Decodificado base64 exitoso');
+    } catch (base64Error) {
+      console.error('❌ Error decodificando base64:', base64Error);
+      throw new Error('Formato de código QR no válido');
+    }
+  }
+  
+  // Parsear los datos decodificados
+  personaData = JSON.parse(qrDecoded);
+  console.log('✅ Datos parseados:', { 
+    type: personaData.type, 
+    documento: personaData.numero_documento || personaData.doc 
+  });
+  
+  // Normalizar el campo de documento
+  const documento = personaData.numero_documento || personaData.doc;
+  if (!documento) {
+    throw new Error('QR no contiene número de documento válido');
+  }
+  
+  // Asegurar que tenemos el campo numero_documento
+  personaData.numero_documento = documento;
+  
+} catch (error) {
+  console.error('❌ Error procesando datos de identificación:', error);
+  throw new BadRequestException('Código QR inválido o corrupto');
+}
 
     // 4. Verificar que la persona existe y está habilitada
     const persona = await this.personaRepository.findOne({
