@@ -1,286 +1,131 @@
-// 📁 frontend/src/App.tsx - VERSIÓN COMPLETA CON TODAS LAS RUTAS
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+// 📁 frontend/src/App.tsx - AGREGAR COMPONENTS UI PARA TEST
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import toast from 'react-hot-toast'
+import { UserIcon } from '@heroicons/react/24/outline'
 import { useAuthStore } from './stores/authStore'
+import Button from './components/ui/Button'  // ← AGREGADO (SOSPECHOSO!)
 
-// Public Pages
-import Landing from './pages/public/Landing'
-import Login from './pages/auth/Login'
+// ✅ LOGIN CON AUTHSTORE PARA TEST
+const SimpleLogin = () => {
+  const { login, isLoading, user } = useAuthStore()  // ← AGREGADO
 
-// Admin Pages
-import AdminDashboardPage from './pages/admin/AdminDashboardPage'
-import AdminUsersPage from './pages/admin/AdminUsersPage'
-import AdminImportPage from './pages/admin/AdminImportPage'           // ✅ NUEVA
-import AdminReportsPage from './pages/admin/AdminReportsPage'
-import AdminVotingPage from './pages/admin/AdminVotingPage'
-
-// Dashboard Pages
-import RealTimeDashboard from './pages/dashboard/RealTimeDashboard'
-
-// Voting Components
-import VotingStation from './components/voting/VotingStation'
-import AdminAprendicesPage from './components/admin/AdminAprendicesPage'
-
-// Componente de protección de rutas
-const ProtectedRoute = ({ 
-  children, 
-  allowedRoles 
-}: { 
-  children: React.ReactNode
-  allowedRoles: string[] 
-}) => {
-  const { user, isAuthenticated } = useAuthStore()
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+  const handleSubmit = async () => {
+    console.log('🔄 Navegando con AuthStore...')
+    
+    try {
+      // ✅ TEST: USAR AUTHSTORE REAL
+      await login({ username: 'admin', password: 'Admin123!' })
+      
+      toast.success('¡Login exitoso con AuthStore!')
+      
+      // ✅ TEST: OBTENER USUARIO DEL STORE
+      const { user } = useAuthStore.getState()
+      console.log('👤 Usuario:', user)
+      
+      setTimeout(() => {
+        window.location.href = '/admin'
+      }, 100)
+      
+    } catch (error) {
+      console.error('❌ Error:', error)
+      toast.error('Error en login')
+    }
   }
 
-  if (allowedRoles.length > 0 && user && !allowedRoles.includes(user.rol)) {
-    return <Navigate to="/unauthorized" replace />
-  }
-
-  return <>{children}</>
+  return (
+    <div style={{ padding: '50px', textAlign: 'center' }}>
+      <h1>Test SIN Input Components</h1>
+      
+      {/* ❌ QUITAMOS LOS INPUT COMPONENTS */}
+      {/* 
+      <Input /> components removidos para test
+      */}
+      
+      <p>Usuario: admin (hardcoded)</p>
+      <p>Password: Admin123! (hardcoded)</p>
+      
+      {/* ✅ SOLO BUTTON COMPONENT */}
+      <Button
+        onClick={handleSubmit}
+        loading={isLoading}
+        size="lg"
+        icon={<UserIcon className="w-4 h-4" />}
+      >
+        {isLoading ? 'Cargando...' : 'Login SIN Input Components'}
+      </Button>
+      
+      <br /><br />
+      
+      {/* ✅ BUTTON NATIVO */}
+      <button 
+        onClick={handleSubmit}
+        style={{ 
+          padding: '10px 20px', 
+          backgroundColor: '#22c55e', 
+          color: 'white', 
+          border: 'none', 
+          borderRadius: '5px',
+          cursor: 'pointer'
+        }}
+      >
+        Button Nativo SIN Input Components
+      </button>
+      
+      {user && (
+        <div style={{ marginTop: '20px', padding: '10px', backgroundColor: '#f0f0f0' }}>
+          <p>👤 Usuario: {user.username}</p>
+          <p>🔑 Rol: {user.rol}</p>
+        </div>
+      )}
+    </div>
+  )
 }
 
-// Página de placeholder para instructores
-const InstructorPlaceholder = () => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-sena-600 mb-4">Panel de Instructor</h1>
-      <p className="text-gray-600 mb-6">Panel de control para instructores</p>
-      <button
-        onClick={() => useAuthStore.getState().logout()}
-        className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
-      >
-        Cerrar Sesión
-      </button>
-    </div>
-  </div>
-)
+// ✅ ADMIN CON PROTECCIÓN SIMPLE
+const SimpleAdmin = () => {
+  const { user, isAuthenticated } = useAuthStore()  // ← AGREGADO
 
-// Página de acceso no autorizado
-const Unauthorized = () => (
-  <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-    <div className="text-center">
-      <h1 className="text-3xl font-bold text-red-600 mb-4">Acceso Denegado</h1>
-      <p className="text-gray-600 mb-6">No tienes permisos para acceder a esta sección</p>
-      <button
-        onClick={() => useAuthStore.getState().logout()}
-        className="bg-sena-500 text-white px-4 py-2 rounded-lg hover:bg-sena-600"
-      >
-        Volver al Login
-      </button>
-    </div>
-  </div>
-)
-
-// Auto-redirect basado en el rol del usuario
-const Dashboard = () => {
-  const { user } = useAuthStore()
-
-  if (!user) return <Navigate to="/login" replace />
-
-  switch (user.rol) {
-    case 'ADMIN':
-      return <Navigate to="/admin" replace />
-    case 'DASHBOARD':
-      return <Navigate to="/real-time-dashboard" replace />
-    case 'MESA_VOTACION':
-      return <Navigate to="/voting" replace />
-    case 'INSTRUCTOR':
-      return <Navigate to="/instructor" replace />
-    default:
-      return <Navigate to="/unauthorized" replace />
+  // ✅ TEST: VERIFICACIÓN SIMPLE
+  if (!isAuthenticated || !user) {
+    return (
+      <div style={{ padding: '50px', color: 'red' }}>
+        <h1>❌ NO AUTENTICADO</h1>
+        <p>Redirigiendo a login...</p>
+      </div>
+    )
   }
+
+  if (user.rol !== 'ADMIN') {
+    return (
+      <div style={{ padding: '50px', color: 'orange' }}>
+        <h1>⚠️ SIN PERMISOS</h1>
+        <p>Rol actual: {user.rol}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '50px' }}>
+      <h1>🎯 ADMIN PAGE - CON AUTHSTORE</h1>
+      <p>✅ Usuario: {user.username}</p>
+      <p>✅ Rol: {user.rol}</p>
+      <p>Si ves esto sin error, AuthStore funciona bien</p>
+    </div>
+  )
 }
 
 function App() {
   return (
     <Router>
-      <div className="App">
-        <Routes>
-          {/* ========================================== */}
-          {/* RUTAS PÚBLICAS */}
-          {/* ========================================== */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/unauthorized" element={<Unauthorized />} />
-
-          {/* ========================================== */}
-          {/* AUTO-REDIRECT DASHBOARD */}
-          {/* ========================================== */}
-          <Route path="/dashboard" element={<Dashboard />} />
-
-          {/* ========================================== */}
-          {/* RUTAS DE ADMINISTRADOR */}
-          {/* ========================================== */}
-          
-          {/* Dashboard principal del admin */}
-          <Route path="/admin" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminDashboardPage />
-            </ProtectedRoute>
-          } />
-
-          {/* Gestión de usuarios del sistema */}
-          <Route path="/admin/users" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminUsersPage />
-            </ProtectedRoute>
-          } />
-
-          {/* ✅ NUEVA: Gestión de aprendices (CRUD completo) */}
-          <Route path="/admin/aprendices" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminAprendicesPage />
-            </ProtectedRoute>
-          } />
-
-          {/* ✅ NUEVA: Importación masiva de aprendices desde Excel */}
-          <Route path="/admin/import" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminImportPage />
-            </ProtectedRoute>
-          } />
-
-          {/* Mesa de votación para admin (pruebas) */}
-          <Route path="/admin/voting" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminVotingPage />
-            </ProtectedRoute>
-          } />
-        
-          {/* Reportes y estadísticas */}
-          <Route path="/admin/reports" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminReportsPage />
-            </ProtectedRoute>
-          } />
-
-          {/* ========================================== */}
-          {/* RUTAS DE DASHBOARD EN TIEMPO REAL */}
-          {/* ========================================== */}
-          
-          {/* Dashboard en tiempo real (Admin y Dashboard users) */}
-          <Route path="/real-time-dashboard" element={
-            <ProtectedRoute allowedRoles={['ADMIN', 'DASHBOARD']}>
-              <RealTimeDashboard />
-            </ProtectedRoute>
-          } />
-
-          {/* ========================================== */}
-          {/* RUTAS DE VOTACIÓN */}
-          {/* ========================================== */}
-          
-          {/* Mesa de votación (solo usuarios MESA_VOTACION) */}
-          <Route path="/voting" element={
-            <ProtectedRoute allowedRoles={['MESA_VOTACION']}>
-              <VotingStation />
-            </ProtectedRoute>
-          } />
-
-          {/* ========================================== */}
-          {/* RUTAS DE INSTRUCTOR */}
-          {/* ========================================== */}
-          
-          {/* Panel de instructor (placeholder por ahora) */}
-          <Route path="/instructor" element={
-            <ProtectedRoute allowedRoles={['INSTRUCTOR']}>
-              <InstructorPlaceholder />
-            </ProtectedRoute>
-          } />
-
-          {/* ========================================== */}
-          {/* RUTAS ADICIONALES FUTURAS */}
-          {/* ========================================== */}
-          
-          {/* Aquí puedes agregar más rutas según necesites: */}
-          
-          {/* Ejemplo: Gestión de elecciones */}
-          {/* <Route path="/admin/elections" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminElectionsPage />
-            </ProtectedRoute>
-          } /> */}
-
-          {/* Ejemplo: Gestión de candidatos */}
-          {/* <Route path="/admin/candidates" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminCandidatesPage />
-            </ProtectedRoute>
-          } /> */}
-
-          {/* Ejemplo: Configuración del sistema */}
-          {/* <Route path="/admin/settings" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminSettingsPage />
-            </ProtectedRoute>
-          } /> */}
-
-          {/* Ejemplo: Auditoría y logs */}
-          {/* <Route path="/admin/audit" element={
-            <ProtectedRoute allowedRoles={['ADMIN']}>
-              <AdminAuditPage />
-            </ProtectedRoute>
-          } /> */}
-
-          {/* ========================================== */}
-          {/* CATCH ALL - REDIRECT */}
-          {/* ========================================== */}
-          
-          {/* Cualquier ruta no encontrada redirige al dashboard */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-
-        {/* ========================================== */}
-        {/* NOTIFICACIONES TOAST GLOBALES */}
-        {/* ========================================== */}
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: '#1F2937',
-              color: '#F9FAFB',
-              border: '1px solid #374151',
-              fontSize: '14px',
-            },
-            success: {
-              style: {
-                background: '#065F46',
-                color: '#D1FAE5',
-                border: '1px solid #10B981',
-              },
-              iconTheme: {
-                primary: '#10B981',
-                secondary: '#D1FAE5',
-              },
-            },
-            error: {
-              style: {
-                background: '#7F1D1D',
-                color: '#FEE2E2',
-                border: '1px solid #EF4444',
-              },
-              iconTheme: {
-                primary: '#EF4444',
-                secondary: '#FEE2E2',
-              },
-            },
-            loading: {
-              style: {
-                background: '#1E40AF',
-                color: '#DBEAFE',
-                border: '1px solid #3B82F6',
-              },
-              iconTheme: {
-                primary: '#3B82F6',
-                secondary: '#DBEAFE',
-              },
-            },
-          }}
-        />
-      </div>
+      <Routes>
+        <Route path="/login" element={<SimpleLogin />} />
+        <Route path="/admin" element={<SimpleAdmin />} />
+        <Route path="*" element={<SimpleLogin />} />
+      </Routes>
+      
+      {/* ✅ TEST: AGREGAR TOASTER (SOSPECHOSO #1) */}
+      <Toaster position="top-right" />
     </Router>
   )
 }

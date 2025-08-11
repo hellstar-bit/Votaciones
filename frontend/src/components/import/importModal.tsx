@@ -2,7 +2,7 @@
 // MODAL COMPLETO ACTUALIZADO CON VALIDACIONES FLEXIBLES
 
 import React, { useState, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useDropzone } from 'react-dropzone'
 import { toast } from 'react-hot-toast'
 import {
@@ -176,7 +176,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImportComp
   if (!isOpen) return null
 
   return (
-    <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -273,7 +272,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImportComp
 
             {/* Content */}
             <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">
-              <AnimatePresence mode="wait">
                 {currentStep === 'upload' && (
                   <UploadStep
                     getRootProps={getRootProps}
@@ -321,12 +319,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImportComp
                     }}
                   />
                 )}
-              </AnimatePresence>
             </div>
           </motion.div>
         </div>
       </motion.div>
-    </AnimatePresence>
   )
 }
 

@@ -1,12 +1,12 @@
-// 📁 frontend/src/stores/authStore.ts - ACTUALIZAR SOLO LA INTERFACE
+// 📁 frontend/src/stores/authStore.ts - VERSIÓN SIN PERSIST PARA DEBUGGING
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+// import { persist } from 'zustand/middleware' // ← COMENTADO
 
 interface User {
   id: number
   username: string
   nombre_completo: string
-  rol: 'ADMIN' | 'DASHBOARD' | 'MESA_VOTACION' | 'INSTRUCTOR' | 'APRENDIZ' // ✅ AGREGADO 'DASHBOARD'
+  rol: 'ADMIN' | 'DASHBOARD' | 'MESA_VOTACION' | 'INSTRUCTOR' | 'APRENDIZ'
   centro?: string
   sede?: string
   ficha?: string
@@ -26,7 +26,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>()(
-  persist(
+  // persist( // ← COMENTADO TEMPORALMENTE
     (set) => ({
       user: null,
       token: null,
@@ -39,7 +39,6 @@ export const useAuthStore = create<AuthState>()(
         try {
           console.log('🔐 Intentando login con:', credentials.username)
           
-          // Llamada real al backend
           const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/login`, {
             method: 'POST',
             headers: {
@@ -58,7 +57,6 @@ export const useAuthStore = create<AuthState>()(
           const data = await response.json()
           console.log('✅ Login exitoso:', data)
 
-          // Verificar que tenemos los datos necesarios
           if (!data.access_token || !data.user) {
             throw new Error('Respuesta del servidor incompleta')
           }
@@ -106,14 +104,6 @@ export const useAuthStore = create<AuthState>()(
       setLoading: (loading) => {
         set({ isLoading: loading })
       }
-    }),
-    {
-      name: 'auth-storage',
-      partialize: (state) => ({
-        user: state.user,
-        token: state.token,
-        isAuthenticated: state.isAuthenticated
-      })
-    }
-  )
+    })
+  // ) // ← COMENTADO TEMPORALMENTE
 )

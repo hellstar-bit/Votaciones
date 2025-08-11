@@ -1,3 +1,4 @@
+// 📁 backend/src/config/database.config.ts
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 
@@ -16,10 +17,11 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
   
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
+
   synchronize: false, // Solo en desarrollo
+
   logging: configService.get('NODE_ENV') === 'development',
   
-  // 🔧 TIMEZONE PARA POSTGRESQL  
   // 🔧 CONFIGURACIONES ADICIONALES PARA POSTGRESQL
   extra: {
     connectionLimit: 10,

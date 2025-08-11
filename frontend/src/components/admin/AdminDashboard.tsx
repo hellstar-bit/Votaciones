@@ -1,6 +1,5 @@
-// 📁 frontend/src/components/admin/AdminDashboard.tsx - ARCHIVO COMPLETO CORREGIDO
-import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+// 📁 frontend/src/components/admin/AdminDashboard.tsx - SOLUCIÓN DEFINITIVA SIN FRAMER MOTION
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
@@ -21,145 +20,147 @@ import {
 } from '@heroicons/react/24/outline'
 import { useAuthStore } from '../../stores/authStore'
 import { dashboardApi, electionsApi, type Election, type DashboardStats, handleApiError } from '../../services/api'
-import CreateElectionModal from '../modals/CreateElectionModal'
-import CandidatesManagement from '../candidates/CandidatesManagement'
-import ElectionSettings from '../candidates/ElectionSettings'
+
+// Componentes importados dinámicamente para evitar problemas
+let CreateElectionModal: any = null
+let CandidatesManagement: any = null
+let ElectionSettings: any = null
+
+// Cargar componentes de forma async
+const loadComponents = async () => {
+  if (!CreateElectionModal) {
+    CreateElectionModal = (await import('../modals/CreateElectionModal')).default
+  }
+  if (!CandidatesManagement) {
+    CandidatesManagement = (await import('../candidates/CandidatesManagement')).default
+  }
+  if (!ElectionSettings) {
+    ElectionSettings = (await import('../candidates/ElectionSettings')).default
+  }
+}
+
+// Spinner simple sin animaciones
+const SimpleSpinner = () => (
+  <div className="flex justify-center items-center p-8">
+    <div className="w-8 h-8 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+  </div>
+)
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
 
-  // Estados para datos del dashboard
+  // Estados principales
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [elections, setElections] = useState<Election[]>([])
   const [loading, setLoading] = useState(true)
+  const [componentsLoaded, setComponentsLoaded] = useState(false)
+  
+  // Estados de UI
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [currentView, setCurrentView] = useState<'dashboard' | 'candidates' | 'settings'>('dashboard')
   const [selectedElectionId, setSelectedElectionId] = useState<number | null>(null)
 
-  // Cargar datos del dashboard desde la API
+  // Cargar componentes al montar
   useEffect(() => {
-    fetchDashboardData()
-
-    // Función para actualizar sin mostrar loading
-    const updateDataSilently = async () => {
-      try {
-        const [dashboardStats, allElections] = await Promise.all([
-          dashboardApi.getStats(),
-          electionsApi.getAll()
-        ])
-
-        setStats(dashboardStats)
-        setElections(allElections)
-      } catch (error) {
-        console.error('Error actualizando datos:', error)
-      }
-    }
-
-    // Actualizar cada 30 segundos de forma silenciosa
-    const interval = setInterval(updateDataSilently, 30000)
-    return () => clearInterval(interval)
+    loadComponents().then(() => {
+      setComponentsLoaded(true)
+    }).catch(console.error)
   }, [])
 
-  // Función para la carga inicial
-  const fetchDashboardData = async () => {
+  // Datos iniciales y polling
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true)
-
-      console.log('📊 Iniciando carga de datos del dashboard...')
-
       const [dashboardStats, allElections] = await Promise.all([
         dashboardApi.getStats(),
         electionsApi.getAll()
       ])
-
-      console.log('📈 Dashboard stats recibidas:', dashboardStats)
-      console.log('🗳️ Elecciones recibidas:', allElections)
-
       setStats(dashboardStats)
       setElections(allElections)
-
     } catch (error) {
       const errorMessage = handleApiError(error, 'cargando datos')
-      toast.error(`Error cargando datos: ${errorMessage}`)
-      console.error('Error cargando datos del dashboard:', error)
+      toast.error(`Error: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  // Función para activar una elección
-  const handleActivateElection = async (electionId: number) => {
+  useEffect(() => {
+    fetchDashboardData()
+    const interval = setInterval(fetchDashboardData, 30000)
+    return () => clearInterval(interval)
+  }, [fetchDashboardData])
+
+  // Event handlers
+  const handleActivateElection = useCallback(async (electionId: number) => {
     try {
       await electionsApi.activate(electionId)
-      toast.success('Elección activada exitosamente')
+      toast.success('Elección activada')
       await fetchDashboardData()
     } catch (error) {
-      const errorMessage = handleApiError(error, 'activando elección')
-      toast.error(`Error activando elección: ${errorMessage}`)
+      toast.error(`Error: ${handleApiError(error, 'activando elección')}`)
     }
-  }
+  }, [fetchDashboardData])
 
-  // Función para finalizar una elección
-  const handleFinalizeElection = async (electionId: number) => {
+  const handleFinalizeElection = useCallback(async (electionId: number) => {
     try {
       await electionsApi.finalize(electionId)
-      toast.success('Elección finalizada exitosamente')
+      toast.success('Elección finalizada')
       await fetchDashboardData()
     } catch (error) {
-      const errorMessage = handleApiError(error, 'finalizando elección')
-      toast.error(`Error finalizando elección: ${errorMessage}`)
+      toast.error(`Error: ${handleApiError(error, 'finalizando elección')}`)
     }
-  }
+  }, [fetchDashboardData])
 
-  // Manejar creación exitosa de elección
-  const handleElectionCreated = async () => {
+  const handleElectionCreated = useCallback(async () => {
     await fetchDashboardData()
-    toast.success('Los datos se han actualizado')
-  }
+    toast.success('Datos actualizados')
+  }, [fetchDashboardData])
 
-  const handleViewCandidates = (electionId: number) => {
+  const handleViewCandidates = useCallback((electionId: number) => {
     setSelectedElectionId(electionId)
     setCurrentView('candidates')
-  }
+  }, [])
 
-  const handleElectionSettings = (electionId: number) => {
+  const handleElectionSettings = useCallback((electionId: number) => {
     setSelectedElectionId(electionId)
     setCurrentView('settings')
-  }
+  }, [])
 
-  const handleBackToDashboard = () => {
+  const handleBackToDashboard = useCallback(() => {
     setCurrentView('dashboard')
     setSelectedElectionId(null)
-  }
+  }, [])
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     logout()
-    navigate('/login')
-  }
+    navigate('/login', { replace: true })
+  }, [logout, navigate])
 
+  // Helpers
   const getStatusColor = (estado: string) => {
-    switch (estado) {
-      case 'activa': return 'bg-green-100 text-green-800'
-      case 'configuracion': return 'bg-yellow-100 text-yellow-800'
-      case 'finalizada': return 'bg-blue-100 text-blue-800'
-      case 'cancelada': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
+    const colors = {
+      'activa': 'bg-green-100 text-green-800',
+      'configuracion': 'bg-yellow-100 text-yellow-800',
+      'finalizada': 'bg-blue-100 text-blue-800',
+      'cancelada': 'bg-red-100 text-red-800'
     }
+    return colors[estado as keyof typeof colors] || 'bg-gray-100 text-gray-800'
   }
 
   const getStatusIcon = (estado: string) => {
-    switch (estado) {
-      case 'activa': return <PlayIcon className="w-4 h-4" />
-      case 'configuracion': return <Cog6ToothIcon className="w-4 h-4" />
-      case 'finalizada': return <CheckCircleIcon className="w-4 h-4" />
-      case 'cancelada': return <ExclamationTriangleIcon className="w-4 h-4" />
-      default: return <ClockIcon className="w-4 h-4" />
+    const icons = {
+      'activa': <PlayIcon className="w-4 h-4" />,
+      'configuracion': <Cog6ToothIcon className="w-4 h-4" />,
+      'finalizada': <CheckCircleIcon className="w-4 h-4" />,
+      'cancelada': <ExclamationTriangleIcon className="w-4 h-4" />
     }
+    return icons[estado as keyof typeof icons] || <ClockIcon className="w-4 h-4" />
   }
 
-  // ✅ VALORES SEGUROS PARA EVITAR ERRORES UNDEFINED - CORREGIDO
-  const safeStats = {
+  // Stats seguros
+  const safeStats = useMemo(() => ({
     summary: {
       total_elections: stats?.total_elections || 0,
       active_elections: stats?.active_elections || 0,
@@ -168,49 +169,46 @@ const AdminDashboard = () => {
       participation_rate: stats?.participation_rate || 0,
     },
     recent_activity: stats?.recent_activity || []
-  }
+  }), [stats])
 
-  // ✅ DEBUG: Mostrar estadísticas en consola
-  console.log('🔍 Stats actuales:', stats)
-  console.log('🔍 Safe stats:', safeStats)
-
-  if (loading) {
+  // Loading state
+  if (loading || !componentsLoaded) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <motion.div className="text-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full mx-auto mb-4"
-          />
-          <p className="text-gray-600 font-medium">Cargando dashboard...</p>
-        </motion.div>
+        <div className="text-center">
+          <SimpleSpinner />
+          <p className="text-gray-600 mt-4">Cargando dashboard...</p>
+        </div>
       </div>
     )
   }
 
-  // Navegación condicional
-  if (currentView === 'candidates' && selectedElectionId) {
+  // Vistas condicionales SIN FRAMER MOTION
+  if (currentView === 'candidates' && selectedElectionId && CandidatesManagement) {
     return (
-      <CandidatesManagement
-        electionId={selectedElectionId}
-        onBack={handleBackToDashboard}
-      />
+      <div key={`candidates-${selectedElectionId}`}>
+        <CandidatesManagement
+          electionId={selectedElectionId}
+          onBack={handleBackToDashboard}
+        />
+      </div>
     )
   }
 
-  if (currentView === 'settings' && selectedElectionId) {
+  if (currentView === 'settings' && selectedElectionId && ElectionSettings) {
     return (
-      <ElectionSettings
-        electionId={selectedElectionId}
-        onBack={handleBackToDashboard}
-      />
+      <div key={`settings-${selectedElectionId}`}>
+        <ElectionSettings
+          electionId={selectedElectionId}
+          onBack={handleBackToDashboard}
+        />
+      </div>
     )
   }
 
   return (
     <div className="h-full bg-gray-50 overflow-hidden">
-      {/* Header - más compacto y coherente */}
+      {/* Header Simple */}
       <header className="bg-white border-b border-gray-200">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
@@ -230,7 +228,7 @@ const AdminDashboard = () => {
                 <input 
                   type="text" 
                   placeholder="Buscar elecciones..." 
-                  className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent w-64"
+                  className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 w-64"
                 />
                 <ChartBarIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               </div>
@@ -241,9 +239,9 @@ const AdminDashboard = () => {
                 <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
               </button>
 
-              {/* Dashboard en tiempo real */}
+              {/* Dashboard tiempo real */}
               <button
-                onClick={() => navigate('/dashboard/real-time')}
+                onClick={() => navigate('/real-time-dashboard')}
                 className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
               >
                 <EyeIcon className="w-4 h-4" />
@@ -278,40 +276,28 @@ const AdminDashboard = () => {
         </div>
       </header>
 
-      {/* Contenido Principal - aprovecha todo el espacio */}
+      {/* Contenido Principal */}
       <main className="h-[calc(100vh-80px)] overflow-y-auto">
         <div className="p-6 space-y-6">
-          {/* Estadísticas - más compactas y coherentes */}
+          {/* Estadísticas */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Elecciones */}
-            <motion.div 
-              className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              whileHover={{ y: -2 }}
-            >
+            <div className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-gray-300 text-sm font-medium">Total Elecciones</p>
+                  <p className="text-green-100 text-sm font-medium">Total Elecciones</p>
                   <p className="text-2xl font-bold mt-1">{safeStats.summary.total_elections}</p>
-                  <p className="text-gray-400 text-xs mt-1">En el sistema</p>
+                  <p className="text-green-200 text-xs mt-1">En el sistema</p>
                 </div>
                 <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                   <ClipboardDocumentListIcon className="w-6 h-6" />
                 </div>
               </div>
               <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
-            </motion.div>
+            </div>
 
             {/* Elecciones Activas */}
-            <motion.div 
-              className="bg-green-600 rounded-xl p-5 text-white relative overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              whileHover={{ y: -2 }}
-            >
+            <div className="bg-green-600 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-green-100 text-sm font-medium">Elecciones Activas</p>
@@ -323,16 +309,10 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
-            </motion.div>
+            </div>
 
             {/* Total Votos */}
-            <motion.div 
-              className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              whileHover={{ y: -2 }}
-            >
+            <div className="bg-green-500 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-green-100 text-sm font-medium">Total Votos</p>
@@ -344,16 +324,10 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
-            </motion.div>
+            </div>
 
             {/* Participación */}
-            <motion.div 
-              className="bg-green-700 rounded-xl p-5 text-white relative overflow-hidden"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              whileHover={{ y: -2 }}
-            >
+            <div className="bg-green-700 rounded-xl p-5 text-white relative overflow-hidden">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
                   <p className="text-green-100 text-sm font-medium">Participación</p>
@@ -365,19 +339,14 @@ const AdminDashboard = () => {
                 </div>
               </div>
               <div className="absolute -top-2 -right-2 w-16 h-16 bg-white/10 rounded-full"></div>
-            </motion.div>
+            </div>
           </div>
 
-          {/* Grid Principal - ocupa todo el espacio disponible */}
+          {/* Grid Principal */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-300px)]">
-            {/* Lista de Elecciones - más ancha */}
+            {/* Lista de Elecciones */}
             <div className="lg:col-span-3">
-              <motion.div 
-                className="bg-white rounded-xl border border-gray-200 h-full flex flex-col"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 }}
-              >
+              <div className="bg-white rounded-xl border border-gray-200 h-full flex flex-col">
                 <div className="flex items-center justify-between p-6 border-b border-gray-200">
                   <div className="flex items-center space-x-3">
                     <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
@@ -401,7 +370,7 @@ const AdminDashboard = () => {
                         <ClipboardDocumentListIcon className="w-8 h-8 text-gray-400" />
                       </div>
                       <h4 className="text-lg font-medium text-gray-900 mb-2">No hay elecciones disponibles</h4>
-                      <p className="text-gray-500 text-sm mb-6">Comienza creando tu primera elección para el sistema</p>
+                      <p className="text-gray-500 text-sm mb-6">Comienza creando tu primera elección</p>
                       <button
                         onClick={() => setIsCreateModalOpen(true)}
                         className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
@@ -411,105 +380,94 @@ const AdminDashboard = () => {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <AnimatePresence>
-                        {elections.map((election, index) => (
-                          <motion.div
-                            key={election.id_eleccion}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ delay: index * 0.1 }}
-                            className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-3 mb-2">
-                                  <h4 className="text-base font-medium text-gray-900">{election.titulo}</h4>
-                                  <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(election.estado)}`}>
-                                    {getStatusIcon(election.estado)}
-                                    <span className="capitalize">{election.estado}</span>
-                                  </span>
-                                </div>
-                                <p className="text-gray-600 text-sm mb-2">{election.descripcion || 'Sin descripción'}</p>
-                                <div className="flex items-center space-x-4 text-sm text-gray-500">
-                                  <span className="flex items-center space-x-1">
-                                    <CalendarIcon className="w-4 h-4" />
-                                    <span>{new Date(election.fecha_inicio).toLocaleDateString()}</span>
-                                  </span>
-                                  <span className="flex items-center space-x-1">
-                                    <UsersIcon className="w-4 h-4" />
-                                    <span>{election.total_votos_emitidos}/{election.total_votantes_habilitados} votos</span>
-                                  </span>
-                                  {election.tipoEleccion && (
-                                    <span className="bg-white px-2 py-1 rounded text-xs border">
-                                      {election.tipoEleccion.nombre_tipo}
-                                    </span>
-                                  )}
-                                </div>
+                      {elections.map((election) => (
+                        <div 
+                          key={`election-${election.id_eleccion}-v2`}
+                          className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3 mb-2">
+                                <h4 className="text-base font-medium text-gray-900">{election.titulo}</h4>
+                                <span className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(election.estado)}`}>
+                                  {getStatusIcon(election.estado)}
+                                  <span className="capitalize">{election.estado}</span>
+                                </span>
                               </div>
-                              <div className="flex items-center space-x-2 ml-4">
-                                <button
-                                  onClick={() => handleViewCandidates(election.id_eleccion)}
-                                  className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
-                                  title="Ver candidatos"
-                                >
-                                  <EyeIcon className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleElectionSettings(election.id_eleccion)}
-                                  className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
-                                  title="Configuración"
-                                >
-                                  <Cog6ToothIcon className="w-4 h-4" />
-                                </button>
-                                {election.estado === 'configuracion' && (
-                                  <button
-                                    onClick={() => handleActivateElection(election.id_eleccion)}
-                                    className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
-                                    title="Activar elección"
-                                  >
-                                    <PlayIcon className="w-4 h-4" />
-                                  </button>
-                                )}
-                                {election.estado === 'activa' && (
-                                  <button
-                                    onClick={() => handleFinalizeElection(election.id_eleccion)}
-                                    className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-                                    title="Finalizar elección"
-                                  >
-                                    <CheckCircleIcon className="w-4 h-4" />
-                                  </button>
+                              <p className="text-gray-600 text-sm mb-2">{election.descripcion || 'Sin descripción'}</p>
+                              <div className="flex items-center space-x-4 text-sm text-gray-500">
+                                <span className="flex items-center space-x-1">
+                                  <CalendarIcon className="w-4 h-4" />
+                                  <span>{new Date(election.fecha_inicio).toLocaleDateString()}</span>
+                                </span>
+                                <span className="flex items-center space-x-1">
+                                  <UsersIcon className="w-4 h-4" />
+                                  <span>{election.total_votos_emitidos || 0}/{election.total_votantes_habilitados || 0} votos</span>
+                                </span>
+                                {election.tipoEleccion && (
+                                  <span className="bg-white px-2 py-1 rounded text-xs border">
+                                    {election.tipoEleccion.nombre_tipo}
+                                  </span>
                                 )}
                               </div>
                             </div>
-                          </motion.div>
-                        ))}
-                      </AnimatePresence>
+                            <div className="flex items-center space-x-2 ml-4">
+                              <button
+                                onClick={() => handleViewCandidates(election.id_eleccion)}
+                                className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                                title="Ver candidatos"
+                              >
+                                <EyeIcon className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleElectionSettings(election.id_eleccion)}
+                                className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+                                title="Configuración"
+                              >
+                                <Cog6ToothIcon className="w-4 h-4" />
+                              </button>
+                              {election.estado === 'configuracion' && (
+                                <button
+                                  onClick={() => handleActivateElection(election.id_eleccion)}
+                                  className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                                  title="Activar elección"
+                                >
+                                  <PlayIcon className="w-4 h-4" />
+                                </button>
+                              )}
+                              {election.estado === 'activa' && (
+                                <button
+                                  onClick={() => handleFinalizeElection(election.id_eleccion)}
+                                  className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                  title="Finalizar elección"
+                                >
+                                  <CheckCircleIcon className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
             </div>
 
-            {/* Sidebar Derecho - más compacto */}
+            {/* Sidebar Derecho */}
             <div className="space-y-4 overflow-y-auto">
               {/* Actividad Reciente */}
-              <motion.div 
-                className="bg-white rounded-xl border border-gray-200 p-4"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.6 }}
-              >
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-600 rounded-lg flex items-center justify-center">
                     <ClockIcon className="w-3 h-3 text-white" />
                   </div>
                   <h3 className="text-sm font-semibold text-gray-900">Actividad Reciente</h3>
                 </div>
-                {safeStats.recent_activity && safeStats.recent_activity.length > 0 ? (
+                {safeStats.recent_activity.length > 0 ? (
                   <div className="space-y-2">
                     {safeStats.recent_activity.slice(0, 3).map((activity, index) => (
-                      <div key={activity.id || index} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
+                      <div key={`activity-${index}-${Date.now()}`} className="flex items-center space-x-2 p-2 bg-gray-50 rounded-lg">
                         <div className="w-1.5 h-1.5 bg-green-600 rounded-full"></div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-gray-900 truncate">{activity.candidate || 'Actividad'}</p>
@@ -524,15 +482,10 @@ const AdminDashboard = () => {
                     <p className="text-gray-500 text-xs">No hay actividad reciente</p>
                   </div>
                 )}
-              </motion.div>
+              </div>
 
               {/* Acciones Rápidas */}
-              <motion.div 
-                className="bg-white rounded-xl border border-gray-200 p-4"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.7 }}
-              >
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-700 rounded-lg flex items-center justify-center">
                     <span className="text-white text-xs">⚡</span>
@@ -549,37 +502,30 @@ const AdminDashboard = () => {
                   </button>
 
                   <button 
-                    onClick={() => navigate('/dashboard/real-time')}
+                    onClick={() => navigate('/real-time-dashboard')}
                     className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
                   >
                     <EyeIcon className="w-4 h-4" />
                     <span>Dashboard Tiempo Real</span>
                   </button>
 
-                  <button className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
+                  <button 
+                    onClick={() => navigate('/admin/aprendices')}
+                    className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+                  >
                     <UsersIcon className="w-4 h-4" />
-                    <span>Gestionar Usuarios</span>
+                    <span>Gestionar Aprendices</span>
                   </button>
 
                   <button className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
                     <ChartPieIcon className="w-4 h-4" />
                     <span>Ver Reportes</span>
                   </button>
-
-                  <button className="w-full flex items-center space-x-2 px-3 py-2 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm">
-                    <Cog6ToothIcon className="w-4 h-4" />
-                    <span>Configuración</span>
-                  </button>
                 </div>
-              </motion.div>
+              </div>
 
               {/* Estado del Sistema */}
-              <motion.div 
-                className="bg-white rounded-xl border border-gray-200 p-4"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.8 }}
-              >
+              <div className="bg-white rounded-xl border border-gray-200 p-4">
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="w-6 h-6 bg-green-500 rounded-lg flex items-center justify-center">
                     <CheckCircleIcon className="w-3 h-3 text-white" />
@@ -602,26 +548,24 @@ const AdminDashboard = () => {
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-600">Última Actualización</span>
-                    <span className="text-gray-900 font-medium">Hace 30s</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-600">Usuarios Activos</span>
                     <span className="text-gray-900 font-medium">{safeStats.summary.total_voters}</span>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </div>
       </main>
 
-      {/* Modal Crear Elección */}
-      <CreateElectionModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onElectionCreated={handleElectionCreated}
-      />
+      {/* Modal Crear Elección - Renderizado condicional simple */}
+      {isCreateModalOpen && CreateElectionModal && (
+        <CreateElectionModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onElectionCreated={handleElectionCreated}
+        />
+      )}
     </div>
   )
 }
