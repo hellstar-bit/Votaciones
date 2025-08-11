@@ -16,7 +16,7 @@ export const getDatabaseConfig = (configService: ConfigService): TypeOrmModuleOp
   
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
-  synchronize: configService.get('NODE_ENV') === 'development', // Solo en desarrollo
+  synchronize: false, // Solo en desarrollo
   logging: configService.get('NODE_ENV') === 'development',
   
   // 🔧 TIMEZONE PARA POSTGRESQL  

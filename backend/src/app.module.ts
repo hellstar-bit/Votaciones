@@ -33,7 +33,7 @@ import { ImportModule } from './import/import.module';
 
     // Base de datos
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
+      imports: [ConfigModule],  
       useFactory: getDatabaseConfig,
       inject: [ConfigService],
     }),
