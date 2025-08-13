@@ -86,7 +86,7 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
 
   // ✅ CAMBIO: Lógica actualizada según requerimientos
   const canCancel = election?.estado === 'activa'
-  const canDelete = election?.estado === 'cancelada' || election?.estado === 'finalizada' // ✅ AGREGADO: finalizadas también se pueden eliminar
+  const canDelete = true // ✅ CAMBIO: Siempre permitir eliminar, sin importar el estado
   const hasVotes = election?.total_votos_emitidos && election.total_votos_emitidos > 0
 
   const getStatusInfo = (estado: string) => {
@@ -288,44 +288,40 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
               </div>
             )}
 
-            {/* ✅ CAMBIO: Eliminar elección cancelada */}
             {canDelete && (
-              <div className="border border-red-200 rounded-lg p-4 bg-red-50">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-medium text-red-800">
-                      {election?.estado === 'cancelada' ? 'Eliminar Elección Cancelada' : 'Eliminar Elección Finalizada'}
-                    </h3>
-                    <p className="text-sm text-red-700 mt-1">
-                      Esta acción eliminará permanentemente la elección {election?.estado === 'cancelada' ? 'cancelada' : 'finalizada'} y todos sus datos asociados (candidatos, votos, votantes habilitados).
-                      <strong> Esta acción no se puede deshacer.</strong>
-                    </p>
-                    <p className="text-xs text-red-600 mt-2">
-                      ⚠️ {election?.estado === 'cancelada' 
-                        ? 'Solo se pueden eliminar elecciones que han sido canceladas previamente'
-                        : 'Las elecciones finalizadas pueden eliminarse si ya no se necesitan'
-                      }
-                    </p>
-                    {hasVotes && (
-                      <p className="text-xs text-red-600 mt-1">
-                        📊 Se eliminarán {election?.total_votos_emitidos} votos registrados
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowDeleteModal(true)}
-                    className="text-red-600 border-red-300 hover:bg-red-100"
-                    icon={<TrashIcon className="w-4 h-4" />}
-                    disabled={isProcessing}
-                  >
+            <div className="border border-red-200 rounded-lg p-4 bg-red-50">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-medium text-red-800">
                     Eliminar Elección
-                  </Button>
+                  </h3>
+                  <p className="text-sm text-red-700 mt-1">
+                    Esta acción eliminará permanentemente la elección y todos sus datos asociados 
+                    (candidatos, votos, votantes habilitados).
+                    <strong> Esta acción no se puede deshacer.</strong>
+                  </p>
+                  <p className="text-xs text-red-600 mt-2">
+                    ⚠️ Estado actual: <span className="font-medium">{election?.estado}</span>
+                  </p>
+                  {hasVotes && (
+                    <p className="text-xs text-red-600 mt-1">
+                      📊 Se eliminarán {election?.total_votos_emitidos} votos registrados
+                    </p>
+                  )}
                 </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteModal(true)}
+                  className="text-red-600 border-red-300 hover:bg-red-100"
+                  icon={<TrashIcon className="w-4 h-4" />}
+                  disabled={isProcessing}
+                >
+                  Eliminar Elección
+                </Button>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* ✅ CAMBIO: Información actualizada cuando no se pueden hacer acciones */}
             {!canCancel && !canDelete && (
               <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
                 <div className="flex items-start">
@@ -333,18 +329,8 @@ const ElectionSettings = ({ electionId, onBack }: ElectionSettingsProps) => {
                   <div>
                     <h3 className="font-medium text-blue-800">Estado Actual</h3>
                     <p className="text-sm text-blue-700 mt-1">
-                      {election?.estado === 'configuracion' && 
-                        'Esta elección está en configuración. Las acciones de gestión estarán disponibles cuando esté activa.'
-                      }
-                      {election?.estado === 'finalizada' && 
-                        'Esta elección ha finalizado. Puede ser eliminada si lo necesita.'
-                      }
-                      {election?.estado === 'activa' && !canCancel &&
-                        'Esta elección está activa pero no se puede cancelar en este momento.'
-                      }
-                      {election?.estado === 'cancelada' && !canDelete &&
-                        'Esta elección está cancelada. Puede ser eliminada si cumple con los requisitos.'
-                      }
+                      Esta elección está en estado "{election?.estado}". 
+                      Todas las acciones de gestión están disponibles según los permisos del usuario.
                     </p>
                   </div>
                 </div>

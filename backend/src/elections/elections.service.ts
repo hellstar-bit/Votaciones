@@ -179,21 +179,9 @@ export class ElectionsService {
     throw new ForbiddenException('No tiene permisos para eliminar esta elección');
   }
 
-  // ✅ CAMBIO: Permitir eliminar elecciones canceladas Y finalizadas
-  if (!['cancelada', 'finalizada'].includes(eleccion.estado)) {
-    return {
-      canDelete: false,
-      reason: 'Solo se pueden eliminar elecciones en estado cancelada o finalizada',
-      details: {
-        estado_actual: eleccion.estado,
-        estado_requerido: 'cancelada o finalizada',
-        votos_a_eliminar: 0,
-        candidatos_a_eliminar: 0,
-        votantes_a_eliminar: 0
-      }
-    };
-  }
-
+  // ✅ NUEVO: Permitir eliminar elecciones en CUALQUIER estado
+  // Eliminamos la restricción de estado
+  
   // Contar datos que se eliminarán
   const [totalVotos, totalCandidatos, totalVotantes] = await Promise.all([
     this.votoRepository.count({ where: { id_eleccion: id } }),

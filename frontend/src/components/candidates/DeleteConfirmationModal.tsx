@@ -62,28 +62,24 @@ const DeleteConfirmationModal = ({
 
   // ✅ FUNCIÓN HELPER: Determinar el título según el estado
   const getModalTitle = () => {
-    switch (election.estado) {
-      case 'cancelada':
-        return 'Eliminar Elección Cancelada'
-      case 'finalizada':
-        return 'Eliminar Elección Finalizada'
-      default:
-        return 'Eliminar Elección'
-    }
-  }
+  return `Eliminar Elección (${election.estado})`
+}
 
-  // ✅ FUNCIÓN HELPER: Mensaje contextual según el estado
-  const getContextualMessage = () => {
-    if (election.estado === 'finalizada') {
-      return (
-        <span className="block mt-2 text-xs text-gray-500">
-          Esta elección ya finalizó y todos sus resultados se conservaron. 
-          La eliminación es permanente y no se puede deshacer.
-        </span>
-      )
-    }
-    return null
+const getContextualMessage = () => {
+  const messages = {
+    'configuracion': 'Esta elección está en configuración. Se eliminarán todos los datos de configuración.',
+    'activa': 'Esta elección está activa. Se detendrá la votación y se eliminarán todos los datos.',
+    'finalizada': 'Esta elección finalizó. Se eliminarán todos los resultados y datos.',
+    'cancelada': 'Esta elección fue cancelada. Se eliminarán todos los datos asociados.'
   }
+  
+  return (
+    <span className="block mt-2 text-xs text-gray-500">
+      {messages[election.estado] || 'Se eliminarán todos los datos asociados.'}
+      {' '}La eliminación es permanente y no se puede deshacer.
+    </span>
+  )
+}
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
