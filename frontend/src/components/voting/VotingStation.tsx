@@ -178,57 +178,193 @@ const VotingStation = () => {
   try {
     setProcessing(true)
     
-    // ✅ Preparar datos para enviar al backend
-    let qrCodeData: string
+    console.log('🎯 Iniciando procesamiento de voto...')
+    console.log('📄 Datos escaneados:', scannedData)
+    console.log('🗳️ Elección seleccionada:', selectedElection?.id_eleccion)
+    console.log('👤 Candidato seleccionado:', selectedCandidate)
     
-    if (typeof scannedData === 'object' && scannedData !== null) {
-      qrCodeData = JSON.stringify(scannedData)
-    } else {
-      qrCodeData = scannedData?.toString() || ''
+    // ✅ FUNCIÓN HELPER PARA CONVERTIR A BASE64 (navegador)
+    const encodeToBase64 = (data: any) => {
+      try {
+        const jsonString = typeof data === 'string' ? data : JSON.stringify(data)
+        return btoa(unescape(encodeURIComponent(jsonString)))
+      } catch (error) {
+        console.error('❌ Error en encodeToBase64:', error)
+        throw new Error('Error codificando datos a base64')
+      }
     }
     
-    console.log('📤 Datos a enviar al backend:', {
-      qr_code: qrCodeData,
-      scannedData: scannedData
-    })
+    // ✅ FUNCIÓN HELPER PARA DECODIFICAR BASE64 (verificación)
+    const decodeFromBase64 = (base64String: string) => {
+      try {
+        const jsonString = decodeURIComponent(escape(atob(base64String)))
+        return JSON.parse(jsonString)
+      } catch (error) {
+        console.error('❌ Error en decodeFromBase64:', error)
+        return null
+      }
+    }
     
-    if (!qrCodeData) {
-      toast.error('No se pudo obtener los datos de identificación')
+    // ✅ PREPARAR DATOS SEGÚN EL MÉTODO DE IDENTIFICACIÓN
+    let qrCodeData: string
+    let finalData: any
+    
+    if (scannedData?.type === 'MANUAL_INPUT' || typeof scannedData === 'string') {
+      // Para ingreso manual, crear estructura JSON esperada por el backend
+      finalData = {
+        numero_documento: scannedData?.doc || scannedData?.numero_documento || scannedData,
+        type: 'MANUAL_INPUT',
+        timestamp: new Date().toISOString(),
+        persona_info: scannedData?.persona_info || {
+          nombre_completo: 'Votante',
+          documento: scannedData?.doc || scannedData?.numero_documento || scannedData
+        }
+      }
+      
+      console.log('📝 Datos preparados para ingreso manual:', finalData)
+      
+    } else if (scannedData?.type === 'ACCESUM_SENA_LEARNER') {
+      // Para QR del SENA, usar estructura específica
+      finalData = {
+        numero_documento: scannedData.doc || scannedData.numero_documento,
+        type: 'ACCESUM_SENA_LEARNER',
+        timestamp: new Date().toISOString(),
+        persona_info: scannedData.persona_info || {
+          nombre_completo: scannedData.nombre || 'Estudiante SENA',
+          documento: scannedData.doc || scannedData.numero_documento
+        },
+        // Mantener datos originales del QR SENA
+        ...scannedData
+      }
+      
+      console.log('🎓 Datos preparados para QR SENA:', finalData)
+      
+    } else if (typeof scannedData === 'object' && scannedData !== null) {
+      // Para otros tipos de QR o datos estructurados
+      finalData = {
+        ...scannedData,
+        numero_documento: scannedData.numero_documento || scannedData.doc,
+        timestamp: scannedData.timestamp || new Date().toISOString()
+      }
+      
+      console.log('📱 Datos preparados para QR genérico:', finalData)
+      
+    } else {
+      // Fallback para casos no previstos
+      const documento = scannedData?.toString() || ''
+      finalData = {
+        numero_documento: documento,
+        type: 'UNKNOWN',
+        timestamp: new Date().toISOString(),
+        persona_info: {
+          nombre_completo: 'Votante',
+          documento: documento
+        }
+      }
+      
+      console.log('⚠️ Datos preparados con fallback:', finalData)
+    }
+    
+    // ✅ VALIDAR QUE TENEMOS EL NÚMERO DE DOCUMENTO
+    if (!finalData.numero_documento) {
+      console.error('❌ No se encontró número de documento en los datos')
+      toast.error('No se pudo obtener el número de documento del votante')
       return
     }
     
+    // ✅ CONVERTIR A BASE64 COMO ESPERA EL BACKEND
+    qrCodeData = encodeToBase64(finalData)
+    console.log('📤 QR Code final (base64):', qrCodeData)
+    
+    // ✅ VERIFICAR QUE SE PUEDE DECODIFICAR CORRECTAMENTE
+    const testDecode = decodeFromBase64(qrCodeData)
+    console.log('🧪 Test de decodificación:', testDecode)
+    
+    if (!testDecode?.numero_documento) {
+      console.error('❌ Error en la verificación de decodificación')
+      toast.error('Error en el formato de los datos de identificación')
+      return
+    }
+    
+    // ✅ PREPARAR DATOS PARA EL API
     const voteData = {
       id_eleccion: selectedElection!.id_eleccion,
-      id_candidato: selectedCandidate,
+      id_candidato: selectedCandidate, // null para voto en blanco
       qr_code: qrCodeData
     }
     
-    console.log('📤 VoteData final:', voteData)
-
+    console.log('📤 VoteData final enviado al backend:', voteData)
+    
+    // ✅ ENVIAR VOTO AL BACKEND
     const result = await votesApi.cast(voteData)
+    console.log('✅ Respuesta del backend:', result)
     
     // ✅ AGREGAR INFORMACIÓN DEL VOTANTE AL RESULTADO
     const enhancedResult = {
       ...result,
       votante_info: {
-        nombre_completo: scannedData?.persona_info?.nombre_completo || 'Votante',
-        documento: scannedData?.doc || scannedData?.numero_documento,
-        metodo: scannedData?.type === 'MANUAL_INPUT' ? 'Ingreso Manual' : 
-                scannedData?.type === 'ACCESUM_SENA_LEARNER' ? 'QR SENA' : 
-                'QR'
+        nombre_completo: finalData.persona_info?.nombre_completo || 'Votante',
+        documento: finalData.numero_documento,
+        metodo: finalData.type === 'MANUAL_INPUT' ? 'Ingreso Manual' : 
+               finalData.type === 'ACCESUM_SENA_LEARNER' ? 'QR SENA' : 
+               finalData.type === 'DIRECT_INPUT' ? 'Entrada Directa' :
+               'QR Genérico'
       }
     }
     
+    // ✅ ACTUALIZAR ESTADO Y MOSTRAR ÉXITO
     setVoteResult(enhancedResult)
     setCurrentStep('success')
     
-    const nombreVotante = scannedData?.persona_info?.nombre_completo || 'Votante'
+    const nombreVotante = finalData.persona_info?.nombre_completo || 'Votante'
     toast.success(`¡Voto registrado exitosamente para ${nombreVotante}!`)
     
-  } catch (error) {
-    const errorMessage = handleApiError(error)
+    console.log('🎉 Voto procesado exitosamente')
+    
+  } catch (error: unknown) {
+    console.error('❌ Error completo registrando voto:', error)
+    
+    // Manejar errores específicos con type guards
+    let errorMessage = 'Error inesperado registrando el voto'
+    
+    // Type guard para errores de Axios
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as any
+      if (axiosError.response?.data?.message) {
+        errorMessage = axiosError.response.data.message
+      }
+    } 
+    // Type guard para errores normales
+    else if (error instanceof Error) {
+      errorMessage = error.message
+    } 
+    // Usar handleApiError como fallback
+    else {
+      errorMessage = handleApiError(error)
+    }
+    
     toast.error(`Error registrando voto: ${errorMessage}`)
-    console.error('❌ Error registrando voto:', error)
+    
+    // Log adicional para debug con type safety
+    if (error && typeof error === 'object' && 'response' in error) {
+      const axiosError = error as any
+      console.error('📋 Detalles del error:', {
+        status: axiosError.response?.status,
+        data: axiosError.response?.data,
+        message: axiosError.message,
+        scannedData: scannedData,
+        selectedElection: selectedElection?.id_eleccion,
+        selectedCandidate: selectedCandidate
+      })
+    } else {
+      console.error('📋 Error genérico:', {
+        error: error,
+        scannedData: scannedData,
+        selectedElection: selectedElection?.id_eleccion,
+        selectedCandidate: selectedCandidate
+      })
+    }
+    
   } finally {
     setProcessing(false)
   }
