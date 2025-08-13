@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { io, Socket } from 'socket.io-client'
 import {
   ArrowPathIcon,
-  SignalIcon,
   UsersIcon,
   ChartBarIcon,
   EyeIcon,
@@ -12,7 +11,8 @@ import {
   ClockIcon,
   TrophyIcon,
   BoltIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  ArrowTrendingUpIcon,
 } from '@heroicons/react/24/outline'
 import {
   ResponsiveContainer,
@@ -32,6 +32,8 @@ import { dashboardApi } from '../../services/api'
 import { useAuthStore } from '../../stores/authStore'
 import AdminLayout from '../../components/layout/AdminLayout'
 import toast from 'react-hot-toast'
+import VotersList from '../../components/dashboard/VotersList';
+
 
 // ✅ INTERFACES CORREGIDAS Y COMPLETAS
 interface ElectionStats {
@@ -101,9 +103,12 @@ const RealTimeDashboard = () => {
   const [selectedElection, setSelectedElection] = useState<ElectionStats | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [voteHistory, setVoteHistory] = useState<VoteHistoryEntry[]>([])
-  const [alerts, setAlerts] = useState<SystemAlert[]>([])
+  const [, setAlerts] = useState<SystemAlert[]>([])
   const [loading, setLoading] = useState(true)
   const [reconnectAttempts, setReconnectAttempts] = useState(0)
+  const [votersRefreshKey] = useState(0);
+  
+
 
   // Referencias
   const socketRef = useRef<Socket | null>(null)
@@ -638,299 +643,324 @@ const RealTimeDashboard = () => {
             </motion.div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* ✅ LISTA DE ELECCIONES */}
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="p-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                    <ChartBarIcon className="w-5 h-5 mr-2 text-teal-600" />
-                    Elecciones
-                  </h3>
-                </div>
-                <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
-                  {dashboardData.elections.length === 0 ? (
-                    <div className="p-6 text-center">
-                      <ClockIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-500">No hay elecciones disponibles</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2 p-4">
-                      {dashboardData.elections.map((election) => (
-                        <motion.div
-                          key={election.id}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                            selectedElection?.id === election.id
-                              ? 'border-teal-500 bg-teal-50'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                          onClick={() => handleElectionSelect(election)}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold text-gray-900 text-sm truncate">
-                              {election.titulo}
-                            </h4>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              election.estado === 'activa' 
-                                ? 'bg-green-100 text-green-800'
-                                : election.estado === 'finalizada'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {election.estado}
-                            </span>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-gray-600">Participación:</span>
-                              <span className="font-medium">
-                                {formatPercentage(election.estadisticas.participacion_porcentaje)}
-                              </span>
+          <div className="space-y-6">
+            {/* Fila superior: Elecciones + Panel principal */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* ✅ LISTA DE ELECCIONES */}
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                  <div className="p-4 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                      <ChartBarIcon className="w-5 h-5 mr-2 text-teal-600" />
+                      Elecciones
+                    </h3>
+                  </div>
+                  <div className="max-h-[calc(100vh-400px)] overflow-y-auto">
+                    {dashboardData.elections.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <ChartBarIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-sm text-gray-500">No hay elecciones disponibles</p>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-200">
+                        {dashboardData.elections.map((election) => (
+                          <motion.button
+                            key={election.id}
+                            whileHover={{ backgroundColor: '#f9fafb' }}
+                            onClick={() => handleElectionSelect(election)}
+                            className={`w-full p-4 text-left transition-colors ${
+                              selectedElection?.id === election.id 
+                                ? 'bg-teal-50 border-r-4 border-teal-500' 
+                                : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            <div className="space-y-2">
+                              <h4 className="font-medium text-gray-900 text-sm leading-tight">
+                                {election.titulo}
+                              </h4>
+                              <div className="flex items-center space-x-2">
+                                <span className={`px-2 py-1 text-xs rounded-full ${
+                                  election.estado === 'activa' 
+                                    ? 'bg-green-100 text-green-800'
+                                    : election.estado === 'finalizada'
+                                    ? 'bg-gray-100 text-gray-800'
+                                    : 'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {election.estado}
+                                </span>
+                              </div>
+                              <div className="text-xs text-gray-500 space-y-1">
+                                <div>📊 {election.estadisticas.total_votos} votos</div>
+                                <div>👥 {election.estadisticas.total_votantes_habilitados} habilitados</div>
+                                <div>📈 {election.estadisticas.participacion_porcentaje.toFixed(1)}%</div>
+                              </div>
                             </div>
-                            <div className="flex justify-between text-xs">
-                              <span className="text-gray-600">Votos:</span>
-                              <span className="font-medium">
-                                {election.estadisticas.total_votos} / {election.estadisticas.total_votantes_habilitados}
-                              </span>
+                          </motion.button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* ✅ PANEL PRINCIPAL DE ESTADÍSTICAS */}
+              <div className="lg:col-span-3">
+                {selectedElection ? (
+                  <>
+                    {/* Panel de detalles de la elección seleccionada */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
+                    >
+                      <div className="flex items-center justify-between mb-6">
+                        <div>
+                          <h2 className="text-xl font-bold text-gray-900">
+                            {selectedElection.titulo}
+                          </h2>
+                          <p className="text-gray-600 text-sm mt-1">
+                            {selectedElection.tipo_eleccion} • {selectedElection.estado}
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            selectedElection.estado === 'activa' 
+                              ? 'bg-green-100 text-green-800'
+                              : selectedElection.estado === 'finalizada'
+                              ? 'bg-gray-100 text-gray-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {selectedElection.estado}
+                          </span>
+                          <div className="text-sm text-gray-500">
+                            {formatTime(selectedElection.fecha_inicio)} - {formatTime(selectedElection.fecha_fin)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Estadísticas de la elección */}
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="text-center p-4 bg-blue-50 rounded-lg">
+                          <UsersIcon className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                          <div className="text-2xl font-bold text-blue-700">
+                            {selectedElection.estadisticas.total_votos}
+                          </div>
+                          <div className="text-sm text-blue-600">Votos Emitidos</div>
+                        </div>
+
+                        <div className="text-center p-4 bg-purple-50 rounded-lg">
+                          <EyeIcon className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                          <div className="text-2xl font-bold text-purple-700">
+                            {selectedElection.estadisticas.total_votantes_habilitados}
+                          </div>
+                          <div className="text-sm text-purple-600">Habilitados</div>
+                        </div>
+
+                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                          <TrophyIcon className="w-8 h-8 text-green-600 mx-auto mb-2" />
+                          <div className="text-2xl font-bold text-green-700">
+                            {formatPercentage(selectedElection.estadisticas.participacion_porcentaje)}
+                          </div>
+                          <div className="text-sm text-green-600">Participación</div>
+                        </div>
+
+                        <div className="text-center p-4 bg-orange-50 rounded-lg">
+                          <ClockIcon className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+                          <div className="text-2xl font-bold text-orange-700">
+                            {selectedElection.estadisticas.total_votantes_habilitados - selectedElection.estadisticas.total_votos}
+                          </div>
+                          <div className="text-sm text-orange-600">Pendientes</div>
+                        </div>
+                      </div>
+                    </motion.div>
+
+                    {/* Gráficos lado a lado */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Gráfico de participación en el tiempo */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+                      >
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                          <ArrowTrendingUpIcon className="w-5 h-5 mr-2 text-teal-600" />
+                          Participación en el Tiempo
+                        </h3>
+                        <div className="h-80">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={voteHistory}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                              <XAxis 
+                                dataKey="time" 
+                                tick={{ fill: '#6B7280', fontSize: 12 }}
+                                tickFormatter={(value) => new Date(value).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                              />
+                              <YAxis tick={{ fill: '#6B7280', fontSize: 12 }} />
+                              <Tooltip 
+                                formatter={(value, name) => [
+                                  name === 'votes' ? `${value} votos` : `${value}%`,
+                                  name === 'votes' ? 'Votos' : 'Participación'
+                                ]}
+                                labelFormatter={(value) => new Date(value).toLocaleTimeString('es-ES')}
+                                contentStyle={{
+                                  backgroundColor: '#fff',
+                                  border: '1px solid #E5E7EB',
+                                  borderRadius: '8px'
+                                }}
+                              />
+                              <Line 
+                                type="monotone" 
+                                dataKey="votes" 
+                                stroke="#0F766E" 
+                                strokeWidth={3}
+                                dot={{ fill: '#0F766E', strokeWidth: 2, r: 4 }}
+                                name="Votos"
+                              />
+                              <Line 
+                                type="monotone" 
+                                dataKey="participation" 
+                                stroke="#7C3AED" 
+                                strokeWidth={3}
+                                dot={{ fill: '#7C3AED', strokeWidth: 2, r: 4 }}
+                                name="Participación %"
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </motion.div>
+
+                      {/* Gráfico de distribución de votos */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-white rounded-lg shadow-sm border border-gray-200 p-6"
+                      >
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                          <TrophyIcon className="w-5 h-5 mr-2 text-teal-600" />
+                          Distribución de Votos
+                        </h3>
+                        {selectedElection.estadisticas.votos_por_candidato.length > 0 ? (
+                          <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie
+                                  data={formatDistributionData(selectedElection)}
+                                  cx="50%"
+                                  cy="50%"
+                                  labelLine={false}
+                                  label={({ name, percentage }) => `${name}: ${percentage.toFixed(1)}%`}
+                                  outerRadius={80}
+                                  fill="#8884d8"
+                                  dataKey="value"
+                                >
+                                  {formatDistributionData(selectedElection).map((_entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                  ))}
+                                </Pie>
+                                <Tooltip 
+                                  formatter={(value, _name, props) => [
+                                    `${value} votos (${props.payload.percentage.toFixed(1)}%)`,
+                                    props.payload.fullName
+                                  ]}
+                                  contentStyle={{
+                                    backgroundColor: '#fff',
+                                    border: '1px solid #E5E7EB',
+                                    borderRadius: '8px'
+                                  }}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                        ) : (
+                          <div className="h-80 flex items-center justify-center">
+                            <div className="text-center">
+                              <TrophyIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                              <p className="text-gray-500">No hay votos registrados aún</p>
                             </div>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                            <div 
-                              className="bg-teal-600 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${Math.min(100, election.estadisticas.participacion_porcentaje)}%` }}
-                            ></div>
-                          </div>
-                        </motion.div>
-                      ))}
+                        )}
+                      </motion.div>
                     </div>
-                  )}
-                </div>
+                  </>
+                ) : (
+                  /* Mensaje cuando no hay elección seleccionada */
+                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                    <ChartBarIcon className="w-20 h-20 text-gray-400 mx-auto mb-6" />
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      Selecciona una Elección
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      Elige una elección de la lista para ver estadísticas detalladas y monitoreo en tiempo real
+                    </p>
+                    {dashboardData.elections.length > 0 && (
+                      <button
+                        onClick={() => handleElectionSelect(dashboardData.elections[0])}
+                        className="bg-teal-600 text-white px-6 py-3 rounded-lg hover:bg-teal-700 transition-colors"
+                      >
+                        Ver Primera Elección
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* ✅ PANEL PRINCIPAL DE ESTADÍSTICAS */}
-            <div className="lg:col-span-3 space-y-6">
-              {selectedElection ? (
-                <>
-                  {/* Información de la elección seleccionada */}
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h2 className="text-xl font-bold text-gray-900">{selectedElection.titulo}</h2>
-                        <p className="text-gray-600">
-                          {new Date(selectedElection.fecha_inicio).toLocaleDateString()} - {new Date(selectedElection.fecha_fin).toLocaleDateString()}
-                        </p>
-                        {selectedElection.tipo_eleccion && (
-                          <p className="text-sm text-gray-500 mt-1">{selectedElection.tipo_eleccion}</p>
-                        )}
-                      </div>
-                      <span className={`px-4 py-2 rounded-full font-medium ${
-                        selectedElection.estado === 'activa' 
-                          ? 'bg-green-100 text-green-800'
-                          : selectedElection.estado === 'finalizada'
-                          ? 'bg-blue-100 text-blue-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {selectedElection.estado.toUpperCase()}
-                      </span>
-                    </div>
+            {/* ✅ FILA INFERIOR: Lista de votantes y actividad reciente */}
+            {selectedElection && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="grid grid-cols-1 lg:grid-cols-2 gap-6"
+              >
+                {/* Lista de votantes */}
+                <div className="h-96">
+                  <VotersList 
+                    electionId={selectedElection.id}
+                    electionTitle={selectedElection.titulo}
+                    refreshKey={votersRefreshKey}
+                  />
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="text-center p-4 bg-blue-50 rounded-lg">
-                        <p className="text-2xl font-bold text-blue-600">
-                          {selectedElection.estadisticas.total_votos}
-                        </p>
-                        <p className="text-blue-600 font-medium">Votos Emitidos</p>
-                      </div>
-                      <div className="text-center p-4 bg-purple-50 rounded-lg">
-                        <p className="text-2xl font-bold text-purple-600">
-                          {selectedElection.estadisticas.total_votantes_habilitados}
-                        </p>
-                        <p className="text-purple-600 font-medium">Votantes Habilitados</p>
-                      </div>
-                      <div className="text-center p-4 bg-green-50 rounded-lg">
-                        <p className="text-2xl font-bold text-green-600">
-                          {formatPercentage(selectedElection.estadisticas.participacion_porcentaje)}
-                        </p>
-                        <p className="text-green-600 font-medium">Participación</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Gráficos */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Tendencia de votos */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <SignalIcon className="w-5 h-5 mr-2 text-teal-600" />
-                        Tendencia de Participación
-                      </h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={voteHistory}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                          <XAxis 
-                            dataKey="time" 
-                            tick={{ fill: '#6B7280', fontSize: 12 }}
-                            axisLine={{ stroke: '#D1D5DB' }}
-                          />
-                          <YAxis 
-                            tick={{ fill: '#6B7280', fontSize: 12 }}
-                            axisLine={{ stroke: '#D1D5DB' }}
-                          />
-                          <Tooltip 
-                            contentStyle={{ 
-                              backgroundColor: 'white', 
-                              border: '1px solid #E5E7EB',
-                              borderRadius: '8px'
-                            }}
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="votes" 
-                            stroke="#0F766E" 
-                            strokeWidth={3}
-                            dot={{ fill: '#0F766E', strokeWidth: 2, r: 4 }}
-                            name="Votos"
-                          />
-                          <Line 
-                            type="monotone" 
-                            dataKey="participation" 
-                            stroke="#7C3AED" 
-                            strokeWidth={3}
-                            dot={{ fill: '#7C3AED', strokeWidth: 2, r: 4 }}
-                            name="Participación %"
-                          />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    {/* Distribución de votos por candidato */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <TrophyIcon className="w-5 h-5 mr-2 text-teal-600" />
-                        Distribución de Votos
-                      </h3>
-                      {selectedElection.estadisticas.votos_por_candidato.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={300}>
-                          <PieChart>
-                            <Pie
-                              data={formatDistributionData(selectedElection)}
-                              cx="50%"
-                              cy="50%"
-                              labelLine={false}
-                              label={({ name, percentage }) => 
-                                `${name}: ${Math.round(percentage)}%`
-                              }
-                              outerRadius={100}
-                              fill="#8884d8"
-                              dataKey="value"
-                            >
-                              {formatDistributionData(selectedElection).map((_entry, index) => (
-                                <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <Tooltip 
-                              contentStyle={{ 
-                                backgroundColor: 'white', 
-                                border: '1px solid #E5E7EB',
-                                borderRadius: '8px'
-                              }}
-                            />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      ) : (
-                        <div className="h-[300px] flex items-center justify-center">
-                          <div className="text-center">
-                            <ChartBarIcon className="w-16 h-16 text-gray-400 mx-auto mb-3" />
-                            <p className="text-gray-500">No hay votos registrados aún</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Resultados detallados */}
-                  {selectedElection.estadisticas.votos_por_candidato.length > 0 && (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <TrophyIcon className="w-5 h-5 mr-2 text-yellow-600" />
-                        {selectedElection.estado === 'finalizada' ? 'Resultados Finales' : 'Resultados Actuales'}
-                      </h3>
-                      <div className="space-y-3">
-                        {selectedElection.estadisticas.votos_por_candidato
-                          .sort((a, b) => b.votos - a.votos)
-                          .map((candidato, index) => (
-                            <div key={candidato.candidato_id} className="flex items-center justify-between p-4 rounded-lg bg-gray-50">
-                              <div className="flex items-center">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold mr-3 ${
-                                  index === 0 ? 'bg-yellow-500' :
-                                  index === 1 ? 'bg-gray-400' :
-                                  index === 2 ? 'bg-orange-400' : 'bg-gray-300'
-                                }`}>
-                                  {index + 1}
-                                </div>
-                                <div>
-                                  <p className="font-semibold text-gray-900">{candidato.candidato_nombre}</p>
-                                  <p className="text-sm text-gray-600">{candidato.votos} votos</p>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-lg font-bold text-gray-900">
-                                  {formatPercentage(candidato.porcentaje)}
-                                </p>
-                                <div className="w-24 bg-gray-200 rounded-full h-2 mt-1">
-                                  <div 
-                                    className="bg-teal-600 h-2 rounded-full transition-all duration-300"
-                                    style={{ width: `${Math.min(100, candidato.porcentaje)}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Actividad reciente de votación */}
-                  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <UsersIcon className="w-5 h-5 mr-2 text-teal-600" />
-                      Actividad Reciente de Votación
+                {/* Actividad reciente */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                  <div className="p-6 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                      <ClockIcon className="w-5 h-5 mr-2 text-teal-600" />
+                      Actividad Reciente
                     </h3>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
                     {dashboardData.recent_activity.length > 0 ? (
-                      <div className="space-y-3 max-h-80 overflow-y-auto">
+                      <div className="divide-y divide-gray-200">
                         <AnimatePresence>
                           {dashboardData.recent_activity.slice(0, 10).map((activity) => (
                             <motion.div
                               key={activity.id}
                               initial={{ opacity: 0, x: -20 }}
                               animate={{ opacity: 1, x: 0 }}
-                              exit={{ opacity: 0, x: -20 }}
-                              className="flex items-center justify-between p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                              exit={{ opacity: 0, x: 20 }}
+                              className="p-4 hover:bg-gray-50 transition-colors"
                             >
-                              <div className="flex items-center">
-                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                                  <CheckCircleIcon className="w-6 h-6 text-green-600" />
+                              <div className="flex items-start space-x-3">
+                                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <CheckCircleIcon className="w-4 h-4 text-green-600" />
                                 </div>
-                                <div>
-                                  <p className="font-medium text-gray-900">{activity.votante_nombre}</p>
-                                  <p className="text-sm text-gray-600">
-                                    Votó por: {activity.candidato_nombre}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm text-gray-900">
+                                    <span className="font-medium">{activity.votante_nombre}</span>
+                                    {' '}votó por{' '}
+                                    <span className="font-medium text-teal-600">{activity.candidato_nombre}</span>
                                   </p>
-                                  <p className="text-xs text-gray-500">{activity.eleccion_titulo}</p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {formatTime(activity.timestamp)} • {activity.eleccion_titulo}
+                                  </p>
                                 </div>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-sm font-medium text-gray-900">
-                                  {formatTime(activity.timestamp)}
-                                </p>
-                                <p className="text-xs text-gray-500">
+                                <div className="text-xs text-gray-400">
                                   {activity.metodo_identificacion === 'qr' ? 'QR SENA' : 
                                    activity.metodo_identificacion === 'manual' ? 'Manual' : 
                                    'Identificado'}
-                                </p>
+                                </div>
                               </div>
                             </motion.div>
                           ))}
@@ -943,125 +973,58 @@ const RealTimeDashboard = () => {
                       </div>
                     )}
                   </div>
-                </>
-              ) : (
-                /* Mensaje cuando no hay elección seleccionada */
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                  <ChartBarIcon className="w-20 h-20 text-gray-400 mx-auto mb-6" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Selecciona una Elección
-                  </h3>
-                  <p className="text-gray-600 mb-6">
-                    Elige una elección de la lista para ver estadísticas detalladas y monitoreo en tiempo real
-                  </p>
-                  {dashboardData.elections.length > 0 && (
-                    <button
-                      onClick={() => handleElectionSelect(dashboardData.elections[0])}
-                      className="bg-teal-600 text-white px-6 py-3 rounded-lg hover:bg-teal-700 transition-colors"
-                    >
-                      Ver Primera Elección
-                    </button>
-                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </motion.div>
+            )}
 
-          {/* Gráfico de participación global */}
-          {dashboardData.elections.length > 1 && (
-            <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <BarChart className="w-5 h-5 mr-2 text-teal-600" />
-                Participación por Elección
-              </h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={dashboardData.elections}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
-                  <XAxis 
-                    dataKey="titulo" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={100}
-                    tick={{ fill: '#6B7280', fontSize: 12 }}
-                  />
-                  <YAxis 
-                    tick={{ fill: '#6B7280', fontSize: 12 }}
-                    label={{ value: 'Participación (%)', angle: -90, position: 'insideLeft' }}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'white', 
-                      border: '1px solid #E5E7EB',
-                      borderRadius: '8px'
-                    }}
-                    formatter={(value: any) => [`${Math.round(value)}%`, 'Participación']}
-                  />
-                  <Bar 
-                    dataKey="estadisticas.participacion_porcentaje" 
-                    fill="#0F766E"
-                    name="Participación (%)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
-
-        {/* Alertas del sistema */}
-        <AnimatePresence>
-          {alerts.length > 0 && (
-            <div className="fixed bottom-4 right-4 space-y-2 z-50">
-              {alerts.slice(-3).map((alert) => (
-                <motion.div
-                  key={alert.id}
-                  initial={{ opacity: 0, scale: 0.8, x: 100 }}
-                  animate={{ opacity: 1, scale: 1, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.8, x: 100 }}
-                  className={`p-4 rounded-lg shadow-lg max-w-sm ${
-                    alert.type === 'error' ? 'bg-red-500 text-white' :
-                    alert.type === 'warning' ? 'bg-yellow-500 text-white' :
-                    alert.type === 'success' ? 'bg-green-500 text-white' :
-                    'bg-blue-500 text-white'
-                  }`}
-                >
-                  <div className="flex items-center">
-                    {alert.type === 'error' ? <ExclamationTriangleIcon className="w-5 h-5 mr-2" /> :
-                     alert.type === 'warning' ? <ExclamationTriangleIcon className="w-5 h-5 mr-2" /> :
-                     alert.type === 'success' ? <CheckCircleIcon className="w-5 h-5 mr-2" /> :
-                     <BoltIcon className="w-5 h-5 mr-2" />}
-                    <div>
-                      <p className="font-medium">{alert.message}</p>
-                      <p className="text-xs opacity-75">{formatTime(alert.time.toISOString())}</p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-        </AnimatePresence>
-
-        {/* Indicador de estado de conexión flotante */}
-        {!isConnected && (
-          <motion.div
-            initial={{ opacity: 0, y: 100 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="fixed bottom-4 left-4 bg-red-500 text-white p-4 rounded-lg shadow-lg z-50"
-          >
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-red-300 rounded-full mr-2 animate-pulse"></div>
-              <div>
-                <p className="font-medium">Conexión perdida</p>
-                {reconnectAttempts > 0 && (
-                  <p className="text-xs opacity-75">Reintentando... ({reconnectAttempts}/5)</p>
-                )}
+            {/* Gráfico de participación global */}
+            {dashboardData.elections.length > 1 && (
+              <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <BarChart className="w-5 h-5 mr-2 text-teal-600" />
+                  Participación por Elección
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={dashboardData.elections}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
+                    <XAxis 
+                      dataKey="titulo" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={100}
+                      tick={{ fill: '#6B7280', fontSize: 12 }}
+                    />
+                    <YAxis 
+                      tick={{ fill: '#6B7280', fontSize: 12 }}
+                      label={{ 
+                        value: 'Participación (%)', 
+                        angle: -90, 
+                        position: 'insideLeft',
+                        style: { textAnchor: 'middle', fill: '#6B7280' }
+                      }}
+                    />
+                    <Tooltip 
+                      formatter={(value) => [`${value}%`, 'Participación']}
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="estadisticas.participacion_porcentaje" 
+                      fill="#0F766E"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            </div>
-          </motion.div>
-        )}
+            )}
+          </div>
+        </div>
       </div>
     </AdminLayout>
   )
 }
 
-export default RealTimeDashboard
+export default RealTimeDashboard;

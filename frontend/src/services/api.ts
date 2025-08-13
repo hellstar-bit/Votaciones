@@ -619,15 +619,14 @@ export const electionsApi = {
     return response.data
   },
 
-  // Obtener elecciones activas
-  getActive: async (): Promise<Election[]> => {
-    const response = await api.get('/elections/active')
+  getById: async (id: number): Promise<Election> => {
+    const response = await api.get(`/elections/${id}`)
     return response.data
   },
 
-  // Obtener una elección específica
-  getById: async (id: number): Promise<Election> => {
-    const response = await api.get(`/elections/${id}`)
+  // Obtener elecciones activas
+  getActive: async (): Promise<Election[]> => {
+    const response = await api.get('/elections/active')
     return response.data
   },
 

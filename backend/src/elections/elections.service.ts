@@ -203,8 +203,8 @@ export class ElectionsService {
   async delete(id: number, userId: number) {
   const canDeleteResult = await this.canDeleteElection(id, userId);
   
-  if (!canDeleteResult.canDelete) {
-    throw new BadRequestException(canDeleteResult.reason);
+  if (!canDeleteResult.canDelete && canDeleteResult.hasOwnProperty('reason')) {
+    throw new BadRequestException((canDeleteResult as any).reason);
   }
 
   // ⭐ NUEVO: Obtener candidatos con sus fotos antes de borrarlos

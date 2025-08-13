@@ -17,7 +17,7 @@ import {
   PhotoIcon
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { candidatesApi, personasApi, fichasApi } from '../../services/api'
+import { candidatesApi, personasApi, fichasApi, electionsApi } from '../../services/api'
 import Button from '../ui/Button'
 import Input from '../ui/Input'
 
@@ -93,6 +93,8 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedFicha, setSelectedFicha] = useState<string>('all')
   const [selectedAprendiz, setSelectedAprendiz] = useState<Aprendiz | null>(null)
+  const [electionInfo, setElectionInfo] = useState<any>(null)
+
 
   // Estados para formulario manual
   const [manualForm, setManualForm] = useState<ManualCandidateForm>({
@@ -113,6 +115,7 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
 
   useEffect(() => {
   if (isOpen) {
+    loadElectionInfo()
     console.log('🎯 Modal abierto para elección:', electionId);
     console.log('🔧 URL de API configurada:', import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1');
     
@@ -162,6 +165,18 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
     setPhotoPreview(null)
     setUploadingPhoto(false)
   }
+
+  const loadElectionInfo = async () => {
+  try {
+    console.log('📋 Cargando información de la elección...')
+    const response = await electionsApi.getById(electionId)
+    setElectionInfo(response)
+    console.log('✅ Información de la elección cargada:', response)
+  } catch (error) {
+    console.error('❌ Error cargando información de la elección:', error)
+    toast.error('Error cargando información de la elección')
+  }
+}
 
   const loadAprendices = async () => {
     try {
@@ -310,16 +325,32 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
 
   // Filtrar aprendices
   const filteredAprendices = aprendices.filter(aprendiz => {
-    const matchesSearch = 
-      aprendiz.nombreCompleto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      aprendiz.numero_documento.includes(searchTerm) ||
-      aprendiz.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const matchesSearch = 
+    aprendiz.nombreCompleto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    aprendiz.numero_documento.includes(searchTerm) ||
+    aprendiz.email.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesFicha = selectedFicha === 'all' || 
+  // ✅ NUEVO: Filtro por ficha según el tipo de elección
+  let matchesFicha = true
+  
+  // Si es una elección de vocero de ficha, solo mostrar aprendices de esa ficha
+  if (electionInfo?.tipoEleccion?.nombre_tipo === 'VOCERO_FICHA' && electionInfo?.id_ficha) {
+    matchesFicha = aprendiz.ficha?.id_ficha === electionInfo.id_ficha
+    console.log(`🔍 Filtro VOCERO_FICHA activo:`, {
+      aprendiz: aprendiz.nombreCompleto,
+      aprendizFicha: aprendiz.ficha?.id_ficha,
+      electionFicha: electionInfo.id_ficha,
+      matches: matchesFicha
+    })
+  } else {
+    // Para otros tipos de elección, usar el filtro normal de ficha
+    matchesFicha = selectedFicha === 'all' || 
       aprendiz.ficha?.numero_ficha === selectedFicha
+  }
 
-    return matchesSearch && matchesFicha
-  })
+  return matchesSearch && matchesFicha
+})
+
 
   const validateForm = () => {
     console.log('🔍 Validando formulario...')
@@ -625,35 +656,42 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
   )
 
   const renderStepSearch = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-medium text-gray-900">
-            Buscar Aprendiz
-          </h3>
-          <p className="text-sm text-gray-500">
-            Seleccione un aprendiz de la base de datos
-          </p>
-        </div>
-        <Button
-          variant="ghost"
-          onClick={() => setStep('method')}
-          className="text-gray-500 hover:text-gray-700"
-        >
-          Volver
-        </Button>
+  <div className="space-y-6">
+    <div className="flex items-center justify-between">
+      <div>
+        <h3 className="text-lg font-medium text-gray-900">
+          Buscar Aprendiz
+        </h3>
+        <p className="text-sm text-gray-500">
+          {electionInfo?.tipoEleccion?.nombre_tipo === 'VOCERO_FICHA' && electionInfo?.ficha ? (
+            <>
+              Candidatos para <strong>Ficha {electionInfo.ficha.numero_ficha}</strong> - {electionInfo.ficha.nombre_programa}
+            </>
+          ) : (
+            'Seleccione un aprendiz de la base de datos'
+          )}
+        </p>
       </div>
+      <Button
+        variant="ghost"
+        onClick={() => setStep('method')}
+        className="text-gray-500 hover:text-gray-700"
+      >
+        Volver
+      </Button>
+    </div>
 
-      {/* Controles de búsqueda */}
       <div className="space-y-4">
-        <Input
-          placeholder="Buscar por nombre, documento o email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          icon={<MagnifyingGlassIcon className="w-5 h-5" />}
-          fullWidth
-        />
+      <Input
+        placeholder="Buscar por nombre, documento o email..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        icon={<MagnifyingGlassIcon className="w-5 h-5" />}
+        fullWidth
+      />
 
+      {/* Solo mostrar selector de ficha si NO es elección de vocero de ficha */}
+      {electionInfo?.tipoEleccion?.nombre_tipo !== 'VOCERO_FICHA' && (
         <select
           value={selectedFicha}
           onChange={(e) => setSelectedFicha(e.target.value)}
@@ -666,69 +704,98 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
             </option>
           ))}
         </select>
-      </div>
+      )}
+    </div>
 
-      {/* Lista de aprendices */}
-      <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="w-8 h-8 border-4 border-sena-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-sm text-gray-500">Cargando aprendices...</p>
-          </div>
-        ) : filteredAprendices.length > 0 ? (
-          <div className="divide-y divide-gray-200">
-            {filteredAprendices.map((aprendiz) => (
-              <motion.button
-                key={aprendiz.id_persona}
-                whileHover={{ backgroundColor: '#f9fafb' }}
-                onClick={() => {
-                  setSelectedAprendiz(aprendiz)
-                  setStep('confirm')
-                }}
-                className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                    <UserIcon className="w-5 h-5 text-gray-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="font-medium text-gray-900 truncate">
-                        {aprendiz.nombreCompleto}
-                      </p>
-                      {aprendiz.ficha && (
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getJornadaColor(aprendiz.ficha.jornada)}`}>
-                          {aprendiz.ficha.jornada}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-500 truncate">
-                      {aprendiz.numero_documento} • {aprendiz.email}
-                    </p>
-                    {aprendiz.ficha && (
-                      <p className="text-xs text-gray-400 truncate">
-                        Ficha {aprendiz.ficha.numero_ficha} - {aprendiz.ficha.nombre_programa}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </motion.button>
-            ))}
-          </div>
-        ) : (
-          <div className="p-8 text-center">
-            <UserIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-sm text-gray-500">
-              {searchTerm || selectedFicha !== 'all' 
-                ? 'No se encontraron aprendices con los filtros aplicados'
-                : 'No hay aprendices disponibles'
-              }
+    {/* ✅ CAMBIO 7: Mostrar información de filtro activo para vocero de ficha */}
+    {electionInfo?.tipoEleccion?.nombre_tipo === 'VOCERO_FICHA' && electionInfo?.ficha && (
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-center">
+          <AcademicCapIcon className="w-5 h-5 text-blue-600 mr-2" />
+          <div>
+            <p className="text-sm font-medium text-blue-800">
+              Filtro automático activo
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Solo se muestran aprendices de la Ficha {electionInfo.ficha.numero_ficha}
             </p>
           </div>
-        )}
+        </div>
       </div>
+    )}
+
+    {/* Lista de aprendices */}
+    <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-lg">
+      {loading ? (
+        <div className="p-8 text-center">
+          <div className="w-8 h-8 border-4 border-sena-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sm text-gray-500">Cargando aprendices...</p>
+        </div>
+      ) : filteredAprendices.length > 0 ? (
+        <div className="divide-y divide-gray-200">
+          {filteredAprendices.map((aprendiz) => (
+            <motion.button
+              key={aprendiz.id_persona}
+              whileHover={{ backgroundColor: '#f9fafb' }}
+              onClick={() => {
+                setSelectedAprendiz(aprendiz)
+                setStep('confirm')
+              }}
+              className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center space-x-4">
+                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                  <UserIcon className="w-5 h-5 text-gray-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-gray-900 truncate">
+                      {aprendiz.nombreCompleto}
+                    </p>
+                    {aprendiz.ficha && (
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getJornadaColor(aprendiz.ficha.jornada)}`}>
+                        {aprendiz.ficha.jornada}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500 truncate">
+                    {aprendiz.numero_documento} • {aprendiz.email}
+                  </p>
+                  {aprendiz.ficha && (
+                    <p className="text-xs text-gray-400 truncate">
+                      Ficha {aprendiz.ficha.numero_ficha} - {aprendiz.ficha.nombre_programa}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </motion.button>
+          ))}
+        </div>
+      ) : (
+        <div className="p-8 text-center">
+          <UserIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-sm text-gray-500">
+            {electionInfo?.tipoEleccion?.nombre_tipo === 'VOCERO_FICHA' ? (
+              <>
+                No se encontraron aprendices en la Ficha {electionInfo?.ficha?.numero_ficha}
+                {searchTerm && (
+                  <span className="block mt-1">que coincidan con "{searchTerm}"</span>
+                )}
+              </>
+            ) : (
+              <>
+                {searchTerm || selectedFicha !== 'all' 
+                  ? 'No se encontraron aprendices con esos filtros'
+                  : 'No hay aprendices registrados'
+                }
+              </>
+            )}
+          </p>
+        </div>
+      )}
     </div>
-  )
+  </div>
+)
 
   const renderStepManual = () => (
     <div className="space-y-6">
