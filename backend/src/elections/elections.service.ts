@@ -53,25 +53,6 @@ export class ElectionsService {
       throw new BadRequestException('La fecha de inicio debe ser anterior a la fecha de fin');
     }
 
-    // ✅ CAMBIO: Validación más flexible para permitir elecciones el mismo día
-    // Solo validar si la fecha de inicio ya pasó completamente
-    if (fechaInicio <= ahora) {
-      // Verificar si es el mismo día
-      const fechaInicioSolo = new Date(fechaInicio.getFullYear(), fechaInicio.getMonth(), fechaInicio.getDate());
-      const hoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
-      
-      if (fechaInicioSolo.getTime() === hoy.getTime()) {
-        // Es el mismo día, verificar que la hora no haya pasado mucho (permitir crear hasta 1 hora antes)
-        const horasHastaInicio = (fechaInicio.getTime() - ahora.getTime()) / (1000 * 60 * 60);
-        if (horasHastaInicio < -1) {
-          throw new BadRequestException('No se puede crear una elección con más de 1 hora de retraso en el mismo día');
-        }
-      } else {
-        // Es un día anterior, no permitir
-        throw new BadRequestException('La fecha de inicio no puede ser anterior a hoy');
-      }
-    }
-
     // Crear la elección
     const nuevaEleccion = this.eleccionRepository.create({
       ...electionData,
