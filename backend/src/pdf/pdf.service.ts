@@ -509,15 +509,48 @@ export class PdfService {
     `;
 }
   private async convertHtmlToPdf(htmlContent: string): Promise<Buffer> {
+  console.log('🔄 Iniciando conversión HTML a PDF en Render...')
+  
+  // ✅ CONFIGURACIÓN ESPECÍFICA PARA RENDER
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process', // Importante para Render
+      '--disable-gpu',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding',
+      '--disable-web-security',
+      '--disable-features=TranslateUI',
+      '--disable-ipc-flooding-protection',
+    ],
+    // ✅ CONFIGURACIÓN PARA RENDER - usar Chrome instalado por el sistema
+    executablePath: process.env.CHROME_BIN || 
+                   '/usr/bin/google-chrome-stable' || 
+                   '/usr/bin/google-chrome' || 
+                   '/usr/bin/chromium-browser' || 
+                   undefined,
   });
 
   try {
+    console.log('✅ Browser lanzado exitosamente')
     const page = await browser.newPage();
-    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    
+    // Configurar el viewport para PDF
+    await page.setViewport({ width: 1200, height: 800 });
+    
+    await page.setContent(htmlContent, { 
+      waitUntil: 'networkidle0',
+      timeout: 30000 
+    });
 
+    console.log('📄 Generando PDF...')
     const pdfUint8Array = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -527,13 +560,19 @@ export class PdfService {
         bottom: '20px',
         left: '20px',
       },
+      timeout: 30000,
     });
 
-    // ✅ CONVERSIÓN DE Uint8Array A Buffer
     const pdfBuffer = Buffer.from(pdfUint8Array);
+    console.log('✅ PDF generado exitosamente, tamaño:', pdfBuffer.length, 'bytes')
+    
     return pdfBuffer;
 
+  } catch (error) {
+    console.error('❌ Error en la conversión HTML a PDF:', error)
+    throw error
   } finally {
     await browser.close();
+    console.log('🔒 Browser cerrado')
   }
 }}

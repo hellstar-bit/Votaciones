@@ -6,6 +6,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
+    "postinstall": "npx puppeteer browsers install chrome || echo 'Chrome installation failed, continuing...'",
     "build": "nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
