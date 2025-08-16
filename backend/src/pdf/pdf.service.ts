@@ -10,6 +10,7 @@ import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 import * as fs from 'fs';
 import * as path from 'path';
 import puppeteer from 'puppeteer';
+
 @Injectable()
 export class PdfService {
   constructor(
@@ -36,7 +37,6 @@ export class PdfService {
 
   private async getSenaLogoBase64(): Promise<string> {
     try {
-      // Intentar cargar el SVG desde diferentes ubicaciones
       const possiblePaths = [
         path.join(process.cwd(), 'public', 'sena.svg'),
         path.join(process.cwd(), 'dist', 'public', 'sena.svg'),
@@ -61,9 +61,48 @@ export class PdfService {
       return this.getDefaultSenaLogo();
     }
   }
-  
 
-   async generateActaEleccion(electionId: number, instructorName: string): Promise<Buffer> {
+  // ✅ DETECTAR CHROME AUTOMÁTICAMENTE
+  private async detectChromePath(): Promise<string | null> {
+    const possiblePaths = [
+      // Render.com paths
+      '/opt/render/.cache/puppeteer/chrome/linux-139.0.7258.68/chrome-linux64/chrome',
+      '/opt/render/.cache/puppeteer/chrome/chrome',
+      
+      // Standard Linux paths
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium',
+      
+      // Environment variables
+      process.env.PUPPETEER_EXECUTABLE_PATH,
+      process.env.CHROME_BIN,
+    ].filter(Boolean);
+
+    for (const chromePath of possiblePaths) {
+      try {
+        if (fs.existsSync(chromePath)) {
+          // Verificar que es ejecutable
+          await fs.promises.access(chromePath, fs.constants.X_OK);
+          console.log(`✅ Chrome ejecutable encontrado: ${chromePath}`);
+          return chromePath;
+        }
+      } catch (error) {
+        console.log(`❌ Chrome no ejecutable: ${chromePath}`);
+        continue;
+      }
+    }
+
+    console.warn('⚠️ No se encontró Chrome en ninguna ubicación estándar');
+    return null;
+  }
+
+  async generateActaEleccion(electionId: number, instructorName: string): Promise<Buffer> {
+    console.log('🎯 === GENERANDO ACTA DE ELECCIÓN ===');
+    console.log('Election ID:', electionId);
+    console.log('Instructor:', instructorName);
+
     // 1. Obtener datos de la elección
     const eleccion = await this.eleccionRepository.findOne({
       where: { id_eleccion: electionId },
@@ -81,7 +120,7 @@ export class PdfService {
     // 2. Obtener estadísticas de la elección
     const stats = await this.getElectionStatsForActa(electionId);
 
-    // 3. Generar HTML del acta (ahora es async)
+    // 3. Generar HTML del acta
     const htmlContent = await this.generateActaHTML(eleccion, stats, instructorName);
 
     // 4. Convertir HTML a PDF
@@ -121,57 +160,53 @@ export class PdfService {
     };
   }
 
-  async generateActaHTML(eleccion: any, stats: any, instructorName: string): Promise<string> {
-  // Formatear fechas
-  const fechaActual = new Date().toLocaleDateString('es-CO', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
+  private async generateActaHTML(eleccion: any, stats: any, instructorName: string): Promise<string> {
+    // Formatear fechas
+    const fechaActual = new Date().toLocaleDateString('es-CO', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
 
-  const fechaInicio = new Date(eleccion.fecha_inicio).toLocaleDateString('es-CO', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
+    const fechaInicio = new Date(eleccion.fecha_inicio).toLocaleDateString('es-CO', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
 
-  const fechaFin = new Date(eleccion.fecha_fin).toLocaleDateString('es-CO', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
+    const fechaFin = new Date(eleccion.fecha_fin).toLocaleDateString('es-CO', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
 
-  // ✅ Hora actual en formato HH:MM
-  const horaActual = new Date().toLocaleTimeString('es-CO', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false // Formato 24 horas
-  });
+    const horaActual = new Date().toLocaleTimeString('es-CO', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
 
-  // ✅ Lugar siempre fijo
-  const lugar = 'Centro Nacional Colombo Alemán; Bienestar al aprendiz';
+    const lugar = 'Centro Nacional Colombo Alemán; Bienestar al aprendiz';
+    const tema = 'ELECCIÓN DE LÍDER';
 
-  // ✅ Tema siempre "ELECCIÓN DE LÍDER"
-  const tema = 'ELECCIÓN DE LÍDER';
+    // Obtener nombre del programa de formación
+    let nombrePrograma = 'Programa de Formación';
+    if (eleccion.ficha?.nombre_programa) {
+      nombrePrograma = eleccion.ficha.nombre_programa.toUpperCase();
+    } else if (eleccion.sede?.nombre_sede) {
+      nombrePrograma = eleccion.sede.nombre_sede.toUpperCase();
+    } else if (eleccion.centro?.nombre_centro) {
+      nombrePrograma = eleccion.centro.nombre_centro.toUpperCase();
+    }
 
-  // ✅ Obtener nombre del programa de formación
-  let nombrePrograma = 'Programa de Formación';
-  if (eleccion.ficha?.nombre_programa) {
-    nombrePrograma = eleccion.ficha.nombre_programa.toUpperCase();
-  } else if (eleccion.sede?.nombre_sede) {
-    nombrePrograma = eleccion.sede.nombre_sede.toUpperCase();
-  } else if (eleccion.centro?.nombre_centro) {
-    nombrePrograma = eleccion.centro.nombre_centro.toUpperCase();
-  }
+    // Información del ganador
+    const ganador = stats.ganador;
+    const nombreGanador = ganador ? `${ganador.persona.nombres} ${ganador.persona.apellidos}` : '';
+    const documentoGanador = ganador ? ganador.persona.numero_documento : '';
+    const emailGanador = ganador ? ganador.persona.email : '';
+    const telefonoGanador = ganador ? ganador.persona.telefono : '';
 
-  // Información del ganador
-  const ganador = stats.ganador;
-  const nombreGanador = ganador ? `${ganador.persona.nombres} ${ganador.persona.apellidos}` : '';
-  const documentoGanador = ganador ? ganador.persona.numero_documento : '';
-  const emailGanador = ganador ? ganador.persona.email : '';
-  const telefonoGanador = ganador ? ganador.persona.telefono : '';
-
-  return `
+    return `
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -193,7 +228,7 @@ export class PdfService {
             border: 2px solid black;
         }
         
-        /* ENCABEZADO EXACTO */
+        /* ENCABEZADO */
         .header {
             border-bottom: 2px solid black;
             padding: 8px;
@@ -237,6 +272,17 @@ export class PdfService {
             align-self: center;
         }
 
+        /* SALTO DE PÁGINA */
+        .page-break {
+            page-break-before: always;
+        }
+        .page-footer {
+            text-align: center;
+            font-size: 9px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
         /* SECCIONES */
         .section {
             border-bottom: 2px solid black;
@@ -270,7 +316,7 @@ export class PdfService {
             width: 120px;
         }
 
-        /* TABLA DE ASISTENTES - PÁGINA 2 */
+        /* TABLA DE ASISTENTES */
         .asistentes-table {
             width: 100%;
             border-collapse: collapse;
@@ -293,75 +339,39 @@ export class PdfService {
             vertical-align: middle;
         }
 
-        /* OBJETIVO */
+        /* OBJETIVO Y DESARROLLO */
         .objetivo-text {
             text-align: justify;
             line-height: 1.2;
             margin: 8px 0;
         }
-
-        /* DESARROLLO */
         .desarrollo-text {
             margin: 8px 0;
             line-height: 1.3;
         }
-        .filled-field {
-            border-bottom: 1px solid black;
-            display: inline-block;
-            min-width: 80px;
-            height: 12px;
-            margin: 0 3px;
-            text-align: center;
-            font-weight: bold;
-        }
-
-        /* REQUISITOS */
-        .requisitos-list {
-            margin: 8px 0;
-            padding-left: 15px;
-        }
-        .requisitos-list li {
-            margin-bottom: 6px;
-            text-align: justify;
-            line-height: 1.2;
-        }
 
         /* FIRMAS */
         .firmas-section {
-            margin-top: 30px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            justify-content: space-around;
+            margin-top: 30px;
+            padding: 20px 0;
         }
         .firma-box {
             text-align: center;
-            width: 250px;
+            width: 200px;
         }
         .firma-line {
-            border-bottom: 2px solid black;
-            height: 2px;
+            border-bottom: 1px solid black;
             margin-bottom: 5px;
-        }
-
-        /* PÁGINA */
-        .page-footer {
-            text-align: right;
-            margin-top: 15px;
-            font-size: 9px;
-            font-weight: bold;
-        }
-
-        /* SALTO DE PÁGINA */
-        .page-break {
-            page-break-before: always;
+            height: 30px;
         }
     </style>
 </head>
 <body>
     <!-- ========== PÁGINA 1 ========== -->
     <div class="container">
-        
-        <!-- ENCABEZADO EXACTO -->
+        <!-- ENCABEZADO -->
         <div class="header">
             <div class="sena-logo">
                 <img src="data:image/svg+xml;base64,${await this.getSenaLogoBase64()}" class="sena-svg" alt="SENA Logo" />
@@ -373,77 +383,116 @@ export class PdfService {
             <div class="acta-numero">ACTA N° </div>
         </div>
 
-        <!-- ELECCIÓN DE LÍDER -->
+        <!-- INFORMACIÓN GENERAL -->
         <div class="section">
-            <div class="section-title">ELECCIÓN DE LÍDER</div>
+            <div class="section-title">INFORMACIÓN GENERAL</div>
             <div class="section-content">
                 <table class="info-table">
                     <tr>
-                        <td class="info-label">CIUDAD Y FECHA:</td>
-                        <td style="width: 300px;">Barranquilla, ${fechaActual}</td>
-                        <td class="info-label">FECHA DE INICIO:</td>
-                        <td style="width: 120px;">${fechaInicio}</td>
-                        <td class="info-label">FECHA DE TERMINACIÓN:</td>
-                        <td style="width: 120px;">${fechaFin}</td>
+                        <td class="info-label">Fecha:</td>
+                        <td><strong>${fechaActual}</strong></td>
+                        <td class="info-label">Hora:</td>
+                        <td><strong>${horaActual}</strong></td>
                     </tr>
                     <tr>
-                        <td class="info-label">LUGAR:</td>
-                        <td colspan="5">${lugar}</td>
+                        <td class="info-label">Lugar:</td>
+                        <td colspan="3"><strong>${lugar}</strong></td>
                     </tr>
                     <tr>
-                        <td class="info-label">TEMA:</td>
-                        <td colspan="5">${tema}</td>
+                        <td class="info-label">Tema:</td>
+                        <td colspan="3"><strong>${tema}</strong></td>
                     </tr>
                 </table>
-                
-                <div style="margin-top: 12px;">
-                    <strong>OBJETIVO DE LA REUNIÓN:</strong>
-                    <div class="objetivo-text">
-                        Aplicar el artículo 45 del Capítulo XII del Reglamento del Aprendiz SENA, donde se pide la elección de los Voceros de Programas teniendo en cuenta su capacidad de trabajo en equipo, colaboración, manejo de la información, liderazgo, polivalencia, iniciativa y actitudes que beneficien el desarrollo del Programa de Formación y de la Comunidad Educativa.
-                    </div>
+            </div>
+        </div>
+
+        <!-- OBJETIVO -->
+        <div class="section">
+            <div class="section-title">OBJETIVO</div>
+            <div class="section-content">
+                <div class="objetivo-text">
+                    Llevar a cabo la elección de líder estudiantil para el programa de formación 
+                    <strong>${nombrePrograma}</strong>, garantizando un proceso democrático, 
+                    transparente y participativo que permita la selección del candidato más idóneo 
+                    para representar los intereses y necesidades de los aprendices.
                 </div>
             </div>
         </div>
 
-        <!-- DESARROLLO DE LA REUNIÓN -->
+        <!-- DESARROLLO -->
         <div class="section">
-            <div class="section-title">DESARROLLO DE LA REUNIÓN</div>
+            <div class="section-title">DESARROLLO</div>
             <div class="section-content">
-                <div style="margin-bottom: 8px;">
-                    <strong>VERIFICACIÓN DE QUÓRUM:</strong>
-                </div>
                 <div class="desarrollo-text">
-                    Siendo las <span class="filled-field">${horaActual}</span> del día <span class="filled-field">${fechaActual}</span>, se reunieron el Instructor <span class="filled-field">${instructorName}</span> y los (<span class="filled-field">${stats.totalVotantes}</span>) Aprendices del Programa <span class="filled-field">${nombrePrograma}</span> de la ficha <span class="filled-field">${eleccion.ficha?.numero_ficha || 'N/A'}</span> para realizar la elección de líder (X) o la ratificación del líder ( ).
+                    <strong>1. Apertura de la jornada electoral:</strong> El proceso electoral se llevó a cabo 
+                    del ${fechaInicio} al ${fechaFin}, utilizando el sistema de votación electrónica del SENA.
+                    <br><br>
+                    <strong>2. Participación:</strong> De un total de <strong>${stats.totalVotantes}</strong> 
+                    aprendices habilitados para votar, participaron <strong>${stats.totalVotos}</strong> 
+                    aprendices, representando una participación del <strong>${stats.porcentajeParticipacion.toFixed(1)}%</strong>.
+                    <br><br>
+                    <strong>3. Resultados:</strong> Se registraron <strong>${stats.votosBlanco}</strong> 
+                    votos en blanco. El candidato elegido obtuvo la mayoría de votos válidos.
+                    <br><br>
+                    <strong>4. Validación:</strong> El proceso fue supervisado por el instructor 
+                    <strong>${instructorName}</strong> y el equipo de Bienestar al Aprendiz.
                 </div>
             </div>
         </div>
 
-        <!-- REQUISITOS Y CONDICIONES -->
+        <!-- CANDIDATO ELEGIDO -->
         <div class="section">
-            <div class="section-title">REQUISITOS Y CONDICIONES PARA SER VOCEROS DE PROGRAMA</div>
+            <div class="section-title">CANDIDATO ELEGIDO</div>
             <div class="section-content">
-                <ol type="a" class="requisitos-list">
-                    <li>Ser postulado por los aprendices del mismo Programa.</li>
-                    <li>Tener disponibilidad para trabajar en equipo con los representantes de Centro y demás integrantes de la comunidad educativa se requiere.</li>
-                    <li>Conocer y aplicar los temas de la inducción y demostrar interés por su cumplimiento a nivel personal y grupal.</li>
-                    <li>Actuar de acuerdo con lo estipulado en el presente Reglamento y tener buenas relaciones interpersonales con los integrantes de la Comunidad Educativa.</li>
-                    <li>Tener cualidades y capacidades de líder y una actitud crítica y constructiva.</li>
-                    <li>Cumplir con las responsabilidades como vocero de programa sin descuidar las obligaciones del proceso de aprendizaje</li>
-                </ol>
+                <table class="info-table">
+                    <tr>
+                        <td class="info-label">Nombre Completo:</td>
+                        <td><strong>${nombreGanador}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="info-label">Documento:</td>
+                        <td><strong>${documentoGanador}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="info-label">Email:</td>
+                        <td><strong>${emailGanador}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="info-label">Teléfono:</td>
+                        <td><strong>${telefonoGanador}</strong></td>
+                    </tr>
+                </table>
             </div>
         </div>
 
-        <!-- CONCLUSIONES -->
-        <div class="section" style="border-bottom: none;">
-            <div class="section-title">CONCLUSIONES</div>
+        <!-- COMPROMISOS -->
+        <div class="section">
+            <div class="section-title">COMPROMISOS DEL LÍDER ELEGIDO</div>
             <div class="section-content">
-                <div style="margin: 25px 0; line-height: 1.5; text-align: justify;">
-                    Fue elegido el aprendiz <strong>${nombreGanador}</strong> con el D.I <strong>${documentoGanador}</strong> correo electrónico <strong>${emailGanador}</strong> número de teléfono <strong>${telefonoGanador}</strong>
+                <div class="desarrollo-text">
+                    El líder elegido se compromete a:
+                    <br>• Representar dignamente a sus compañeros aprendices
+                    <br>• Promover la participación activa en las actividades formativas
+                    <br>• Servir como canal de comunicación entre aprendices e instructores
+                    <br>• Fomentar el trabajo en equipo y la colaboración
+                    <br>• Apoyar las iniciativas de mejora continua del programa
                 </div>
+            </div>
+        </div>
+
+        <!-- FIRMAS -->
+        <div class="firmas-section">
+            <div class="firma-box">
+                <div class="firma-line"></div>
+                <div style="font-weight: bold; font-size: 11px;">Firma Instructor</div>
+            </div>
+            <div class="firma-box">
+                <div class="firma-line"></div>
+                <div style="font-weight: bold; font-size: 11px;">Bienestar al Aprendiz</div>
             </div>
         </div>
     </div>
-    
+
     <div class="page-footer">
         Página 1 de 2
     </div>
@@ -508,17 +557,22 @@ export class PdfService {
 </body>
 </html>
     `;
-}
+  }
+
   private async convertHtmlToPdf(htmlContent: string): Promise<Buffer> {
-    console.log('🔄 Iniciando conversión HTML a PDF con Puppeteer estándar...')
+    console.log('🔄 Iniciando conversión HTML a PDF...');
     
     let browser = null;
     
     try {
-      // ✅ CONFIGURACIÓN OPTIMIZADA PARA RENDER
-      browser = await puppeteer.launch({
+      // Detectar Chrome automáticamente
+      const chromePath = await this.detectChromePath();
+      
+      const browserConfig: any = {
         headless: true,
+        timeout: 60000, // Aumentar timeout a 60 segundos
         args: [
+          // Argumentos esenciales para entornos containerizados
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
@@ -527,13 +581,18 @@ export class PdfService {
           '--no-zygote',
           '--single-process',
           '--disable-gpu',
+          
+          // Optimizaciones de memoria y rendimiento
+          '--memory-pressure-off',
+          '--max_old_space_size=4096',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
           '--disable-renderer-backgrounding',
           '--disable-web-security',
           '--disable-features=TranslateUI',
           '--disable-ipc-flooding-protection',
-          '--memory-pressure-off',
+          
+          // Configuraciones adicionales para estabilidad
           '--disable-default-apps',
           '--disable-extensions',
           '--disable-plugins',
@@ -541,26 +600,45 @@ export class PdfService {
           '--hide-scrollbars',
           '--mute-audio',
           '--no-default-browser-check',
-          '--no-first-run'
+          '--disable-background-networking',
+          '--disable-component-update',
+          '--disable-domain-reliability',
+          '--disable-features=VizDisplayCompositor',
         ],
-        timeout: 30000,
         defaultViewport: { width: 1200, height: 800 },
+      };
+
+      // Si encontramos Chrome, usarlo
+      if (chromePath) {
+        browserConfig.executablePath = chromePath;
+      }
+
+      console.log('🚀 Configuración del browser:', {
+        executablePath: chromePath || 'bundled',
+        headless: true,
+        platform: process.platform,
+        arch: process.arch
       });
 
-      console.log('✅ Browser Puppeteer lanzado exitosamente')
+      browser = await puppeteer.launch(browserConfig);
+      console.log('✅ Browser Puppeteer lanzado exitosamente');
       
       const page = await browser.newPage();
       
       // Configurar el viewport para PDF
       await page.setViewport({ width: 1200, height: 800 });
       
-      console.log('📄 Configurando contenido HTML...')
+      // Configurar timeouts extendidos
+      page.setDefaultTimeout(60000);
+      page.setDefaultNavigationTimeout(60000);
+      
+      console.log('📄 Configurando contenido HTML...');
       await page.setContent(htmlContent, { 
         waitUntil: 'networkidle0',
-        timeout: 30000 
+        timeout: 60000 
       });
 
-      console.log('📄 Generando PDF...')
+      console.log('📄 Generando PDF...');
       const pdfUint8Array = await page.pdf({
         format: 'A4',
         printBackground: true,
@@ -570,26 +648,47 @@ export class PdfService {
           bottom: '20px',
           left: '20px',
         },
-        timeout: 30000,
+        timeout: 60000,
         preferCSSPageSize: true
       });
 
       const pdfBuffer = Buffer.from(pdfUint8Array);
-      console.log('✅ PDF generado exitosamente, tamaño:', pdfBuffer.length, 'bytes')
+      console.log('✅ PDF generado exitosamente, tamaño:', pdfBuffer.length, 'bytes');
       
       return pdfBuffer;
 
     } catch (error) {
-      console.error('❌ Error en la conversión HTML a PDF:', error)
-      console.error('Error stack:', error.stack)
-      throw new Error(`Error generando PDF: ${error.message}`)
+      console.error('❌ Error en la conversión HTML a PDF:', error);
+      console.error('Error stack:', error.stack);
+      
+      // Información adicional para debugging
+      console.error('Environment info:');
+      console.error('- NODE_ENV:', process.env.NODE_ENV);
+      console.error('- Platform:', process.platform);
+      console.error('- Architecture:', process.arch);
+      console.error('- Puppeteer cache:', process.env.PUPPETEER_CACHE_DIR || '/opt/render/.cache/puppeteer');
+      
+      // Verificar si existen los directorios de Chrome
+      const cacheDir = '/opt/render/.cache/puppeteer';
+      if (fs.existsSync(cacheDir)) {
+        try {
+          const contents = fs.readdirSync(cacheDir, { recursive: true });
+          console.error('- Cache contents:', contents.slice(0, 10)); // Primeros 10 elementos
+        } catch (readError) {
+          console.error('- Cannot read cache dir:', readError.message);
+        }
+      } else {
+        console.error('- Cache directory does not exist:', cacheDir);
+      }
+      
+      throw new Error(`Error generando PDF: ${error.message}`);
     } finally {
       if (browser) {
         try {
           await browser.close();
-          console.log('🔒 Browser cerrado')
+          console.log('🔒 Browser cerrado');
         } catch (closeError) {
-          console.error('⚠️ Error cerrando browser:', closeError)
+          console.error('⚠️ Error cerrando browser:', closeError);
         }
       }
     }
