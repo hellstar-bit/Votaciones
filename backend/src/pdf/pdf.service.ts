@@ -26,10 +26,10 @@ export class PdfService {
 
   private getDefaultSenaLogo(): string {
     const defaultSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60">
-      <rect width="100" height="60" fill="white" stroke="black" stroke-width="2"/>
-      <circle cx="50" cy="20" r="8" fill="black"/>
-      <text x="50" y="35" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold">SENA</text>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" width="100" height="60">
+      <rect width="98" height="58" x="1" y="1" fill="white" stroke="black" stroke-width="2"/>
+      <circle cx="50" cy="25" r="10" fill="black"/>
+      <text x="50" y="45" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-weight="bold" fill="black">SENA</text>
     </svg>`;
     
     return Buffer.from(defaultSvg).toString('base64');
@@ -37,31 +37,33 @@ export class PdfService {
 
   private async getSenaLogoBase64(): Promise<string> {
     try {
-      // Ruta al archivo SVG en la carpeta public
-      const svgPath = path.join(process.cwd(), 'public', 'sena.svg');
-      
-      // Verificar si el archivo existe
-      if (!fs.existsSync(svgPath)) {
-        console.warn('❌ No se encontró el archivo sena.svg en public/, usando logo por defecto');
-        // SVG por defecto si no existe el archivo
-        return this.getDefaultSenaLogo();
+      // Intentar múltiples rutas posibles
+      const possiblePaths = [
+        path.join(process.cwd(), 'public', 'sena.svg'),
+        path.join(process.cwd(), 'dist', 'public', 'sena.svg'),
+        path.join(__dirname, '..', '..', 'public', 'sena.svg'),
+        path.join(__dirname, '..', '..', '..', 'public', 'sena.svg'),
+      ];
+
+      for (const svgPath of possiblePaths) {
+        if (fs.existsSync(svgPath)) {
+          const svgContent = fs.readFileSync(svgPath, 'utf8');
+          const base64 = Buffer.from(svgContent).toString('base64');
+          console.log(`✅ Logo SENA cargado desde: ${svgPath}`);
+          return base64;
+        }
       }
       
-      // Leer el archivo SVG
-      const svgContent = fs.readFileSync(svgPath, 'utf8');
-      
-      // Convertir a base64
-      const base64 = Buffer.from(svgContent).toString('base64');
-      
-      console.log('✅ Logo SENA cargado desde public/sena.svg');
-      return base64;
+      console.warn('⚠️ No se encontró sena.svg en ninguna ubicación, usando logo por defecto');
+      console.log('📁 Rutas intentadas:', possiblePaths);
+      return this.getDefaultSenaLogo();
       
     } catch (error) {
       console.error('❌ Error cargando logo SENA:', error);
-      // Fallback al logo por defecto
       return this.getDefaultSenaLogo();
     }
   }
+  
 
    async generateActaEleccion(electionId: number, instructorName: string): Promise<Buffer> {
     // 1. Obtener datos de la elección
@@ -510,30 +512,84 @@ export class PdfService {
     `;
 }
   private async convertHtmlToPdf(htmlContent: string): Promise<Buffer> {
-    console.log('🔄 Iniciando conversión HTML a PDF con chrome-aws-lambda...')
+    console.log('🔄 Iniciando conversión HTML a PDF...')
     
     let browser = null;
     
     try {
-      // ✅ CONFIGURACIÓN PARA CHROME-AWS-LAMBDA (funciona en cualquier servidor)
-      browser = await puppeteer.launch({
-        args: [
-          ...chromium.args,
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--single-process',
-          '--no-zygote',
-          '--disable-web-security'
-        ],
-        defaultViewport: chromium.defaultViewport,
-        executablePath: await chromium.executablePath,
-        headless: chromium.headless,
-        ignoreHTTPSErrors: true,
-      });
+      let launchOptions: any;
 
-      console.log('✅ Browser lanzado exitosamente con chrome-aws-lambda')
+      // ✅ CONFIGURACIÓN SEGÚN DISPONIBILIDAD DE CHROME-AWS-LAMBDA
+      if (chromium && chromium.args) {
+        console.log('📦 Usando chrome-aws-lambda...')
+        launchOptions = {
+          args: [
+            ...chromium.args,
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--single-process',
+            '--no-zygote'
+          ],
+          defaultViewport: chromium.defaultViewport || { width: 1200, height: 800 },
+          executablePath: await chromium.executablePath,
+          headless: chromium.headless !== false,
+          ignoreHTTPSErrors: true,
+        };
+      } else {
+        console.log('🔧 Usando configuración estándar de Puppeteer...')
+        // ✅ FALLBACK PARA CUANDO CHROME-AWS-LAMBDA NO ESTÁ DISPONIBLE
+        launchOptions = {
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-web-security',
+            '--disable-features=TranslateUI',
+            '--disable-ipc-flooding-protection',
+          ],
+          defaultViewport: { width: 1200, height: 800 },
+          ignoreHTTPSErrors: true,
+        };
+
+        // ✅ INTENTAR DIFERENTES RUTAS DE CHROME SEGÚN EL ENTORNO
+        const possiblePaths = [
+          process.env.CHROME_BIN,
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/snap/bin/chromium'
+        ].filter(Boolean);
+
+        for (const chromePath of possiblePaths) {
+          if (fs.existsSync(chromePath)) {
+            launchOptions.executablePath = chromePath;
+            console.log(`✅ Chrome encontrado en: ${chromePath}`);
+            break;
+          }
+        }
+
+        if (!launchOptions.executablePath) {
+          console.log('⚠️ No se encontró Chrome instalado, usando Puppeteer por defecto');
+          // Dejar que Puppeteer use su Chrome descargado
+        }
+      }
+
+      console.log('🚀 Lanzando browser con opciones:', JSON.stringify(launchOptions, null, 2));
+      browser = await puppeteer.launch(launchOptions);
+
+      console.log('✅ Browser lanzado exitosamente')
       
       const page = await browser.newPage();
       
@@ -566,11 +622,16 @@ export class PdfService {
 
     } catch (error) {
       console.error('❌ Error en la conversión HTML a PDF:', error)
+      console.error('Error stack:', error.stack)
       throw new Error(`Error generando PDF: ${error.message}`)
     } finally {
       if (browser) {
-        await browser.close();
-        console.log('🔒 Browser cerrado')
+        try {
+          await browser.close();
+          console.log('🔒 Browser cerrado')
+        } catch (closeError) {
+          console.error('⚠️ Error cerrando browser:', closeError)
+        }
       }
     }
   }
