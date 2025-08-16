@@ -1,7 +1,6 @@
-//📁 backend/src/pdf/pdf.service.ts
+// 📁 backend/src/pdf/pdf.service.ts
 // ====================================================================
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Buffer } from 'buffer';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as puppeteer from 'puppeteer';
@@ -9,7 +8,8 @@ import { Eleccion } from '../elections/entities/eleccion.entity';
 import { Candidato } from '../candidates/entities/candidato.entity';
 import { Voto } from '../votes/entities/voto.entity';
 import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
-
+import * as fs from 'fs';
+import * as path from 'path';
 @Injectable()
 export class PdfService {
   constructor(
@@ -23,7 +23,46 @@ export class PdfService {
     private votanteHabilitadoRepository: Repository<VotanteHabilitado>,
   ) {}
 
-  async generateActaEleccion(electionId: number, instructorName: string): Promise<Buffer> {
+  private getDefaultSenaLogo(): string {
+    const defaultSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60">
+      <rect width="100" height="60" fill="white" stroke="black" stroke-width="2"/>
+      <circle cx="50" cy="20" r="8" fill="black"/>
+      <text x="50" y="35" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold">SENA</text>
+    </svg>`;
+    
+    return Buffer.from(defaultSvg).toString('base64');
+  }
+
+  private async getSenaLogoBase64(): Promise<string> {
+    try {
+      // Ruta al archivo SVG en la carpeta public
+      const svgPath = path.join(process.cwd(), 'public', 'sena.svg');
+      
+      // Verificar si el archivo existe
+      if (!fs.existsSync(svgPath)) {
+        console.warn('❌ No se encontró el archivo sena.svg en public/, usando logo por defecto');
+        // SVG por defecto si no existe el archivo
+        return this.getDefaultSenaLogo();
+      }
+      
+      // Leer el archivo SVG
+      const svgContent = fs.readFileSync(svgPath, 'utf8');
+      
+      // Convertir a base64
+      const base64 = Buffer.from(svgContent).toString('base64');
+      
+      console.log('✅ Logo SENA cargado desde public/sena.svg');
+      return base64;
+      
+    } catch (error) {
+      console.error('❌ Error cargando logo SENA:', error);
+      // Fallback al logo por defecto
+      return this.getDefaultSenaLogo();
+    }
+  }
+
+   async generateActaEleccion(electionId: number, instructorName: string): Promise<Buffer> {
     // 1. Obtener datos de la elección
     const eleccion = await this.eleccionRepository.findOne({
       where: { id_eleccion: electionId },
@@ -41,8 +80,8 @@ export class PdfService {
     // 2. Obtener estadísticas de la elección
     const stats = await this.getElectionStatsForActa(electionId);
 
-    // 3. Generar HTML del acta
-    const htmlContent = this.generateActaHTML(eleccion, stats, instructorName);
+    // 3. Generar HTML del acta (ahora es async)
+    const htmlContent = await this.generateActaHTML(eleccion, stats, instructorName);
 
     // 4. Convertir HTML a PDF
     const pdfBuffer = await this.convertHtmlToPdf(htmlContent);
@@ -81,44 +120,57 @@ export class PdfService {
     };
   }
 
-  private generateActaHTML(eleccion: any, stats: any, instructorName: string): string {
-    // Formatear fechas
-    const fechaActual = new Date().toLocaleDateString('es-CO', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+  async generateActaHTML(eleccion: any, stats: any, instructorName: string): Promise<string> {
+  // Formatear fechas
+  const fechaActual = new Date().toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 
-    const fechaInicio = new Date(eleccion.fecha_inicio).toLocaleDateString('es-CO', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+  const fechaInicio = new Date(eleccion.fecha_inicio).toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 
-    const fechaFin = new Date(eleccion.fecha_fin).toLocaleDateString('es-CO', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+  const fechaFin = new Date(eleccion.fecha_fin).toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 
-    // Determinar ubicación
-    let ubicacion = '';
-    if (eleccion.centro) {
-      ubicacion = eleccion.centro.nombre_centro;
-    } else if (eleccion.sede) {
-      ubicacion = eleccion.sede.nombre_sede;
-    } else if (eleccion.ficha) {
-      ubicacion = `Ficha ${eleccion.ficha.numero_ficha}`;
-    }
+  // ✅ Hora actual en formato HH:MM
+  const horaActual = new Date().toLocaleTimeString('es-CO', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false // Formato 24 horas
+  });
 
-    // Información del ganador
-    const ganador = stats.ganador;
-    const nombreGanador = ganador ? `${ganador.persona.nombres} ${ganador.persona.apellidos}` : '';
-    const documentoGanador = ganador ? ganador.persona.numero_documento : '';
-    const emailGanador = ganador ? ganador.persona.email : '';
-    const telefonoGanador = ganador ? ganador.persona.telefono : '';
+  // ✅ Lugar siempre fijo
+  const lugar = 'Centro Nacional Colombo Alemán; Bienestar al aprendiz';
 
-    return `
+  // ✅ Tema siempre "ELECCIÓN DE LÍDER"
+  const tema = 'ELECCIÓN DE LÍDER';
+
+  // ✅ Obtener nombre del programa de formación
+  let nombrePrograma = 'Programa de Formación';
+  if (eleccion.ficha?.nombre_programa) {
+    nombrePrograma = eleccion.ficha.nombre_programa.toUpperCase();
+  } else if (eleccion.sede?.nombre_sede) {
+    nombrePrograma = eleccion.sede.nombre_sede.toUpperCase();
+  } else if (eleccion.centro?.nombre_centro) {
+    nombrePrograma = eleccion.centro.nombre_centro.toUpperCase();
+  }
+
+  // Información del ganador
+  const ganador = stats.ganador;
+  const nombreGanador = ganador ? `${ganador.persona.nombres} ${ganador.persona.apellidos}` : '';
+  const documentoGanador = ganador ? ganador.persona.numero_documento : '';
+  const emailGanador = ganador ? ganador.persona.email : '';
+  const telefonoGanador = ganador ? ganador.persona.telefono : '';
+
+  return `
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -161,6 +213,12 @@ export class PdfService {
             font-size: 8px;
             text-align: center;
             line-height: 1;
+            padding: 4px;
+        }
+        .sena-svg {
+            width: 50px;
+            height: 35px;
+            margin-bottom: 2px;
         }
         .sena-title {
             font-size: 16px;
@@ -211,6 +269,29 @@ export class PdfService {
             width: 120px;
         }
 
+        /* TABLA DE ASISTENTES - PÁGINA 2 */
+        .asistentes-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+        .asistentes-table th {
+            border: 1px solid black;
+            padding: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            text-align: center;
+            background: #f0f0f0;
+            height: 20px;
+        }
+        .asistentes-table td {
+            border: 1px solid black;
+            padding: 2px 4px;
+            font-size: 9px;
+            height: 18px;
+            vertical-align: middle;
+        }
+
         /* OBJETIVO */
         .objetivo-text {
             text-align: justify;
@@ -244,15 +325,21 @@ export class PdfService {
             line-height: 1.2;
         }
 
-        /* CONCLUSIONES */
-        .filled-line {
-            border-bottom: 1px solid black;
-            display: inline-block;
-            height: 15px;
-            margin: 0 5px;
+        /* FIRMAS */
+        .firmas-section {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .firma-box {
             text-align: center;
-            font-weight: bold;
-            padding: 0 5px;
+            width: 250px;
+        }
+        .firma-line {
+            border-bottom: 2px solid black;
+            height: 2px;
+            margin-bottom: 5px;
         }
 
         /* PÁGINA */
@@ -262,22 +349,27 @@ export class PdfService {
             font-size: 9px;
             font-weight: bold;
         }
+
+        /* SALTO DE PÁGINA */
+        .page-break {
+            page-break-before: always;
+        }
     </style>
 </head>
 <body>
+    <!-- ========== PÁGINA 1 ========== -->
     <div class="container">
         
         <!-- ENCABEZADO EXACTO -->
         <div class="header">
             <div class="sena-logo">
-                <div style="font-size: 20px; margin-bottom: 2px;">●</div>
-                <div class="sena-title">SENA</div>
+                <img src="data:image/svg+xml;base64,${await this.getSenaLogoBase64()}" class="sena-svg" alt="SENA Logo" />
                 <div class="sena-subtitle">
                     SISTEMA INTEGRADO DE MEJORA<br>
                     CONTINUA INSTITUCIONAL
                 </div>
             </div>
-            <div class="acta-numero">ACTA N° ${eleccion.id_eleccion}</div>
+            <div class="acta-numero">ACTA N° </div>
         </div>
 
         <!-- ELECCIÓN DE LÍDER -->
@@ -295,11 +387,11 @@ export class PdfService {
                     </tr>
                     <tr>
                         <td class="info-label">LUGAR:</td>
-                        <td colspan="5">${ubicacion}; Bienestar al aprendiz</td>
+                        <td colspan="5">${lugar}</td>
                     </tr>
                     <tr>
                         <td class="info-label">TEMA:</td>
-                        <td colspan="5">${eleccion.tipoEleccion.descripcion.toUpperCase()}</td>
+                        <td colspan="5">${tema}</td>
                     </tr>
                 </table>
                 
@@ -320,7 +412,7 @@ export class PdfService {
                     <strong>VERIFICACIÓN DE QUÓRUM:</strong>
                 </div>
                 <div class="desarrollo-text">
-                    Siendo las <span class="filled-field">08:00</span> del día <span class="filled-field">${fechaActual}</span>, se reunieron el Instructor <span class="filled-field">${instructorName}</span> y los (<span class="filled-field">${stats.totalVotantes}</span>) Aprendices del Programa <span class="filled-field">${eleccion.titulo}</span> de la ficha <span class="filled-field">${eleccion.ficha?.numero_ficha || 'N/A'}</span> para realizar la elección de líder (X) o la ratificación del líder ( ).
+                    Siendo las <span class="filled-field">${horaActual}</span> del día <span class="filled-field">${fechaActual}</span>, se reunieron el Instructor <span class="filled-field">${instructorName}</span> y los (<span class="filled-field">${stats.totalVotantes}</span>) Aprendices del Programa <span class="filled-field">${nombrePrograma}</span> de la ficha <span class="filled-field">${eleccion.ficha?.numero_ficha || 'N/A'}</span> para realizar la elección de líder (X) o la ratificación del líder ( ).
                 </div>
             </div>
         </div>
@@ -344,16 +436,8 @@ export class PdfService {
         <div class="section" style="border-bottom: none;">
             <div class="section-title">CONCLUSIONES</div>
             <div class="section-content">
-                <div style="margin: 25px 0 15px 0; line-height: 1.5;">
-                    Fue elegido el aprendiz <span class="filled-line" style="width: 350px;">${nombreGanador}</span>
-                </div>
-                
-                <div style="margin: 15px 0; line-height: 1.5;">
-                    con <span class="filled-line" style="width: 80px;">${stats.ganador?.votos_recibidos || 0}</span> el <span class="filled-line" style="width: 200px;">${documentoGanador}</span> D.I. <span class="filled-line" style="width: 150px;">${emailGanador.split('@')[0]}</span> Correo <span class="filled-line" style="width: 120px;">${emailGanador.split('@')[1] || ''}</span> Electrónico
-                </div>
-                
-                <div style="margin: 15px 0; line-height: 1.5;">
-                    <span class="filled-line" style="width: 300px;">${nombreGanador}</span>, número de teléfono <span class="filled-line" style="width: 150px;">${telefonoGanador}</span>
+                <div style="margin: 25px 0; line-height: 1.5; text-align: justify;">
+                    Fue elegido el aprendiz <strong>${nombreGanador}</strong> con el D.I <strong>${documentoGanador}</strong> correo electrónico <strong>${emailGanador}</strong> número de teléfono <strong>${telefonoGanador}</strong>
                 </div>
             </div>
         </div>
@@ -362,35 +446,94 @@ export class PdfService {
     <div class="page-footer">
         Página 1 de 2
     </div>
+
+    <!-- ========== PÁGINA 2 ========== -->
+    <div class="page-break"></div>
+    
+    <div class="container">
+        <!-- ENCABEZADO PÁGINA 2 -->
+        <div class="header">
+            <div class="sena-logo">
+                <img src="data:image/svg+xml;base64,${await this.getSenaLogoBase64()}" class="sena-svg" alt="SENA Logo" />
+                <div class="sena-subtitle">
+                    SISTEMA INTEGRADO DE MEJORA<br>
+                    CONTINUA INSTITUCIONAL
+                </div>
+            </div>
+            <div class="acta-numero">ACTA N° </div>
+        </div>
+
+        <!-- TABLA DE ASISTENTES -->
+        <div class="section" style="border-bottom: none;">
+            <div class="section-title">ASISTENTES</div>
+            <div class="section-content" style="padding: 0;">
+                <table class="asistentes-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40%;">NOMBRE</th>
+                            <th style="width: 30%;">DOCUMENTO DE IDENTIDAD</th>
+                            <th style="width: 30%;">FIRMA</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${Array.from({ length: 35 }, (_, i) => `
+                        <tr>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                            <td>&nbsp;</td>
+                        </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- FIRMAS DEL INSTRUCTOR Y BIENESTAR -->
+        <div class="firmas-section">
+            <div class="firma-box">
+                <div class="firma-line"></div>
+                <div style="font-weight: bold; font-size: 11px;">Firma Instructor</div>
+            </div>
+            <div class="firma-box">
+                <div class="firma-line"></div>
+                <div style="font-weight: bold; font-size: 11px;">Bienestar al Aprendiz</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="page-footer">
+        Página 2 de 2
+    </div>
 </body>
 </html>
     `;
-  }
-
+}
   private async convertHtmlToPdf(htmlContent: string): Promise<Buffer> {
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+
+    const pdfUint8Array = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: {
+        top: '20px',
+        right: '20px',
+        bottom: '20px',
+        left: '20px',
+      },
     });
 
-    try {
-      const page = await browser.newPage();
-      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    // ✅ CONVERSIÓN DE Uint8Array A Buffer
+    const pdfBuffer = Buffer.from(pdfUint8Array);
+    return pdfBuffer;
 
-      const pdfBuffer = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '20px',
-          right: '20px',
-          bottom: '20px',
-          left: '20px',
-        },
-      });
-
-      return pdfBuffer;
-    } finally {
-      await browser.close();
-    }
+  } finally {
+    await browser.close();
   }
-}
+}}

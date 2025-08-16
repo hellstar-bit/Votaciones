@@ -1,4 +1,4 @@
-// 📁 src/elections/elections.controller.ts
+// 📁 backend/src/elections/elections.controller.ts
 // ====================================================================
 import { 
   Controller, 
@@ -13,8 +13,8 @@ import {
   Query, 
   Res, 
 } from '@nestjs/common';
-import { Response } from 'express'; // ← AGREGAR ESTO
-import { PdfService } from '../pdf/pdf.service'; // ← AGREGAR ESTO
+import { Response } from 'express';
+import { PdfService } from '../pdf/pdf.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -25,7 +25,10 @@ import { CreateElectionDto } from './dto/create-election.dto';
 @Controller('elections')
 @UseGuards(JwtAuthGuard)
 export class ElectionsController {
-  constructor(private readonly electionsService: ElectionsService, private readonly pdfService: PdfService,) {}
+  constructor(
+    private readonly electionsService: ElectionsService, 
+    private readonly pdfService: PdfService,
+  ) {}
 
   @Post()
   @UseGuards(RolesGuard)
@@ -47,16 +50,89 @@ export class ElectionsController {
     return this.electionsService.getActiveElections();
   }
 
-  @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.electionsService.findOne(+id);
+  // ✅ ENDPOINT ACTA PDF - ANTES DE LAS RUTAS GENÉRICAS
+  @Get(':id/acta-pdf')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async generateActaPdf(
+    @Param('id') id: string,
+    @Query('instructor') instructor: string,
+    @Res() res: Response,
+  ) {
+    console.log('🎯 === BACKEND: Generando acta PDF ===')
+    console.log('Election ID:', id)
+    console.log('Instructor:', instructor)
+    console.log('URL matcheada: /elections/:id/acta-pdf')
+    
+    if (!instructor || instructor.trim() === '') {
+      console.log('❌ Instructor requerido')
+      return res.status(400).json({ 
+        message: 'El nombre del instructor es requerido',
+        error: 'Bad Request' 
+      });
+    }
+
+    try {
+      console.log('🔄 Llamando al servicio PDF...')
+      const pdfBuffer = await this.pdfService.generateActaEleccion(+id, instructor.trim());
+      
+      console.log('✅ PDF generado, tamaño:', pdfBuffer.length, 'bytes')
+      
+      // Verificar que el buffer contiene un PDF válido
+      const pdfHeader = pdfBuffer.slice(0, 5).toString();
+      console.log('🔍 PDF Header:', pdfHeader)
+      
+      if (!pdfHeader.startsWith('%PDF')) {
+        console.error('❌ Buffer no es un PDF válido!')
+        return res.status(500).json({
+          message: 'Error: el archivo generado no es un PDF válido'
+        });
+      }
+      
+      // Obtener información de la elección para el nombre del archivo
+      const eleccion = await this.electionsService.findOne(+id);
+      const fileName = `acta_eleccion_${eleccion.titulo.replace(/\s+/g, '_')}_${id}.pdf`;
+      
+      console.log('📁 Nombre del archivo:', fileName)
+      
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Length': pdfBuffer.length.toString(),
+      });
+
+      console.log('📤 Enviando PDF al cliente...')
+      res.end(pdfBuffer);
+      
+    } catch (error) {
+      console.error('❌ Error generando acta PDF:', error);
+      return res.status(500).json({
+        message: 'Error generando el acta PDF',
+        error: error.message
+      });
+    }
+  }
+
+  // ✅ OTROS ENDPOINTS ESPECÍFICOS
+  @Get(':id/can-delete')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async canDelete(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: number,
+  ) {
+    return this.electionsService.canDeleteElection(+id, userId);
   }
 
   @Get(':id/stats')
   async getStats(@Param('id') id: string) {
+    console.log('📊 === BACKEND: Obteniendo stats ===')
+    console.log('Election ID:', id)
+    console.log('URL matcheada: /elections/:id/stats')
     return this.electionsService.getElectionStats(+id);
   }
 
+  // ✅ ENDPOINTS DE MODIFICACIÓN
   @Patch(':id/activate')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
@@ -65,44 +141,6 @@ export class ElectionsController {
     @CurrentUser('id') userId: number,
   ) {
     return this.electionsService.activate(+id, userId);
-  }
-
-   @Get(':id/acta-pdf')
-  @UseGuards(RolesGuard)
-  @Roles('ADMIN')
-  async generateActaPdf(
-    @Param('id') id: string,
-    @Query('instructor') instructor: string,
-    @Res() res: Response,
-  ) {
-    if (!instructor || instructor.trim() === '') {
-      return res.status(400).json({ 
-        message: 'El nombre del instructor es requerido',
-        error: 'Bad Request' 
-      });
-    }
-
-    try {
-      const pdfBuffer = await this.pdfService.generateActaEleccion(+id, instructor.trim());
-      
-      // Obtener información de la elección para el nombre del archivo
-      const eleccion = await this.electionsService.findOne(+id);
-      const fileName = `acta_eleccion_${eleccion.titulo.replace(/\s+/g, '_')}_${id}.pdf`;
-      
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
-        'Content-Length': pdfBuffer.length,
-      });
-
-      res.end(pdfBuffer);
-    } catch (error) {
-      console.error('Error generando acta PDF:', error);
-      return res.status(500).json({
-        message: 'Error generando el acta PDF',
-        error: error.message
-      });
-    }
   }
 
   @Patch(':id/finalize')
@@ -114,6 +152,7 @@ export class ElectionsController {
   ) {
     return this.electionsService.finalize(+id, userId);
   }
+
   @Patch(':id/cancel')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
@@ -133,13 +172,13 @@ export class ElectionsController {
   ) {
     return this.electionsService.delete(+id, userId);
   }
-  @Get(':id/can-delete')
-  @UseGuards(RolesGuard)
-  @Roles('ADMIN')
-  async canDelete(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: number,
-  ) {
-    return this.electionsService.canDeleteElection(+id, userId);
+
+  // ✅ ENDPOINT GENÉRICO AL FINAL
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    console.log('📄 === BACKEND: Obteniendo elección ===')
+    console.log('Election ID:', id)
+    console.log('URL matcheada: /elections/:id')
+    return this.electionsService.findOne(+id);
   }
 }

@@ -610,52 +610,205 @@ export const importApi = {
 // Exportar acta PDF
   
 
-// SERVICIOS DE API
+function isAxiosError(error: unknown): error is import('axios').AxiosError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'isAxiosError' in error &&
+    (error as any).isAxiosError === true
+  )
+}
 
-// Dashboard AP
-
-// Elections API
+// ✅ Helper function para obtener mensaje de error seguro
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+  
+  if (typeof error === 'string') {
+    return error
+  }
+  
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String((error as any).message)
+  }
+  
+  return 'Error desconocido'
+}
 export const electionsApi = {
-   exportActaPdf: async (electionId: number, instructor: string): Promise<void> => {
+  // ... otros métodos existentes ...
+
+  // ✅ FUNCIÓN COMPLETA CON DEBUG Y MANEJO DE ERRORES
+  exportActaPdf: async (electionId: number, instructor: string): Promise<void> => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/elections/${electionId}/acta-pdf?instructor=${encodeURIComponent(instructor)}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
-        },
+      console.log('🔍 === DEBUG EXPORTAR ACTA ===')
+      console.log('📊 Election ID:', electionId)
+      console.log('👨‍🏫 Instructor:', instructor)
+      
+      // Verificar token de autenticación
+      const authStorage = localStorage.getItem('auth-storage')
+      if (authStorage) {
+        try {
+          const parsed = JSON.parse(authStorage)
+          const token = parsed.state?.token
+          console.log('🔑 Token disponible:', !!token)
+          console.log('🔑 Token preview:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN')
+        } catch (parseError: unknown) {
+          console.error('❌ Error parseando auth storage:', getErrorMessage(parseError))
+        }
+      } else {
+        console.log('❌ No hay auth-storage')
+      }
+
+      // Hacer la petición usando axios (que ya tiene los interceptors de auth)
+      console.log('📤 Enviando petición al servidor...')
+      const response = await api.get(`/elections/${electionId}/acta-pdf`, {
+        params: { instructor },
+        responseType: 'blob',
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || 'Error generando el acta PDF')
+      console.log('📡 Response recibido:')
+      console.log('  - Status:', response.status)
+      console.log('  - Status Text:', response.statusText)
+      console.log('  - Headers:', response.headers)
+      console.log('  - Data type:', typeof response.data)
+      console.log('  - Data size:', response.data?.size || 'N/A')
+      console.log('  - Content-Type:', response.headers['content-type'])
+
+      // ✅ VERIFICAR QUE EL CONTENIDO NO ESTÁ VACÍO
+      if (!response.data || response.data.size === 0) {
+        throw new Error('El archivo PDF está vacío')
       }
 
-      // Obtener el blob del PDF
-      const blob = await response.blob()
+      // ✅ VERIFICAR EL CONTENT-TYPE
+      const contentType = response.headers['content-type'] || ''
+      console.log('📄 Content-Type recibido:', contentType)
       
-      // Extraer nombre del archivo de los headers o usar uno por defecto
-      const contentDisposition = response.headers.get('Content-Disposition')
-      let fileName = `acta_eleccion_${electionId}.pdf`
+      if (!contentType.includes('application/pdf')) {
+        console.error('❌ Content-Type incorrecto:', contentType)
+        
+        // Si es texto o JSON, leer el contenido para ver el error
+        if (contentType.includes('text') || contentType.includes('json')) {
+          try {
+            const text = await response.data.text()
+            console.error('📝 Contenido del error:', text)
+            throw new Error(`Error del servidor: ${text}`)
+          } catch (readError: unknown) {
+            console.error('❌ No se pudo leer el contenido de error:', getErrorMessage(readError))
+          }
+        }
+        
+        throw new Error(`Tipo de archivo incorrecto: esperado PDF, recibido ${contentType}`)
+      }
+
+      // ✅ VERIFICAR QUE ES UN PDF VÁLIDO LEYENDO EL HEADER
+      try {
+        const arrayBuffer = await response.data.arrayBuffer()
+        const uint8Array = new Uint8Array(arrayBuffer)
+        const header = Array.from(uint8Array.slice(0, 5)).map(b => String.fromCharCode(b)).join('')
+        
+        console.log('🔍 Header del archivo:', header)
+        console.log('🔍 Primeros 10 bytes:', Array.from(uint8Array.slice(0, 10)))
+        
+        if (!header.startsWith('%PDF')) {
+          console.error('❌ Header inválido para PDF:', header)
+          
+          // Intentar leer como texto para ver el error
+          const decoder = new TextDecoder()
+          const text = decoder.decode(uint8Array.slice(0, 200))
+          console.error('📝 Contenido como texto:', text)
+          
+          throw new Error(`Archivo no es un PDF válido. Header encontrado: "${header}"`)
+        }
+
+        console.log('✅ PDF válido detectado')
+
+        // ✅ CREAR BLOB CORRECTO
+        const blob = new Blob([arrayBuffer], { type: 'application/pdf' })
+        
+        // Extraer nombre del archivo de los headers
+        const contentDisposition = response.headers['content-disposition']
+        let fileName = `acta_eleccion_${electionId}.pdf`
+        
+        if (contentDisposition) {
+          const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+          if (fileNameMatch && fileNameMatch[1]) {
+            fileName = fileNameMatch[1].replace(/['"]/g, '')
+          }
+        }
+
+        console.log('📁 Nombre del archivo:', fileName)
+
+        // ✅ CREAR DESCARGA
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = fileName
+        link.style.display = 'none'
+        
+        // Agregar al DOM temporalmente
+        document.body.appendChild(link)
+        link.click()
+        
+        // Limpiar
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+        
+        console.log('✅ PDF descargado exitosamente:', fileName)
+        
+      } catch (processingError: unknown) {
+        console.error('❌ Error procesando el PDF:', processingError)
+        throw new Error(`Error procesando el archivo PDF: ${getErrorMessage(processingError)}`)
+      }
       
-      if (contentDisposition) {
-        const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/)
-        if (fileNameMatch) {
-          fileName = fileNameMatch[1]
+    } catch (error: unknown) {
+      console.error('❌ === ERROR COMPLETO ===')
+      console.error('Error object:', error)
+      
+      // ✅ MANEJO ESPECÍFICO PARA ERRORES DE AXIOS
+      if (isAxiosError(error)) {
+        console.error('Axios error response:', error.response)
+        console.error('Response status:', error.response?.status)
+        console.error('Response data:', error.response?.data)
+        console.error('Response headers:', error.response?.headers)
+        
+        // Si la respuesta es un blob de error, intentar leerlo
+        if (error.response?.data instanceof Blob) {
+          try {
+            const text = await error.response.data.text()
+            console.error('Error blob content:', text)
+          } catch (readError: unknown) {
+            console.error('No se pudo leer el blob de error:', getErrorMessage(readError))
+          }
+        }
+        
+        // Manejar códigos de estado específicos
+        switch (error.response?.status) {
+          case 401:
+            throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.')
+          case 403:
+            throw new Error('No tienes permisos para exportar actas.')
+          case 404:
+            throw new Error('Elección no encontrada.')
+          case 400:
+            throw new Error('El nombre del instructor es requerido.')
+          case 500:
+            throw new Error('Error interno del servidor generando el PDF.')
+          default:
+            throw new Error(`Error del servidor (${error.response?.status}): ${getErrorMessage(error)}`)
         }
       }
-
-      // Crear URL del blob y descargar
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = fileName
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('Error exportando acta PDF:', error)
-      throw error
+      
+      // ✅ MANEJO PARA ERRORES DE RED O OTROS
+      if (error instanceof Error) {
+        if (error.name === 'NetworkError' || error.message.includes('Network')) {
+          throw new Error('Error de conexión. Verifica tu conexión a internet.')
+        }
+        throw new Error(error.message)
+      }
+      
+      // ✅ FALLBACK PARA ERRORES DESCONOCIDOS
+      throw new Error(`Error inesperado: ${getErrorMessage(error)}`)
     }
   },
 
