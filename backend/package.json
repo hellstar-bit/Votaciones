@@ -36,7 +36,7 @@
     "@nestjs/passport": "^10.0.0",
     "@nestjs/platform-express": "^10.0.0",
     "@nestjs/platform-socket.io": "^10.0.0",
-    "@nestjs/serve-static": "^4.0.0",
+    "@nestjs/serve-static": "^5.0.3",
     "@nestjs/typeorm": "^10.0.0",
     "@nestjs/websockets": "^10.0.0",
     "@sparticuz/chromium-min": "^138.0.2",
@@ -60,7 +60,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@nestjs/cli": "^10.0.0",
+    "@nestjs/cli": "^11.0.10",
     "@nestjs/schematics": "^10.0.0",
     "@nestjs/testing": "^10.0.0",
     "@types/bcryptjs": "^2.4.2",
