@@ -9,6 +9,8 @@ import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 import { Persona } from '../users/entities/persona.entity';
 import { Voto } from '../votes/entities/voto.entity';
 import { Candidato } from '../candidates/entities/candidato.entity';
+import { PdfModule } from '../pdf/pdf.module'; // ← AGREGAR ESTO
+
 
 @Module({
   imports: [
@@ -20,6 +22,7 @@ import { Candidato } from '../candidates/entities/candidato.entity';
       Voto,
       Candidato,
     ]),
+    PdfModule
   ],
   controllers: [ElectionsController],
   providers: [ElectionsService],

@@ -607,12 +607,58 @@ export const importApi = {
   }
 }
 
+// Exportar acta PDF
+  
+
 // SERVICIOS DE API
 
 // Dashboard AP
 
 // Elections API
 export const electionsApi = {
+   exportActaPdf: async (electionId: number, instructor: string): Promise<void> => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/elections/${electionId}/acta-pdf?instructor=${encodeURIComponent(instructor)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || 'Error generando el acta PDF')
+      }
+
+      // Obtener el blob del PDF
+      const blob = await response.blob()
+      
+      // Extraer nombre del archivo de los headers o usar uno por defecto
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let fileName = `acta_eleccion_${electionId}.pdf`
+      
+      if (contentDisposition) {
+        const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/)
+        if (fileNameMatch) {
+          fileName = fileNameMatch[1]
+        }
+      }
+
+      // Crear URL del blob y descargar
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error exportando acta PDF:', error)
+      throw error
+    }
+  },
+
   // Obtener todas las elecciones
   getAll: async (): Promise<Election[]> => {
     const response = await api.get('/elections')
@@ -683,6 +729,8 @@ export const electionsApi = {
     return response.data
   },
 }
+
+  
 
 // Candidates API
 export const candidatesApi = {

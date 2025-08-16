@@ -14,6 +14,8 @@ import { ElectionsModule } from './elections/elections.module';
 import { CandidatesModule } from './candidates/candidates.module';
 import { VotesModule } from './votes/votes.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { PdfModule } from './pdf/pdf.module'; // ← AGREGAR ESTO
+
 
 // Interceptors y Filters
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -56,6 +58,7 @@ import { ImportModule } from './import/import.module';
     CandidatesModule,
     VotesModule,
     DashboardModule,
+    PdfModule
   ],
   providers: [
     // Interceptor global para logging

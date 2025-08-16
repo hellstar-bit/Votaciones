@@ -3,32 +3,35 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import {
-  ChartBarIcon,
-  UsersIcon,
-  ClipboardDocumentListIcon,
-  BellIcon,
-  PlusIcon,
-  ArrowRightOnRectangleIcon,
-  Cog6ToothIcon,
-  PlayIcon,
-  ChartPieIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  EyeIcon,
+import {     
+  ChartBarIcon,             
+  UsersIcon,                    
+  ClipboardDocumentListIcon,                          
+  BellIcon,   
+  PlusIcon,                                 
+  ArrowRightOnRectangleIcon,        
+  Cog6ToothIcon,             
+  PlayIcon,                               
+  ChartPieIcon,            
+  CheckCircleIcon,    
+  ExclamationTriangleIcon,          
+  EyeIcon,                     
   ClockIcon,
-  CalendarIcon
+  CalendarIcon,
+  DocumentArrowDownIcon                               
 } from '@heroicons/react/24/outline'
 import { useAuthStore } from '../../stores/authStore'
 import { dashboardApi, electionsApi, type Election, type DashboardStats, handleApiError } from '../../services/api'
 import CreateElectionModal from '../modals/CreateElectionModal'
 import CandidatesManagement from '../candidates/CandidatesManagement'
 import ElectionSettings from '../candidates/ElectionSettings'
+import ExportActaModal from '../modals/ExportActaModal' // ← AGREGAR ESTE IMPORT
 
 const AdminDashboard = () => {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
-
+  const [showExportActaModal, setShowExportActaModal] = useState(false)
+  const [selectedElectionForActa, setSelectedElectionForActa] = useState<any>(null)
   // Estados para datos del dashboard
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [elections, setElections] = useState<Election[]>([])
@@ -40,6 +43,8 @@ const AdminDashboard = () => {
   // Cargar datos del dashboard desde la API
   useEffect(() => {
     fetchDashboardData()
+
+    
 
     // Función para actualizar sin mostrar loading
     const updateDataSilently = async () => {
@@ -110,6 +115,16 @@ const AdminDashboard = () => {
       const errorMessage = handleApiError(error, 'finalizando elección')
       toast.error(`Error finalizando elección: ${errorMessage}`)
     }
+  }
+
+  const handleExportActa = (election: any) => {
+    if (election.estado !== 'finalizada') {
+      toast.error('Solo se pueden generar actas de elecciones finalizadas')
+      return
+    }
+    
+    setSelectedElectionForActa(election)
+    setShowExportActaModal(true)
   }
 
   // Manejar creación exitosa de elección
@@ -447,7 +462,21 @@ const AdminDashboard = () => {
                                   )}
                                 </div>
                               </div>
+                              
+                              {/* ✅ BOTONES DE ACCIÓN - CON BOTÓN EXPORTAR ACTA */}
                               <div className="flex items-center space-x-2 ml-4">
+                                {/* ✅ NUEVO: Botón Exportar Acta PDF */}
+                                {election.estado === 'finalizada' && (
+                                  <button
+                                    onClick={() => handleExportActa(election)}
+                                    className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                                    title="Exportar Acta PDF"
+                                  >
+                                    <DocumentArrowDownIcon className="w-4 h-4" />
+                                  </button>
+                                )}
+                                
+                                {/* Botones existentes */}
                                 <button
                                   onClick={() => handleViewCandidates(election.id_eleccion)}
                                   className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
@@ -622,8 +651,19 @@ const AdminDashboard = () => {
         onClose={() => setIsCreateModalOpen(false)}
         onElectionCreated={handleElectionCreated}
       />
+
+      {/* ✅ NUEVO: Modal Exportar Acta PDF */}
+      {selectedElectionForActa && (
+        <ExportActaModal
+          isOpen={showExportActaModal}
+          onClose={() => {
+            setShowExportActaModal(false)
+            setSelectedElectionForActa(null)
+          }}
+          election={selectedElectionForActa}
+        />
+      )}
     </div>
   )
 }
-
-export default AdminDashboard
+export default AdminDashboard;
