@@ -1,5 +1,7 @@
 // 📁 backend/src/pdf/pdf.service.ts
 // ====================================================================
+// SOLUCIÓN CON @sparticuz/chromium PARA RENDER
+// ====================================================================
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -9,7 +11,10 @@ import { Voto } from '../votes/entities/voto.entity';
 import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 import * as fs from 'fs';
 import * as path from 'path';
-import puppeteer from 'puppeteer';
+
+// ✅ USAR @sparticuz/chromium-min en lugar de puppeteer regular
+const chromium = require('@sparticuz/chromium-min');
+const puppeteer = require('puppeteer-core');
 
 @Injectable()
 export class PdfService {
@@ -62,40 +67,59 @@ export class PdfService {
     }
   }
 
-  // ✅ DETECTAR CHROME AUTOMÁTICAMENTE
-  private async detectChromePath(): Promise<string | null> {
-    const possiblePaths = [
-      // Render.com paths
-      '/opt/render/.cache/puppeteer/chrome/linux-139.0.7258.68/chrome-linux64/chrome',
-      '/opt/render/.cache/puppeteer/chrome/chrome',
+  // ✅ FUNCIÓN PARA OBTENER BROWSER CON CHROMIUM REMOTO
+  private async getBrowser() {
+    console.log('🚀 Iniciando browser con Chromium remoto...');
+    
+    try {
+      // Determinar si estamos en producción (Render) o desarrollo
+      const isProduction = process.env.NODE_ENV === 'production';
       
-      // Standard Linux paths
-      '/usr/bin/google-chrome-stable',
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium',
-      
-      // Environment variables
-      process.env.PUPPETEER_EXECUTABLE_PATH,
-      process.env.CHROME_BIN,
-    ].filter(Boolean);
-
-    for (const chromePath of possiblePaths) {
-      try {
-        if (fs.existsSync(chromePath)) {
-          // Verificar que es ejecutable
-          await fs.promises.access(chromePath, fs.constants.X_OK);
-          console.log(`✅ Chrome ejecutable encontrado: ${chromePath}`);
-          return chromePath;
-        }
-      } catch (error) {
-        console.log(`❌ Chrome no ejecutable: ${chromePath}`);
-        continue;
+      if (isProduction) {
+        // ✅ PRODUCCIÓN: Usar Chromium remoto desde GitHub
+        console.log('🌐 Modo producción: usando Chromium remoto');
+        
+        return puppeteer.launch({
+          args: [
+            ...chromium.args,
+            '--hide-scrollbars',
+            '--disable-web-security',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu',
+            '--memory-pressure-off',
+          ],
+          defaultViewport: chromium.defaultViewport,
+          // ✅ CHROMIUM DESDE GITHUB CDN (GRATIS)
+          executablePath: await chromium.executablePath(
+            'https://github.com/Sparticuz/chromium/releases/download/v131.0.0/chromium-v131.0.0-pack.tar'
+          ),
+          headless: chromium.headless,
+          ignoreHTTPSErrors: true,
+        });
+      } else {
+        // ✅ DESARROLLO: Usar puppeteer local
+        console.log('🛠️ Modo desarrollo: usando Puppeteer local');
+        const puppeteerLocal = require('puppeteer');
+        
+        return puppeteerLocal.launch({
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+          ],
+        });
       }
+    } catch (error) {
+      console.error('❌ Error lanzando browser:', error);
+      throw new Error(`Error iniciando browser: ${error.message}`);
     }
-
-    console.warn('⚠️ No se encontró Chrome en ninguna ubicación estándar');
-    return null;
   }
 
   async generateActaEleccion(electionId: number, instructorName: string): Promise<Buffer> {
@@ -256,11 +280,6 @@ export class PdfService {
             height: 35px;
             margin-bottom: 2px;
         }
-        .sena-title {
-            font-size: 16px;
-            font-weight: bold;
-            margin: 2px 0;
-        }
         .sena-subtitle {
             font-size: 6px;
             line-height: 0.9;
@@ -299,7 +318,7 @@ export class PdfService {
             padding: 8px;
         }
 
-        /* TABLAS DE INFORMACIÓN */
+        /* TABLAS */
         .info-table {
             width: 100%;
             border-collapse: collapse;
@@ -316,7 +335,6 @@ export class PdfService {
             width: 120px;
         }
 
-        /* TABLA DE ASISTENTES */
         .asistentes-table {
             width: 100%;
             border-collapse: collapse;
@@ -339,7 +357,6 @@ export class PdfService {
             vertical-align: middle;
         }
 
-        /* OBJETIVO Y DESARROLLO */
         .objetivo-text {
             text-align: justify;
             line-height: 1.2;
@@ -350,7 +367,6 @@ export class PdfService {
             line-height: 1.3;
         }
 
-        /* FIRMAS */
         .firmas-section {
             display: flex;
             justify-content: space-around;
@@ -369,9 +385,8 @@ export class PdfService {
     </style>
 </head>
 <body>
-    <!-- ========== PÁGINA 1 ========== -->
+    <!-- PÁGINA 1 -->
     <div class="container">
-        <!-- ENCABEZADO -->
         <div class="header">
             <div class="sena-logo">
                 <img src="data:image/svg+xml;base64,${await this.getSenaLogoBase64()}" class="sena-svg" alt="SENA Logo" />
@@ -383,7 +398,6 @@ export class PdfService {
             <div class="acta-numero">ACTA N° </div>
         </div>
 
-        <!-- INFORMACIÓN GENERAL -->
         <div class="section">
             <div class="section-title">INFORMACIÓN GENERAL</div>
             <div class="section-content">
@@ -406,7 +420,6 @@ export class PdfService {
             </div>
         </div>
 
-        <!-- OBJETIVO -->
         <div class="section">
             <div class="section-title">OBJETIVO</div>
             <div class="section-content">
@@ -419,7 +432,6 @@ export class PdfService {
             </div>
         </div>
 
-        <!-- DESARROLLO -->
         <div class="section">
             <div class="section-title">DESARROLLO</div>
             <div class="section-content">
@@ -440,7 +452,6 @@ export class PdfService {
             </div>
         </div>
 
-        <!-- CANDIDATO ELEGIDO -->
         <div class="section">
             <div class="section-title">CANDIDATO ELEGIDO</div>
             <div class="section-content">
@@ -465,7 +476,6 @@ export class PdfService {
             </div>
         </div>
 
-        <!-- COMPROMISOS -->
         <div class="section">
             <div class="section-title">COMPROMISOS DEL LÍDER ELEGIDO</div>
             <div class="section-content">
@@ -480,7 +490,6 @@ export class PdfService {
             </div>
         </div>
 
-        <!-- FIRMAS -->
         <div class="firmas-section">
             <div class="firma-box">
                 <div class="firma-line"></div>
@@ -493,15 +502,12 @@ export class PdfService {
         </div>
     </div>
 
-    <div class="page-footer">
-        Página 1 de 2
-    </div>
+    <div class="page-footer">Página 1 de 2</div>
 
-    <!-- ========== PÁGINA 2 ========== -->
+    <!-- PÁGINA 2 -->
     <div class="page-break"></div>
     
     <div class="container">
-        <!-- ENCABEZADO PÁGINA 2 -->
         <div class="header">
             <div class="sena-logo">
                 <img src="data:image/svg+xml;base64,${await this.getSenaLogoBase64()}" class="sena-svg" alt="SENA Logo" />
@@ -513,7 +519,6 @@ export class PdfService {
             <div class="acta-numero">ACTA N° </div>
         </div>
 
-        <!-- TABLA DE ASISTENTES -->
         <div class="section" style="border-bottom: none;">
             <div class="section-title">ASISTENTES</div>
             <div class="section-content" style="padding: 0;">
@@ -538,7 +543,6 @@ export class PdfService {
             </div>
         </div>
 
-        <!-- FIRMAS DEL INSTRUCTOR Y BIENESTAR -->
         <div class="firmas-section">
             <div class="firma-box">
                 <div class="firma-line"></div>
@@ -551,86 +555,25 @@ export class PdfService {
         </div>
     </div>
 
-    <div class="page-footer">
-        Página 2 de 2
-    </div>
+    <div class="page-footer">Página 2 de 2</div>
 </body>
 </html>
     `;
   }
 
   private async convertHtmlToPdf(htmlContent: string): Promise<Buffer> {
-    console.log('🔄 Iniciando conversión HTML a PDF...');
+    console.log('🔄 Iniciando conversión HTML a PDF con Chromium remoto...');
     
     let browser = null;
     
     try {
-      // Detectar Chrome automáticamente
-      const chromePath = await this.detectChromePath();
-      
-      const browserConfig: any = {
-        headless: true,
-        timeout: 60000, // Aumentar timeout a 60 segundos
-        args: [
-          // Argumentos esenciales para entornos containerizados
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--single-process',
-          '--disable-gpu',
-          
-          // Optimizaciones de memoria y rendimiento
-          '--memory-pressure-off',
-          '--max_old_space_size=4096',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--disable-web-security',
-          '--disable-features=TranslateUI',
-          '--disable-ipc-flooding-protection',
-          
-          // Configuraciones adicionales para estabilidad
-          '--disable-default-apps',
-          '--disable-extensions',
-          '--disable-plugins',
-          '--disable-sync',
-          '--hide-scrollbars',
-          '--mute-audio',
-          '--no-default-browser-check',
-          '--disable-background-networking',
-          '--disable-component-update',
-          '--disable-domain-reliability',
-          '--disable-features=VizDisplayCompositor',
-        ],
-        defaultViewport: { width: 1200, height: 800 },
-      };
-
-      // Si encontramos Chrome, usarlo
-      if (chromePath) {
-        browserConfig.executablePath = chromePath;
-      }
-
-      console.log('🚀 Configuración del browser:', {
-        executablePath: chromePath || 'bundled',
-        headless: true,
-        platform: process.platform,
-        arch: process.arch
-      });
-
-      browser = await puppeteer.launch(browserConfig);
-      console.log('✅ Browser Puppeteer lanzado exitosamente');
+      // ✅ USAR EL NUEVO MÉTODO getBrowser()
+      browser = await this.getBrowser();
+      console.log('✅ Browser lanzado exitosamente');
       
       const page = await browser.newPage();
       
-      // Configurar el viewport para PDF
       await page.setViewport({ width: 1200, height: 800 });
-      
-      // Configurar timeouts extendidos
-      page.setDefaultTimeout(60000);
-      page.setDefaultNavigationTimeout(60000);
       
       console.log('📄 Configurando contenido HTML...');
       await page.setContent(htmlContent, { 
@@ -659,28 +602,6 @@ export class PdfService {
 
     } catch (error) {
       console.error('❌ Error en la conversión HTML a PDF:', error);
-      console.error('Error stack:', error.stack);
-      
-      // Información adicional para debugging
-      console.error('Environment info:');
-      console.error('- NODE_ENV:', process.env.NODE_ENV);
-      console.error('- Platform:', process.platform);
-      console.error('- Architecture:', process.arch);
-      console.error('- Puppeteer cache:', process.env.PUPPETEER_CACHE_DIR || '/opt/render/.cache/puppeteer');
-      
-      // Verificar si existen los directorios de Chrome
-      const cacheDir = '/opt/render/.cache/puppeteer';
-      if (fs.existsSync(cacheDir)) {
-        try {
-          const contents = fs.readdirSync(cacheDir, { recursive: true });
-          console.error('- Cache contents:', contents.slice(0, 10)); // Primeros 10 elementos
-        } catch (readError) {
-          console.error('- Cannot read cache dir:', readError.message);
-        }
-      } else {
-        console.error('- Cache directory does not exist:', cacheDir);
-      }
-      
       throw new Error(`Error generando PDF: ${error.message}`);
     } finally {
       if (browser) {
