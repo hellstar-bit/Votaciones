@@ -3,13 +3,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as puppeteer from 'puppeteer';
 import { Eleccion } from '../elections/entities/eleccion.entity';
 import { Candidato } from '../candidates/entities/candidato.entity';
 import { Voto } from '../votes/entities/voto.entity';
 import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 import * as fs from 'fs';
 import * as path from 'path';
+import puppeteer from 'puppeteer-core';
+import chromium from 'chrome-aws-lambda';
 @Injectable()
 export class PdfService {
   constructor(
@@ -509,70 +510,68 @@ export class PdfService {
     `;
 }
   private async convertHtmlToPdf(htmlContent: string): Promise<Buffer> {
-  console.log('🔄 Iniciando conversión HTML a PDF en Render...')
-  
-  // ✅ CONFIGURACIÓN ESPECÍFICA PARA RENDER
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process', // Importante para Render
-      '--disable-gpu',
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding',
-      '--disable-web-security',
-      '--disable-features=TranslateUI',
-      '--disable-ipc-flooding-protection',
-    ],
-    // ✅ CONFIGURACIÓN PARA RENDER - usar Chrome instalado por el sistema
-    executablePath: process.env.CHROME_BIN || 
-                   '/usr/bin/google-chrome-stable' || 
-                   '/usr/bin/google-chrome' || 
-                   '/usr/bin/chromium-browser' || 
-                   undefined,
-  });
-
-  try {
-    console.log('✅ Browser lanzado exitosamente')
-    const page = await browser.newPage();
+    console.log('🔄 Iniciando conversión HTML a PDF con chrome-aws-lambda...')
     
-    // Configurar el viewport para PDF
-    await page.setViewport({ width: 1200, height: 800 });
+    let browser = null;
     
-    await page.setContent(htmlContent, { 
-      waitUntil: 'networkidle0',
-      timeout: 30000 
-    });
+    try {
+      // ✅ CONFIGURACIÓN PARA CHROME-AWS-LAMBDA (funciona en cualquier servidor)
+      browser = await puppeteer.launch({
+        args: [
+          ...chromium.args,
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote',
+          '--disable-web-security'
+        ],
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath,
+        headless: chromium.headless,
+        ignoreHTTPSErrors: true,
+      });
 
-    console.log('📄 Generando PDF...')
-    const pdfUint8Array = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '20px',
-        right: '20px',
-        bottom: '20px',
-        left: '20px',
-      },
-      timeout: 30000,
-    });
+      console.log('✅ Browser lanzado exitosamente con chrome-aws-lambda')
+      
+      const page = await browser.newPage();
+      
+      // Configurar el viewport para PDF
+      await page.setViewport({ width: 1200, height: 800 });
+      
+      console.log('📄 Configurando contenido HTML...')
+      await page.setContent(htmlContent, { 
+        waitUntil: 'networkidle0',
+        timeout: 30000 
+      });
 
-    const pdfBuffer = Buffer.from(pdfUint8Array);
-    console.log('✅ PDF generado exitosamente, tamaño:', pdfBuffer.length, 'bytes')
-    
-    return pdfBuffer;
+      console.log('📄 Generando PDF...')
+      const pdfUint8Array = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: {
+          top: '20px',
+          right: '20px',
+          bottom: '20px',
+          left: '20px',
+        },
+        timeout: 30000,
+      });
 
-  } catch (error) {
-    console.error('❌ Error en la conversión HTML a PDF:', error)
-    throw error
-  } finally {
-    await browser.close();
-    console.log('🔒 Browser cerrado')
+      const pdfBuffer = Buffer.from(pdfUint8Array);
+      console.log('✅ PDF generado exitosamente, tamaño:', pdfBuffer.length, 'bytes')
+      
+      return pdfBuffer;
+
+    } catch (error) {
+      console.error('❌ Error en la conversión HTML a PDF:', error)
+      throw new Error(`Error generando PDF: ${error.message}`)
+    } finally {
+      if (browser) {
+        await browser.close();
+        console.log('🔒 Browser cerrado')
+      }
+    }
   }
-}}
+}
