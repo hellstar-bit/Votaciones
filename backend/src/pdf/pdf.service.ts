@@ -1,7 +1,5 @@
 // 📁 backend/src/pdf/pdf.service.ts
 // ====================================================================
-// SOLUCIÓN CON @sparticuz/chromium PARA RENDER
-// ====================================================================
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -31,10 +29,10 @@ export class PdfService {
 
   private getDefaultSenaLogo(): string {
     const defaultSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60" width="100" height="60">
-      <rect width="98" height="58" x="1" y="1" fill="white" stroke="black" stroke-width="2"/>
-      <circle cx="50" cy="25" r="10" fill="black"/>
-      <text x="50" y="45" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="black">SENA</text>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60">
+      <rect width="100" height="60" fill="white" stroke="black" stroke-width="2"/>
+      <circle cx="50" cy="20" r="8" fill="black"/>
+      <text x="50" y="35" text-anchor="middle" font-family="Arial" font-size="12" font-weight="bold">SENA</text>
     </svg>`;
     
     return Buffer.from(defaultSvg).toString('base64');
@@ -42,27 +40,28 @@ export class PdfService {
 
   private async getSenaLogoBase64(): Promise<string> {
     try {
-      const possiblePaths = [
-        path.join(process.cwd(), 'public', 'sena.svg'),
-        path.join(process.cwd(), 'dist', 'public', 'sena.svg'),
-        path.join(__dirname, '../../public', 'sena.svg'),
-        path.join(__dirname, '../../../public', 'sena.svg'),
-      ];
-
-      for (const svgPath of possiblePaths) {
-        if (fs.existsSync(svgPath)) {
-          const svgContent = fs.readFileSync(svgPath, 'utf8');
-          const base64 = Buffer.from(svgContent).toString('base64');
-          console.log(`✅ Logo SENA cargado desde: ${svgPath}`);
-          return base64;
-        }
+      // Ruta al archivo SVG en la carpeta public
+      const svgPath = path.join(process.cwd(), 'public', 'sena.svg');
+      
+      // Verificar si el archivo existe
+      if (!fs.existsSync(svgPath)) {
+        console.warn('❌ No se encontró el archivo sena.svg en public/, usando logo por defecto');
+        // SVG por defecto si no existe el archivo
+        return this.getDefaultSenaLogo();
       }
       
-      console.warn('⚠️ Archivo sena.svg no encontrado, usando logo por defecto');
-      return this.getDefaultSenaLogo();
+      // Leer el archivo SVG
+      const svgContent = fs.readFileSync(svgPath, 'utf8');
+      
+      // Convertir a base64
+      const base64 = Buffer.from(svgContent).toString('base64');
+      
+      console.log('✅ Logo SENA cargado desde public/sena.svg');
+      return base64;
       
     } catch (error) {
       console.error('❌ Error cargando logo SENA:', error);
+      // Fallback al logo por defecto
       return this.getDefaultSenaLogo();
     }
   }
@@ -144,7 +143,7 @@ export class PdfService {
     // 2. Obtener estadísticas de la elección
     const stats = await this.getElectionStatsForActa(electionId);
 
-    // 3. Generar HTML del acta
+    // 3. Generar HTML del acta (ahora es async)
     const htmlContent = await this.generateActaHTML(eleccion, stats, instructorName);
 
     // 4. Convertir HTML a PDF
@@ -184,7 +183,7 @@ export class PdfService {
     };
   }
 
-  private async generateActaHTML(eleccion: any, stats: any, instructorName: string): Promise<string> {
+  async generateActaHTML(eleccion: any, stats: any, instructorName: string): Promise<string> {
     // Formatear fechas
     const fechaActual = new Date().toLocaleDateString('es-CO', {
       day: 'numeric',
@@ -204,16 +203,20 @@ export class PdfService {
       year: 'numeric'
     });
 
+    // ✅ Hora actual en formato HH:MM
     const horaActual = new Date().toLocaleTimeString('es-CO', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false
+      hour12: false // Formato 24 horas
     });
 
+    // ✅ Lugar siempre fijo
     const lugar = 'Centro Nacional Colombo Alemán; Bienestar al aprendiz';
+
+    // ✅ Tema siempre "ELECCIÓN DE LÍDER"
     const tema = 'ELECCIÓN DE LÍDER';
 
-    // Obtener nombre del programa de formación
+    // ✅ Obtener nombre del programa de formación
     let nombrePrograma = 'Programa de Formación';
     if (eleccion.ficha?.nombre_programa) {
       nombrePrograma = eleccion.ficha.nombre_programa.toUpperCase();
@@ -252,7 +255,7 @@ export class PdfService {
             border: 2px solid black;
         }
         
-        /* ENCABEZADO */
+        /* ENCABEZADO EXACTO */
         .header {
             border-bottom: 2px solid black;
             padding: 8px;
@@ -280,6 +283,11 @@ export class PdfService {
             height: 35px;
             margin-bottom: 2px;
         }
+        .sena-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin: 2px 0;
+        }
         .sena-subtitle {
             font-size: 6px;
             line-height: 0.9;
@@ -289,17 +297,6 @@ export class PdfService {
             font-weight: bold;
             font-size: 14px;
             align-self: center;
-        }
-
-        /* SALTO DE PÁGINA */
-        .page-break {
-            page-break-before: always;
-        }
-        .page-footer {
-            text-align: center;
-            font-size: 9px;
-            margin-top: 10px;
-            font-weight: bold;
         }
 
         /* SECCIONES */
@@ -318,7 +315,7 @@ export class PdfService {
             padding: 8px;
         }
 
-        /* TABLAS */
+        /* TABLAS DE INFORMACIÓN */
         .info-table {
             width: 100%;
             border-collapse: collapse;
@@ -335,6 +332,7 @@ export class PdfService {
             width: 120px;
         }
 
+        /* TABLA DE ASISTENTES - PÁGINA 2 */
         .asistentes-table {
             width: 100%;
             border-collapse: collapse;
@@ -357,36 +355,75 @@ export class PdfService {
             vertical-align: middle;
         }
 
+        /* OBJETIVO */
         .objetivo-text {
             text-align: justify;
             line-height: 1.2;
             margin: 8px 0;
         }
+
+        /* DESARROLLO */
         .desarrollo-text {
             margin: 8px 0;
             line-height: 1.3;
         }
+        .filled-field {
+            border-bottom: 1px solid black;
+            display: inline-block;
+            min-width: 80px;
+            height: 12px;
+            margin: 0 3px;
+            text-align: center;
+            font-weight: bold;
+        }
 
+        /* REQUISITOS */
+        .requisitos-list {
+            margin: 8px 0;
+            padding-left: 15px;
+        }
+        .requisitos-list li {
+            margin-bottom: 6px;
+            text-align: justify;
+            line-height: 1.2;
+        }
+
+        /* FIRMAS */
         .firmas-section {
-            display: flex;
-            justify-content: space-around;
             margin-top: 30px;
-            padding: 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .firma-box {
             text-align: center;
-            width: 200px;
+            width: 250px;
         }
         .firma-line {
-            border-bottom: 1px solid black;
+            border-bottom: 2px solid black;
+            height: 2px;
             margin-bottom: 5px;
-            height: 30px;
+        }
+
+        /* PÁGINA */
+        .page-footer {
+            text-align: right;
+            margin-top: 15px;
+            font-size: 9px;
+            font-weight: bold;
+        }
+
+        /* SALTO DE PÁGINA */
+        .page-break {
+            page-break-before: always;
         }
     </style>
 </head>
 <body>
-    <!-- PÁGINA 1 -->
+    <!-- ========== PÁGINA 1 ========== -->
     <div class="container">
+        
+        <!-- ENCABEZADO EXACTO -->
         <div class="header">
             <div class="sena-logo">
                 <img src="data:image/svg+xml;base64,${await this.getSenaLogoBase64()}" class="sena-svg" alt="SENA Logo" />
@@ -398,116 +435,86 @@ export class PdfService {
             <div class="acta-numero">ACTA N° </div>
         </div>
 
+        <!-- ELECCIÓN DE LÍDER -->
         <div class="section">
-            <div class="section-title">INFORMACIÓN GENERAL</div>
+            <div class="section-title">ELECCIÓN DE LÍDER</div>
             <div class="section-content">
                 <table class="info-table">
                     <tr>
-                        <td class="info-label">Fecha:</td>
-                        <td><strong>${fechaActual}</strong></td>
-                        <td class="info-label">Hora:</td>
-                        <td><strong>${horaActual}</strong></td>
+                        <td class="info-label">CIUDAD Y FECHA:</td>
+                        <td style="width: 300px;">Barranquilla, ${fechaActual}</td>
+                        <td class="info-label">FECHA DE INICIO:</td>
+                        <td style="width: 120px;">${fechaInicio}</td>
+                        <td class="info-label">FECHA DE TERMINACIÓN:</td>
+                        <td style="width: 120px;">${fechaFin}</td>
                     </tr>
                     <tr>
-                        <td class="info-label">Lugar:</td>
-                        <td colspan="3"><strong>${lugar}</strong></td>
+                        <td class="info-label">LUGAR:</td>
+                        <td colspan="5">${lugar}</td>
                     </tr>
                     <tr>
-                        <td class="info-label">Tema:</td>
-                        <td colspan="3"><strong>${tema}</strong></td>
+                        <td class="info-label">TEMA:</td>
+                        <td colspan="5">${tema}</td>
                     </tr>
                 </table>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">OBJETIVO</div>
-            <div class="section-content">
-                <div class="objetivo-text">
-                    Llevar a cabo la elección de líder estudiantil para el programa de formación 
-                    <strong>${nombrePrograma}</strong>, garantizando un proceso democrático, 
-                    transparente y participativo que permita la selección del candidato más idóneo 
-                    para representar los intereses y necesidades de los aprendices.
+                
+                <div style="margin-top: 12px;">
+                    <strong>OBJETIVO DE LA REUNIÓN:</strong>
+                    <div class="objetivo-text">
+                        Aplicar el artículo 45 del Capítulo XII del Reglamento del Aprendiz SENA, donde se pide la elección de los Voceros de Programas teniendo en cuenta su capacidad de trabajo en equipo, colaboración, manejo de la información, liderazgo, polivalencia, iniciativa y actitudes que beneficien el desarrollo del Programa de Formación y de la Comunidad Educativa.
+                    </div>
                 </div>
             </div>
         </div>
 
+        <!-- DESARROLLO DE LA REUNIÓN -->
         <div class="section">
-            <div class="section-title">DESARROLLO</div>
+            <div class="section-title">DESARROLLO DE LA REUNIÓN</div>
             <div class="section-content">
+                <div style="margin-bottom: 8px;">
+                    <strong>VERIFICACIÓN DE QUÓRUM:</strong>
+                </div>
                 <div class="desarrollo-text">
-                    <strong>1. Apertura de la jornada electoral:</strong> El proceso electoral se llevó a cabo 
-                    del ${fechaInicio} al ${fechaFin}, utilizando el sistema de votación electrónica del SENA.
-                    <br><br>
-                    <strong>2. Participación:</strong> De un total de <strong>${stats.totalVotantes}</strong> 
-                    aprendices habilitados para votar, participaron <strong>${stats.totalVotos}</strong> 
-                    aprendices, representando una participación del <strong>${stats.porcentajeParticipacion.toFixed(1)}%</strong>.
-                    <br><br>
-                    <strong>3. Resultados:</strong> Se registraron <strong>${stats.votosBlanco}</strong> 
-                    votos en blanco. El candidato elegido obtuvo la mayoría de votos válidos.
-                    <br><br>
-                    <strong>4. Validación:</strong> El proceso fue supervisado por el instructor 
-                    <strong>${instructorName}</strong> y el equipo de Bienestar al Aprendiz.
+                    Siendo las <span class="filled-field">${horaActual}</span> del día <span class="filled-field">${fechaActual}</span>, se reunieron el Instructor <span class="filled-field">${instructorName}</span> y los (<span class="filled-field">${stats.totalVotantes}</span>) Aprendices del Programa <span class="filled-field">${nombrePrograma}</span> de la ficha <span class="filled-field">${eleccion.ficha?.numero_ficha || 'N/A'}</span> para realizar la elección de líder (X) o la ratificación del líder ( ).
                 </div>
             </div>
         </div>
 
+        <!-- REQUISITOS Y CONDICIONES -->
         <div class="section">
-            <div class="section-title">CANDIDATO ELEGIDO</div>
+            <div class="section-title">REQUISITOS Y CONDICIONES PARA SER VOCEROS DE PROGRAMA</div>
             <div class="section-content">
-                <table class="info-table">
-                    <tr>
-                        <td class="info-label">Nombre Completo:</td>
-                        <td><strong>${nombreGanador}</strong></td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">Documento:</td>
-                        <td><strong>${documentoGanador}</strong></td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">Email:</td>
-                        <td><strong>${emailGanador}</strong></td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">Teléfono:</td>
-                        <td><strong>${telefonoGanador}</strong></td>
-                    </tr>
-                </table>
+                <ol type="a" class="requisitos-list">
+                    <li>Ser postulado por los aprendices del mismo Programa.</li>
+                    <li>Tener disponibilidad para trabajar en equipo con los representantes de Centro y demás integrantes de la comunidad educativa se requiere.</li>
+                    <li>Conocer y aplicar los temas de la inducción y demostrar interés por su cumplimiento a nivel personal y grupal.</li>
+                    <li>Actuar de acuerdo con lo estipulado en el presente Reglamento y tener buenas relaciones interpersonales con los integrantes de la Comunidad Educativa.</li>
+                    <li>Tener cualidades y capacidades de líder y una actitud crítica y constructiva.</li>
+                    <li>Cumplir con las responsabilidades como vocero de programa sin descuidar las obligaciones del proceso de aprendizaje</li>
+                </ol>
             </div>
         </div>
 
-        <div class="section">
-            <div class="section-title">COMPROMISOS DEL LÍDER ELEGIDO</div>
+        <!-- CONCLUSIONES -->
+        <div class="section" style="border-bottom: none;">
+            <div class="section-title">CONCLUSIONES</div>
             <div class="section-content">
-                <div class="desarrollo-text">
-                    El líder elegido se compromete a:
-                    <br>• Representar dignamente a sus compañeros aprendices
-                    <br>• Promover la participación activa en las actividades formativas
-                    <br>• Servir como canal de comunicación entre aprendices e instructores
-                    <br>• Fomentar el trabajo en equipo y la colaboración
-                    <br>• Apoyar las iniciativas de mejora continua del programa
+                <div style="margin: 25px 0; line-height: 1.5; text-align: justify;">
+                    Fue elegido el aprendiz <strong>${nombreGanador}</strong> con el D.I <strong>${documentoGanador}</strong> correo electrónico <strong>${emailGanador}</strong> número de teléfono <strong>${telefonoGanador}</strong>
                 </div>
-            </div>
-        </div>
-
-        <div class="firmas-section">
-            <div class="firma-box">
-                <div class="firma-line"></div>
-                <div style="font-weight: bold; font-size: 11px;">Firma Instructor</div>
-            </div>
-            <div class="firma-box">
-                <div class="firma-line"></div>
-                <div style="font-weight: bold; font-size: 11px;">Bienestar al Aprendiz</div>
             </div>
         </div>
     </div>
+    
+    <div class="page-footer">
+        Página 1 de 2
+    </div>
 
-    <div class="page-footer">Página 1 de 2</div>
-
-    <!-- PÁGINA 2 -->
+    <!-- ========== PÁGINA 2 ========== -->
     <div class="page-break"></div>
     
     <div class="container">
+        <!-- ENCABEZADO PÁGINA 2 -->
         <div class="header">
             <div class="sena-logo">
                 <img src="data:image/svg+xml;base64,${await this.getSenaLogoBase64()}" class="sena-svg" alt="SENA Logo" />
@@ -519,6 +526,7 @@ export class PdfService {
             <div class="acta-numero">ACTA N° </div>
         </div>
 
+        <!-- TABLA DE ASISTENTES -->
         <div class="section" style="border-bottom: none;">
             <div class="section-title">ASISTENTES</div>
             <div class="section-content" style="padding: 0;">
@@ -543,6 +551,7 @@ export class PdfService {
             </div>
         </div>
 
+        <!-- FIRMAS DEL INSTRUCTOR Y BIENESTAR -->
         <div class="firmas-section">
             <div class="firma-box">
                 <div class="firma-line"></div>
@@ -555,7 +564,9 @@ export class PdfService {
         </div>
     </div>
 
-    <div class="page-footer">Página 2 de 2</div>
+    <div class="page-footer">
+        Página 2 de 2
+    </div>
 </body>
 </html>
     `;
@@ -572,16 +583,8 @@ export class PdfService {
       console.log('✅ Browser lanzado exitosamente');
       
       const page = await browser.newPage();
-      
-      await page.setViewport({ width: 1200, height: 800 });
-      
-      console.log('📄 Configurando contenido HTML...');
-      await page.setContent(htmlContent, { 
-        waitUntil: 'networkidle0',
-        timeout: 60000 
-      });
+      await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
 
-      console.log('📄 Generando PDF...');
       const pdfUint8Array = await page.pdf({
         format: 'A4',
         printBackground: true,
@@ -591,10 +594,9 @@ export class PdfService {
           bottom: '20px',
           left: '20px',
         },
-        timeout: 60000,
-        preferCSSPageSize: true
       });
 
+      // ✅ CONVERSIÓN DE Uint8Array A Buffer
       const pdfBuffer = Buffer.from(pdfUint8Array);
       console.log('✅ PDF generado exitosamente, tamaño:', pdfBuffer.length, 'bytes');
       
