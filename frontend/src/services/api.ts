@@ -985,7 +985,116 @@ export const personasApi = {
     const response = await api.get(`/personas/by-documento/${documento}`)
     return response.data
   },
+
+
+createAprendiz: async (data: {
+    nombres: string;
+    apellidos: string;
+    tipo_documento: string;
+    numero_documento: string;
+    telefono: string;
+    email: string;
+    id_ficha?: number;
+  }): Promise<Aprendiz> => {
+    const response = await api.post('/personas/aprendices', data);
+    return response.data;
+  },
+
+  // Actualizar aprendiz existente
+  updateAprendiz: async (id: number, data: {
+    nombres?: string;
+    apellidos?: string;
+    tipo_documento?: string;
+    telefono?: string;
+    email?: string;
+    id_ficha?: number;
+  }): Promise<Aprendiz> => {
+    const response = await api.patch(`/personas/${id}`, data);
+    return response.data;
+  },
+
+  // Eliminar aprendiz
+  deleteAprendiz: async (id: number): Promise<{ message: string }> => {
+    const response = await api.delete(`/personas/${id}`);
+    return response.data;
+  },
+
+  // Validar número de documento único
+  validateDocumento: async (numero_documento: string, excludeId?: number): Promise<{
+    isValid: boolean;
+    message?: string;
+  }> => {
+    const params = new URLSearchParams({ numero_documento });
+    if (excludeId) {
+      params.append('excludeId', excludeId.toString());
+    }
+
+    const response = await api.get(`/personas/validate-documento?${params.toString()}`);
+    return response.data;
+  },
+
+  // Obtener estadísticas de aprendices
+  getStats: async (): Promise<{
+    total: number;
+    activos: number;
+    inactivos: number;
+    sinFicha: number;
+    porJornada: { [key: string]: number };
+    porSede: { [key: string]: number };
+    porCentro: { [key: string]: number };
+  }> => {
+    const response = await api.get('/personas/aprendices/stats');
+    return response.data;
+  },
+
+  // Exportar aprendices a CSV
+  exportToCsv: async (filters?: {
+    ficha?: string;
+    sede?: string;
+    centro?: string;
+    jornada?: string;
+    estado?: string;
+  }): Promise<Blob> => {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, value);
+      });
+    }
+
+    const response = await api.get(`/personas/aprendices/export?${params.toString()}`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  // Cambiar estado de aprendiz
+  changeStatus: async (id: number, estado: string, motivo?: string): Promise<Aprendiz> => {
+    const response = await api.patch(`/personas/${id}/status`, { estado, motivo });
+    return response.data;
+  },
+
+  // Asignar/cambiar ficha de aprendiz
+  assignFicha: async (id: number, id_ficha: number): Promise<Aprendiz> => {
+    const response = await api.patch(`/personas/${id}/ficha`, { id_ficha });
+    return response.data;
+  },
+
+  // Obtener historial de cambios del aprendiz
+  getHistory: async (id: number): Promise<Array<{
+    id: number;
+    accion: string;
+    descripcion: string;
+    fecha: string;
+    usuario: string;
+    datos_anteriores?: any;
+    datos_nuevos?: any;
+  }>> => {
+    const response = await api.get(`/personas/${id}/history`);
+    return response.data;
+  }
 }
+
 
 // Fichas API
 export const fichasApi = {
@@ -1001,6 +1110,8 @@ export const fichasApi = {
     return response.data
   },
 }
+
+
 
 // Votes API
 export const votesApi = {

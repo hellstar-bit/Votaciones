@@ -1,5 +1,4 @@
-// 📁 frontend/src/pages/admin/AdminAprendicesPage.tsx
-
+// 📁 frontend/src/components/admin/AdminAprendicesPage.tsx - VERSIÓN ACTUALIZADA CON MODAL
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -19,10 +18,14 @@ import {
   XCircleIcon,
   ChevronDownIcon,
   ChevronUpIcon,
-  ArrowDownTrayIcon
+  PlusIcon,
+  UserPlusIcon,
+  IdentificationIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import AdminLayout from '../../components/layout/AdminLayout';
 import ImportModal from '../../components/import/importModal';
+import CreateEditAprendizModal from '../../components/aprendices/CreateEditAprendizModal';
 import { personasApi, fichasApi } from '../../services/api';
 import type { Aprendiz, Ficha, ImportResult } from '../../services/api';
 
@@ -39,12 +42,14 @@ const AdminAprendicesPage = () => {
   // Estados principales
   const [aprendices, setAprendices] = useState<Aprendiz[]>([]);
   const [originalAprendices, setOriginalAprendices] = useState<Aprendiz[]>([]);
-  const [fichas, setFichas] = useState<Ficha[]>([]);
+  const [, setFichas] = useState<Ficha[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
   
   // Estados de modales y vistas
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showCreateEditModal, setShowCreateEditModal] = useState(false);
+  const [aprendizToEdit, setAprendizToEdit] = useState<Aprendiz | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedAprendiz, setSelectedAprendiz] = useState<Aprendiz | null>(null);
   const [showAprendizDetails, setShowAprendizDetails] = useState(false);
@@ -157,44 +162,48 @@ const AdminAprendicesPage = () => {
         aprendiz.nombres?.toLowerCase().includes(searchTerm) ||
         aprendiz.apellidos?.toLowerCase().includes(searchTerm) ||
         aprendiz.numero_documento?.includes(searchTerm) ||
-        aprendiz.email?.toLowerCase().includes(searchTerm) ||
-        `${aprendiz.nombres} ${aprendiz.apellidos}`.toLowerCase().includes(searchTerm)
+        aprendiz.email?.toLowerCase().includes(searchTerm)
       );
     }
 
     // Filtro por ficha
-    if (filters.ficha) {
+    if (filters.ficha.trim()) {
       filteredData = filteredData.filter(aprendiz => 
-        aprendiz.ficha?.id_ficha?.toString() === filters.ficha
+        aprendiz.ficha?.numero_ficha === filters.ficha
+      );
+    }
+
+    // Filtro por sede
+    if (filters.sede.trim()) {
+      filteredData = filteredData.filter(aprendiz => 
+        aprendiz.sede?.nombre_sede.toLowerCase().includes(filters.sede.toLowerCase())
+      );
+    }
+
+    // Filtro por centro
+    if (filters.centro.trim()) {
+      filteredData = filteredData.filter(aprendiz => 
+        aprendiz.centro?.nombre_centro.toLowerCase().includes(filters.centro.toLowerCase())
       );
     }
 
     // Filtro por jornada
-    if (filters.jornada) {
+    if (filters.jornada.trim()) {
       filteredData = filteredData.filter(aprendiz => 
-        aprendiz.jornada === filters.jornada ||
         aprendiz.ficha?.jornada === filters.jornada
       );
     }
 
     // Filtro por estado
-    if (filters.estado) {
-      filteredData = filteredData.filter(aprendiz => {
-        const estado = getAprendizEstado(aprendiz);
-        return estado === filters.estado;
-      });
+    if (filters.estado.trim()) {
+      filteredData = filteredData.filter(aprendiz => 
+        getAprendizEstado(aprendiz) === filters.estado
+      );
     }
 
     setAprendices(filteredData);
     setCurrentPage(1);
     setSearchLoading(false);
-  };
-
-  const handleFilterChange = (field: keyof Filters, value: string) => {
-    setFilters(prev => ({
-      ...prev,
-      [field]: value
-    }));
   };
 
   const clearFilters = () => {
@@ -208,56 +217,36 @@ const AdminAprendicesPage = () => {
     });
   };
 
+  const handleFilterChange = (field: keyof Filters, value: string) => {
+    setFilters(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleImportComplete = (result: ImportResult) => {
-    toast.success(`Importación completada: ${result.importedRecords} registros importados`);
-    loadInitialData(); // Recargar lista
+    toast.success(`Importación completada: ${result.importedRecords} registros`);
+    loadInitialData();
     setShowImportModal(false);
   };
 
-  const handleViewAprendiz = (aprendiz: Aprendiz) => {
-    setSelectedAprendiz(aprendiz);
-    setShowAprendizDetails(true);
+  // Funciones para el modal de crear/editar
+  const handleCreateNew = () => {
+    setAprendizToEdit(null);
+    setShowCreateEditModal(true);
   };
 
-  const handleExportAprendices = async () => {
-    try {
-      toast.loading('Generando exportación...', { id: 'export' });
-      
-      const exportData = aprendices.map(aprendiz => ({
-        'Tipo Documento': aprendiz.tipo_documento,
-        'Número Documento': aprendiz.numero_documento,
-        'Nombres': aprendiz.nombres,
-        'Apellidos': aprendiz.apellidos,
-        'Email': aprendiz.email || '',
-        'Teléfono': aprendiz.telefono || '',
-        'Estado': formatEstado(getAprendizEstado(aprendiz)),
-        'Ficha': aprendiz.ficha?.numero_ficha || '',
-        'Programa': aprendiz.ficha?.nombre_programa || '',
-        'Jornada': aprendiz.jornada || aprendiz.ficha?.jornada || '',
-        'Sede': aprendiz.sede?.nombre_sede || '',
-        'Centro': aprendiz.centro?.nombre_centro || ''
-      }));
+  const handleEdit = (aprendiz: Aprendiz) => {
+    setAprendizToEdit(aprendiz);
+    setShowCreateEditModal(true);
+  };
 
-      const csvContent = [
-        Object.keys(exportData[0] || {}).join(','),
-        ...exportData.map(row => Object.values(row).map(val => `"${val}"`).join(','))
-      ].join('\n');
+  const handleAprendizSaved = () => {
+    loadInitialData(); // Recargar datos después de crear/editar
+    setShowCreateEditModal(false);
+    setAprendizToEdit(null);
+  };
 
-      const dataBlob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(dataBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `aprendices_${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      toast.success('Archivo exportado exitosamente', { id: 'export' });
-    } catch (error) {
-      console.error('Error exportando:', error);
-      toast.error('Error al exportar datos', { id: 'export' });
-    }
+  const handleViewDetails = (aprendiz: Aprendiz) => {
+    setSelectedAprendiz(aprendiz);
+    setShowAprendizDetails(true);
   };
 
   // Paginación
@@ -267,14 +256,17 @@ const AdminAprendicesPage = () => {
   const endIndex = startIndex + itemsPerPage;
   const currentAprendices = aprendices.slice(startIndex, endIndex);
 
+  // Obtener opciones únicas para filtros
+  const fichasOptions = [...new Set(originalAprendices.map(a => a.ficha?.numero_ficha).filter(Boolean))];
+  const sedesOptions = [...new Set(originalAprendices.map(a => a.sede?.nombre_sede).filter(Boolean))];
+  const centrosOptions = [...new Set(originalAprendices.map(a => a.centro?.nombre_centro).filter(Boolean))];
+  const jornadasOptions = [...new Set(originalAprendices.map(a => a.ficha?.jornada).filter(Boolean))];
+
   if (loading) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sena-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Cargando aprendices...</p>
-          </div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-sena-600"></div>
         </div>
       </AdminLayout>
     );
@@ -282,35 +274,30 @@ const AdminAprendicesPage = () => {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-sena-100 rounded-lg flex items-center justify-center">
-              <AcademicCapIcon className="w-6 h-6 text-sena-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Gestión de Aprendices</h1>
-              <p className="text-sm text-gray-600">Administra los estudiantes del sistema</p>
-            </div>
+        <div className="sm:flex sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Gestión de Aprendices</h1>
+            <p className="mt-2 text-sm text-gray-700">
+              Administra la información de los aprendices registrados en el sistema
+            </p>
           </div>
-
-          {/* Acciones principales */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={handleExportAprendices}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sena-500"
-            >
-              <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
-              Exportar CSV
-            </button>
-            
+          <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none flex space-x-3">
             <button
               onClick={() => setShowImportModal(true)}
               className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
             >
               <DocumentArrowUpIcon className="w-4 h-4 mr-2" />
               Importar Excel
+            </button>
+            
+            <button
+              onClick={handleCreateNew}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-sena-600 hover:bg-sena-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sena-500"
+            >
+              <UserPlusIcon className="w-4 h-4 mr-2" />
+              Crear Nuevo Aprendiz
             </button>
           </div>
         </div>
@@ -374,11 +361,11 @@ const AdminAprendicesPage = () => {
           </div>
         </div>
 
-        {/* Filtros y búsqueda */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              {/* Búsqueda */}
+        {/* Búsqueda y filtros */}
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            {/* Barra de búsqueda */}
+            <div className="flex flex-col sm:flex-row gap-4 mb-4">
               <div className="flex-1">
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -387,14 +374,13 @@ const AdminAprendicesPage = () => {
                   <input
                     type="text"
                     placeholder="Buscar por nombre, documento o email..."
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-sena-500 focus:border-sena-500"
                     value={filters.search}
                     onChange={(e) => handleFilterChange('search', e.target.value)}
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-sena-500 focus:border-sena-500"
                   />
                 </div>
               </div>
-
-              {/* Botón filtros */}
+              
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sena-500"
@@ -413,16 +399,16 @@ const AdminAprendicesPage = () => {
             <AnimatePresence>
               {showFilters && (
                 <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="mt-4 overflow-hidden"
+                  className="border-t border-gray-200 pt-4"
                 >
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     {/* Filtro por ficha */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         Ficha
                       </label>
                       <select
@@ -431,9 +417,47 @@ const AdminAprendicesPage = () => {
                         className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sena-500 focus:border-sena-500"
                       >
                         <option value="">Todas las fichas</option>
-                        {fichas.map((ficha) => (
-                          <option key={ficha.id_ficha} value={ficha.id_ficha}>
-                            {ficha.numero_ficha} - {ficha.nombre_programa}
+                        {fichasOptions.map((ficha) => (
+                          <option key={ficha} value={ficha}>
+                            {ficha}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Filtro por sede */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Sede
+                      </label>
+                      <select
+                        value={filters.sede}
+                        onChange={(e) => handleFilterChange('sede', e.target.value)}
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sena-500 focus:border-sena-500"
+                      >
+                        <option value="">Todas las sedes</option>
+                        {sedesOptions.map((sede) => (
+                          <option key={sede} value={sede}>
+                            {sede}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Filtro por centro */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Centro
+                      </label>
+                      <select
+                        value={filters.centro}
+                        onChange={(e) => handleFilterChange('centro', e.target.value)}
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sena-500 focus:border-sena-500"
+                      >
+                        <option value="">Todos los centros</option>
+                        {centrosOptions.map((centro) => (
+                          <option key={centro} value={centro}>
+                            {centro}
                           </option>
                         ))}
                       </select>
@@ -441,7 +465,7 @@ const AdminAprendicesPage = () => {
 
                     {/* Filtro por jornada */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         Jornada
                       </label>
                       <select
@@ -450,15 +474,17 @@ const AdminAprendicesPage = () => {
                         className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-sena-500 focus:border-sena-500"
                       >
                         <option value="">Todas las jornadas</option>
-                        <option value="mixta">Mixta</option>
-                        <option value="nocturna">Nocturna</option>
-                        <option value="madrugada">Madrugada</option>
+                        {jornadasOptions.map((jornada) => (
+                          <option key={jornada} value={jornada}>
+                            {jornada}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
                     {/* Filtro por estado */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         Estado
                       </label>
                       <select
@@ -469,7 +495,6 @@ const AdminAprendicesPage = () => {
                         <option value="">Todos los estados</option>
                         <option value="activo">Activo</option>
                         <option value="inactivo">Inactivo</option>
-                        <option value="sin_ficha">Sin Ficha</option>
                         <option value="egresado">Egresado</option>
                         <option value="retirado">Retirado</option>
                       </select>
@@ -491,9 +516,9 @@ const AdminAprendicesPage = () => {
           </div>
         </div>
 
-        {/* Tabla de aprendices */}
+        {/* Lista de aprendices */}
         <div className="bg-white shadow overflow-hidden sm:rounded-md">
-          {/* Header de la tabla */}
+          {/* Header de la lista */}
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-700">
@@ -515,54 +540,66 @@ const AdminAprendicesPage = () => {
               </p>
               <div className="mt-6">
                 <button
-                  onClick={() => setShowImportModal(true)}
+                  onClick={handleCreateNew}
                   className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-sena-600 hover:bg-sena-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sena-500"
                 >
-                  <DocumentArrowUpIcon className="-ml-1 mr-2 h-5 w-5" />
-                  Importar aprendices
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Crear Primer Aprendiz
                 </button>
               </div>
             </div>
           ) : (
             <ul className="divide-y divide-gray-200">
               {currentAprendices.map((aprendiz) => (
-                <li key={aprendiz.id_persona} className="px-6 py-4 hover:bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
+                <li key={aprendiz.id_persona}>
+                  <div className="px-4 py-4 flex items-center justify-between hover:bg-gray-50">
+                    <div className="flex items-center flex-1 min-w-0">
+                      {/* Avatar placeholder */}
                       <div className="flex-shrink-0 h-10 w-10">
                         <div className="h-10 w-10 rounded-full bg-sena-100 flex items-center justify-center">
                           <UserIcon className="h-6 w-6 text-sena-600" />
                         </div>
                       </div>
-                      <div className="ml-4">
-                        <div className="flex items-center">
-                          <div className="text-sm font-medium text-gray-900">
+
+                      {/* Información del aprendiz */}
+                      <div className="ml-4 flex-1 min-w-0">
+                        <div className="flex items-center space-x-2 mb-1">
+                          <p className="text-sm font-medium text-gray-900 truncate">
                             {aprendiz.nombres} {aprendiz.apellidos}
-                          </div>
-                          <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(getAprendizEstado(aprendiz))}`}>
+                          </p>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(getAprendizEstado(aprendiz))}`}>
                             {formatEstado(getAprendizEstado(aprendiz))}
                           </span>
                         </div>
-                        <div className="text-sm text-gray-500 flex items-center space-x-4">
-                          <span>{aprendiz.tipo_documento}: {aprendiz.numero_documento}</span>
+
+                        <div className="flex items-center space-x-4 text-sm text-gray-500">
+                          <div className="flex items-center">
+                            <IdentificationIcon className="flex-shrink-0 mr-1.5 h-4 w-4" />
+                            {aprendiz.numero_documento}
+                          </div>
+                          
                           {aprendiz.email && (
-                            <span className="flex items-center">
-                              <EnvelopeIcon className="h-4 w-4 mr-1" />
+                            <div className="flex items-center">
+                              <EnvelopeIcon className="flex-shrink-0 mr-1.5 h-4 w-4" />
                               {aprendiz.email}
-                            </span>
+                            </div>
                           )}
+                          
                           {aprendiz.telefono && (
-                            <span className="flex items-center">
-                              <PhoneIcon className="h-4 w-4 mr-1" />
+                            <div className="flex items-center">
+                              <PhoneIcon className="flex-shrink-0 mr-1.5 h-4 w-4" />
                               {aprendiz.telefono}
-                            </span>
+                            </div>
                           )}
                         </div>
+
+                        {/* Información de ficha */}
                         {aprendiz.ficha && (
-                          <div className="text-sm text-gray-500 mt-1">
-                            <span className="font-medium">Ficha:</span> {aprendiz.ficha.numero_ficha} - {aprendiz.ficha.nombre_programa}
+                          <div className="mt-2 flex items-center text-sm text-gray-600">
+                            <AcademicCapIcon className="flex-shrink-0 mr-1.5 h-4 w-4" />
+                            <span>Ficha {aprendiz.ficha.numero_ficha} - {aprendiz.ficha.nombre_programa}</span>
                             {aprendiz.ficha.jornada && (
-                              <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                                 {aprendiz.ficha.jornada}
                               </span>
                             )}
@@ -570,19 +607,23 @@ const AdminAprendicesPage = () => {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-2">
+
+                    {/* Botones de acción */}
+                    <div className="flex items-center space-x-2 ml-4">
                       <button
-                        onClick={() => handleViewAprendiz(aprendiz)}
-                        className="text-sena-600 hover:text-sena-900"
+                        onClick={() => handleViewDetails(aprendiz)}
+                        className="inline-flex items-center p-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sena-500"
                         title="Ver detalles"
                       >
-                        <EyeIcon className="h-5 w-5" />
+                        <EyeIcon className="h-4 w-4" />
                       </button>
+                      
                       <button
-                        className="text-blue-600 hover:text-blue-900"
-                        title="Editar"
+                        onClick={() => handleEdit(aprendiz)}
+                        className="inline-flex items-center p-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-sena-600 hover:bg-sena-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sena-500"
+                        title="Editar aprendiz"
                       >
-                        <PencilIcon className="h-5 w-5" />
+                        <PencilIcon className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
@@ -596,16 +637,16 @@ const AdminAprendicesPage = () => {
             <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
               <div className="flex-1 flex justify-between sm:hidden">
                 <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                 >
                   Anterior
                 </button>
                 <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                 >
                   Siguiente
                 </button>
@@ -620,33 +661,35 @@ const AdminAprendicesPage = () => {
                 <div>
                   <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
                     <button
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                       disabled={currentPage === 1}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                     >
                       Anterior
                     </button>
-                    {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                      const pageNumber = i + 1;
-                      const isActive = pageNumber === currentPage;
+                    
+                    {/* Números de página */}
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      const pageNum = i + 1;
                       return (
                         <button
-                          key={pageNumber}
-                          onClick={() => setCurrentPage(pageNumber)}
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
                           className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                            isActive
+                            currentPage === pageNum
                               ? 'z-10 bg-sena-50 border-sena-500 text-sena-600'
                               : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
                           }`}
                         >
-                          {pageNumber}
+                          {pageNum}
                         </button>
                       );
                     })}
+                    
                     <button
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                       disabled={currentPage === totalPages}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                     >
                       Siguiente
                     </button>
@@ -656,28 +699,41 @@ const AdminAprendicesPage = () => {
             </div>
           )}
         </div>
+
+        {/* Modal de importación */}
+        {showImportModal && (
+          <ImportModal
+            isOpen={showImportModal}
+            onClose={() => setShowImportModal(false)}
+            onImportComplete={handleImportComplete}
+          />
+        )}
+
+        {/* Modal de crear/editar aprendiz */}
+        {showCreateEditModal && (
+          <CreateEditAprendizModal
+            isOpen={showCreateEditModal}
+            onClose={() => {
+              setShowCreateEditModal(false);
+              setAprendizToEdit(null);
+            }}
+            onAprendizSaved={handleAprendizSaved}
+            aprendizToEdit={aprendizToEdit}
+          />
+        )}
+
+        {/* Modal de detalles del aprendiz */}
+        {showAprendizDetails && selectedAprendiz && (
+          <AprendizDetailsModal
+            aprendiz={selectedAprendiz}
+            isOpen={showAprendizDetails}
+            onClose={() => {
+              setShowAprendizDetails(false);
+              setSelectedAprendiz(null);
+            }}
+          />
+        )}
       </div>
-
-      {/* Modal de importación */}
-      {showImportModal && (
-        <ImportModal
-          isOpen={showImportModal}
-          onClose={() => setShowImportModal(false)}
-          onImportComplete={handleImportComplete}
-        />
-      )}
-
-      {/* Modal de detalles del aprendiz */}
-      {showAprendizDetails && selectedAprendiz && (
-        <AprendizDetailsModal
-          aprendiz={selectedAprendiz}
-          isOpen={showAprendizDetails}
-          onClose={() => {
-            setShowAprendizDetails(false);
-            setSelectedAprendiz(null);
-          }}
-        />
-      )}
     </AdminLayout>
   );
 };
@@ -725,7 +781,7 @@ const AprendizDetailsModal: React.FC<{
           transition={{ duration: 0.2 }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-gray-200">
+          <div className="flex items-center justify-between p-4 border-b border-gray-200">
             <h3 className="text-lg font-medium text-gray-900">
               Detalles del Aprendiz
             </h3>
@@ -733,25 +789,26 @@ const AprendizDetailsModal: React.FC<{
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600"
             >
-              <XCircleIcon className="h-6 w-6" />
+              <XMarkIcon className="h-6 w-6" />
             </button>
           </div>
 
-          {/* Contenido */}
-          <div className="mt-6 space-y-6">
+          {/* Content */}
+          <div className="p-6 space-y-6">
             {/* Información personal */}
             <div>
               <h4 className="text-sm font-medium text-gray-900 mb-3">Información Personal</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
                 <div className="flex items-center">
                   <UserIcon className="h-4 w-4 text-gray-400 mr-2" />
                   <span className="text-sm text-gray-600">Nombre completo: </span>
-                  <span className="text-sm text-gray-900 ml-1 font-medium">
+                  <span className="text-sm text-gray-900 ml-1">
                     {aprendiz.nombres} {aprendiz.apellidos}
                   </span>
                 </div>
 
                 <div className="flex items-center">
+                  <IdentificationIcon className="h-4 w-4 text-gray-400 mr-2" />
                   <span className="text-sm text-gray-600">Documento: </span>
                   <span className="text-sm text-gray-900 ml-1">
                     {aprendiz.tipo_documento} {aprendiz.numero_documento}
@@ -860,15 +917,12 @@ const AprendizDetailsModal: React.FC<{
           </div>
 
           {/* Footer */}
-          <div className="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3">
+          <div className="mt-6 pt-4 border-t border-gray-200 flex justify-end space-x-3 px-6 pb-6">
             <button
               onClick={onClose}
               className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sena-500"
             >
               Cerrar
-            </button>
-            <button className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-sena-600 hover:bg-sena-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sena-500">
-              Editar Aprendiz
             </button>
           </div>
         </motion.div>
