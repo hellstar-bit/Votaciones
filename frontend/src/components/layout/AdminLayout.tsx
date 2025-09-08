@@ -65,13 +65,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       icon: QueueListIcon,
       current: location.pathname === '/admin/voting'
     },
-    {
-      name: 'Reportes',
-      href: '/admin/reports',
-      icon: ChartBarIcon,
-      current: location.pathname === '/admin/reports',
-      disabled: true // Mantener deshabilitado por ahora
-    },
+    
     // ✅ NUEVO: Dashboard Tiempo Real
     {
       name: 'Dashboard Tiempo Real',
@@ -79,13 +73,13 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
       icon: PresentationChartBarIcon,
       current: location.pathname === '/real-time-dashboard'
     },
-    {
-      name: 'Configuración',
-      href: '/admin/settings',
-      icon: Cog6ToothIcon,
-      current: location.pathname === '/admin/settings',
-      disabled: true // Mantener deshabilitado por ahora
-    }
+    // {
+    //   name: 'Configuración',
+    //   href: '/admin/settings',
+    //   icon: Cog6ToothIcon,
+    //   current: location.pathname === '/admin/settings',
+    //   disabled: true // Mantener deshabilitado por ahora
+    // }
   ]
 
   const handleNavigation = (href: string, disabled?: boolean) => {
