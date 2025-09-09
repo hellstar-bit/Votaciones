@@ -6,6 +6,20 @@ import { FichasService } from './fichas.service';
 export class FichasController {
   constructor(private readonly fichasService: FichasService) {}
 
+  // ✅ NUEVO ENDPOINT - Obtener todas las fichas
+  @Get()
+  async getAllFichas() {
+    console.log('📋 === OBTENIENDO TODAS LAS FICHAS ===');
+    return this.fichasService.findAll();
+  }
+
+  // ✅ NUEVO ENDPOINT - Obtener fichas activas
+  @Get('active')
+  async getActiveFichas() {
+    console.log('📋 === OBTENIENDO FICHAS ACTIVAS ===');
+    return this.fichasService.getFichasForVocero();
+  }
+
   // ✅ ENDPOINT PARA VALIDAR FICHA (mismo que usa gestión de aprendices)
   @Get('validate/:numeroFicha')
   async validateFicha(@Param('numeroFicha') numeroFicha: string) {

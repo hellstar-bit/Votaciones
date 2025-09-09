@@ -514,106 +514,242 @@ export class ImportService {
     return { toInsert, toUpdate, skipped };
   }
 
-  private async executeImport(
-    toInsert: ImportAprendizDto[], 
-    toUpdate: ImportAprendizDto[],
-    options: any
-  ) {
-    let importedCount = 0;
-    let updatedCount = 0;
+private async executeImport(
+  toInsert: ImportAprendizDto[], 
+  toUpdate: ImportAprendizDto[],
+  options: any
+) {
+  let importedCount = 0;
+  let updatedCount = 0;
+  const errors: any[] = [];
 
-    // Obtener centro y sede por defecto
-    const defaultCentro = await this.centroRepository.findOne({
-      where: { codigo_centro: '9207' },
-    });
+  console.log(`🚀 Iniciando importación: ${toInsert.length} nuevos, ${toUpdate.length} actualizaciones`);
 
-    const defaultSede = await this.sedeRepository.findOne({
-      where: { codigo_sede: 'PRINCIPAL' },
-    });
+  // Obtener centro y sede por defecto ANTES de cualquier transacción
+  const defaultCentro = await this.centroRepository.findOne({
+    where: { codigo_centro: '9207' },
+  });
 
-    // Usar transacción para la importación
-    await this.dataSource.transaction(async (manager) => {
-      // 🔧 INSERTAR NUEVOS REGISTROS
-      for (const record of toInsert) {
-        try {
-          // Buscar o crear ficha
-          let ficha = await manager.findOne(Ficha, {
-            where: { numero_ficha: record.numero_ficha },
-          });
+  const defaultSede = await this.sedeRepository.findOne({
+    where: { codigo_sede: 'PRINCIPAL' },
+  });
 
-          if (!ficha && options.createMissingFichas !== false) {
+  console.log(`🏢 Centro por defecto:`, defaultCentro?.nombre_centro || 'No encontrado');
+  console.log(`📍 Sede por defecto:`, defaultSede?.nombre_sede || 'No encontrada');
+
+  // 🔧 PROCESAR CADA REGISTRO EN SU PROPIA TRANSACCIÓN
+  // Esta es la clave para evitar el error "transaction aborted"
+  for (const record of toInsert) {
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        console.log(`📝 Procesando inserción: ${record.numero_documento} - ${record.nombres} ${record.apellidos}`);
+
+        // 1. Buscar o crear ficha
+        let ficha = await manager.findOne(Ficha, {
+          where: { numero_ficha: record.numero_ficha },
+        });
+
+        if (!ficha) {
+          if (options.createMissingFichas !== false) {
+            console.log(`📋 Creando ficha faltante: ${record.numero_ficha}`);
+            
             const newFicha = manager.create(Ficha, {
               numero_ficha: record.numero_ficha,
-              nombre_programa: record.nombre_programa,
-              jornada: 'mixta',
+              nombre_programa: record.nombre_programa || 'Programa por definir',
+              jornada: 'mixta', // Valor correcto según la entidad
               fecha_inicio: new Date(),
-              id_centro: defaultCentro?.id_centro,
-              id_sede: defaultSede?.id_sede,
+              fecha_fin: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // +1 año
+              id_centro: defaultCentro?.id_centro || 1,
+              id_sede: defaultSede?.id_sede || 1,
+              estado: 'activa', // Valor correcto según la entidad
+              total_aprendices: 0,
             });
             
             ficha = await manager.save(Ficha, newFicha);
-            console.log(`✅ Ficha creada: ${record.numero_ficha}`);
+            console.log(`✅ Ficha ${record.numero_ficha} creada exitosamente`);
+          } else {
+            throw new Error(`Ficha ${record.numero_ficha} no existe y no se permite crear automáticamente`);
           }
+        }
 
-          // 🔧 MAPEAR TIPO DE DOCUMENTO PARA LA ENTIDAD
-          let tipoDocumento = record.tipo_documento;
-          if (tipoDocumento === 'PPT') {
+        // 2. Verificar que no existe ya la persona (doble verificación)
+        const existingPersona = await manager.findOne(Persona, {
+          where: { numero_documento: record.numero_documento }
+        });
+
+        if (existingPersona) {
+          console.log(`⚠️ Persona ${record.numero_documento} ya existe, saltando inserción`);
+          return; // Salir de esta transacción sin error
+        }
+
+        // 3. Mapear tipo de documento correctamente
+        let tipoDocumento: "CC" | "TI" | "CE" | "PEP" | "PPT" | "PP" = 'CC';
+        
+        switch (record.tipo_documento?.toUpperCase()) {
+          case 'CC':
+          case 'CEDULA':
+          case 'CEDULA DE CIUDADANIA':
+            tipoDocumento = 'CC';
+            break;
+          case 'TI':
+          case 'TARJETA DE IDENTIDAD':
+            tipoDocumento = 'TI';
+            break;
+          case 'CE':
+          case 'CEDULA DE EXTRANJERIA':
+            tipoDocumento = 'CE';
+            break;
+          case 'PEP':
+          case 'PERMISO ESPECIAL':
+            tipoDocumento = 'PEP';
+            break;
+          case 'PPT':
+          case 'PASAPORTE TEMPORAL':
+            tipoDocumento = 'PPT';
+            break;
+          case 'PP':
+          case 'PASAPORTE':
             tipoDocumento = 'PP';
-          }
-
-          // Crear persona
-          const nuevaPersona = manager.create(Persona, {
-            tipo_documento: tipoDocumento as "CC" | "TI" | "CE" | "PEP" | "PP",
-            numero_documento: record.numero_documento,
-            nombres: record.nombres,
-            apellidos: record.apellidos,
-            email: record.email || null,
-            telefono: record.telefono || null,
-            estado: 'activo',
-            id_ficha: ficha?.id_ficha || null,
-            id_centro: defaultCentro?.id_centro || null,
-            id_sede: defaultSede?.id_sede || null,
-          });
-
-          await manager.save(Persona, nuevaPersona);
-          importedCount++;
-          console.log(`✅ Persona creada: ${record.numero_documento} - ${record.nombres} ${record.apellidos}`);
-
-        } catch (error) {
-          console.error(`❌ Error importando ${record.numero_documento}:`, error.message);
+            break;
+          default:
+            console.warn(`⚠️ Tipo de documento desconocido: ${record.tipo_documento}, usando CC por defecto`);
+            tipoDocumento = 'CC';
         }
-      }
 
-      // 🔧 ACTUALIZAR REGISTROS EXISTENTES
-      for (const record of toUpdate) {
+        // 4. Crear persona con los campos exactos de la entidad
+        const nuevaPersona = manager.create(Persona, {
+          tipo_documento: tipoDocumento,
+          numero_documento: record.numero_documento.trim(),
+          nombres: record.nombres?.trim() || 'Sin nombres',
+          apellidos: record.apellidos?.trim() || 'Sin apellidos',
+          email: record.email?.trim() || null,
+          telefono: record.telefono?.trim() || null,
+          fecha_nacimiento: null,
+          foto_url: null,
+          id_centro: defaultCentro?.id_centro || 1,
+          id_sede: defaultSede?.id_sede || 1,
+          id_ficha: ficha.id_ficha,
+          jornada: null,
+          estado: 'activo',
+        });
+
+        // 5. Guardar persona
+        const personaGuardada = await manager.save(Persona, nuevaPersona);
+        console.log(`✅ Persona ${record.numero_documento} guardada con ID: ${personaGuardada.id_persona}`);
+
+        // 6. Actualizar contador de aprendices en la ficha (solo si existe el campo)
         try {
-          const existingPersona = await manager.findOne(Persona, {
-            where: { numero_documento: record.numero_documento }
-          });
-
-          if (existingPersona) {
-            // Actualizar datos
-            existingPersona.nombres = record.nombres;
-            existingPersona.apellidos = record.apellidos;
-            existingPersona.email = record.email || existingPersona.email;
-            existingPersona.telefono = record.telefono || existingPersona.telefono;
-
-            await manager.save(Persona, existingPersona);
-            updatedCount++;
-            console.log(`✏️ Persona actualizada: ${record.numero_documento}`);
-          }
-        } catch (error) {
-          console.error(`❌ Error actualizando ${record.numero_documento}:`, error.message);
+          await manager.increment(Ficha, { id_ficha: ficha.id_ficha }, 'total_aprendices', 1);
+        } catch (err) {
+          // Si el campo no existe, no es crítico
+          console.warn(`⚠️ No se pudo actualizar total_aprendices:`, err.message);
         }
-      }
-    });
 
-    return {
-      importedCount,
-      updatedCount,
-    };
+        importedCount++;
+        console.log(`🎉 Importación exitosa: ${record.numero_documento} - ${record.nombres} ${record.apellidos}`);
+      });
+
+    } catch (error) {
+      console.error(`❌ Error importando ${record.numero_documento}:`, error.message);
+      
+      // 🔧 IMPORTANTE: Registrar el error pero NO detener el proceso
+      errors.push({
+        documento: record.numero_documento,
+        nombre: `${record.nombres} ${record.apellidos}`,
+        error: error.message,
+        tipo: 'insert_error',
+        details: {
+          ficha: record.numero_ficha,
+          programa: record.nombre_programa
+        }
+      });
+
+      // Continuar con el siguiente registro
+      continue;
+    }
   }
 
+  // 🔧 PROCESAR ACTUALIZACIONES (también en transacciones individuales)
+  for (const record of toUpdate) {
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        console.log(`📝 Procesando actualización: ${record.numero_documento} - ${record.nombres} ${record.apellidos}`);
+
+        const existingPersona = await manager.findOne(Persona, {
+          where: { numero_documento: record.numero_documento }
+        });
+
+        if (!existingPersona) {
+          throw new Error(`Persona ${record.numero_documento} no encontrada para actualización`);
+        }
+
+        // Actualizar solo campos que tienen valor
+        const datosActualizacion: any = {};
+        
+        if (record.nombres?.trim()) {
+          datosActualizacion.nombres = record.nombres.trim();
+        }
+        
+        if (record.apellidos?.trim()) {
+          datosActualizacion.apellidos = record.apellidos.trim();
+        }
+        
+        if (record.email?.trim()) {
+          datosActualizacion.email = record.email.trim();
+        }
+        
+        if (record.telefono?.trim()) {
+          datosActualizacion.telefono = record.telefono.trim();
+        }
+
+        // Solo actualizar si hay cambios
+        if (Object.keys(datosActualizacion).length > 0) {
+          await manager.update(Persona, 
+            { id_persona: existingPersona.id_persona },
+            datosActualizacion
+          );
+          
+          updatedCount++;
+          console.log(`✅ Persona ${record.numero_documento} actualizada exitosamente`);
+        } else {
+          console.log(`ℹ️ Persona ${record.numero_documento}: sin cambios para actualizar`);
+        }
+      });
+
+    } catch (error) {
+      console.error(`❌ Error actualizando ${record.numero_documento}:`, error.message);
+      
+      errors.push({
+        documento: record.numero_documento,
+        nombre: `${record.nombres} ${record.apellidos}`,
+        error: error.message,
+        tipo: 'update_error'
+      });
+
+      // Continuar con el siguiente registro
+      continue;
+    }
+  }
+
+  console.log(`📊 RESUMEN DE IMPORTACIÓN:`);
+  console.log(`   ✅ Importados: ${importedCount}`);
+  console.log(`   ✏️ Actualizados: ${updatedCount}`);
+  console.log(`   ❌ Errores: ${errors.length}`);
+
+  if (errors.length > 0) {
+    console.log(`📝 DETALLES DE ERRORES:`);
+    errors.forEach((err, index) => {
+      console.log(`   ${index + 1}. ${err.documento} - ${err.nombre}: ${err.error}`);
+    });
+  }
+
+  return {
+    importedCount,
+    updatedCount,
+    errors,
+    success: errors.length === 0
+  };
+}
   // 🔧 RESTO DE MÉTODOS SIN CAMBIOS
   async previewExcelImport(file: Express.Multer.File) {
     try {

@@ -253,7 +253,8 @@ export class FichasService {
       por_jornada: jornadaStats
     };
   }
-
+  
+  
   async searchFichas(filters: {
     search?: string;
     jornada?: string;

@@ -11,7 +11,8 @@ import {
   Request,
   Delete,
   Query, 
-  Res, 
+  Res,
+  ParseIntPipe, 
 } from '@nestjs/common';
 import { Response } from 'express';
 import { PdfService } from '../pdf/pdf.service';
@@ -153,6 +154,7 @@ export class ElectionsController {
     return this.electionsService.finalize(+id, userId);
   }
 
+
   @Patch(':id/cancel')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
@@ -180,5 +182,14 @@ export class ElectionsController {
     console.log('Election ID:', id)
     console.log('URL matcheada: /elections/:id')
     return this.electionsService.findOne(+id);
+  }
+  @Patch(':id/regenerate-voters')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN')
+  async regenerateEligibleVoters(@Param('id', ParseIntPipe) id: number) {
+    console.log('🔄 === REGENERANDO VOTANTES HABILITADOS ===');
+    console.log('ID de elección:', id);
+
+    return this.electionsService.regenerateEligibleVoters(id);
   }
 }

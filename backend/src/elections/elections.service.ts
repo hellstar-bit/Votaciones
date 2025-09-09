@@ -225,61 +225,105 @@ export class ElectionsService {
   }
 
   private async generateEligibleVoters(eleccion: Eleccion) {
-    let personas: Persona[] = [];
+  console.log('👥 === GENERANDO VOTANTES HABILITADOS ===');
+  console.log('ID Elección:', eleccion.id_eleccion);
+  console.log('Título:', eleccion.titulo);
+  
+  let personas: Persona[] = [];
 
-    const tipoEleccion = await this.tipoEleccionRepository.findOne({
-      where: { id_tipo_eleccion: eleccion.id_tipo_eleccion },
-    });
+  const tipoEleccion = await this.tipoEleccionRepository.findOne({
+    where: { id_tipo_eleccion: eleccion.id_tipo_eleccion },
+  });
 
-    // Determinar votantes según el tipo de elección
-    switch (tipoEleccion.nivel_aplicacion) {
-      case 'centro':
-        // Todos los aprendices del centro en la jornada específica
+  console.log('🎯 Tipo de elección:', tipoEleccion.nombre_tipo);
+  console.log('📊 Nivel de aplicación:', tipoEleccion.nivel_aplicacion);
+
+  // Determinar votantes según el tipo de elección
+  switch (tipoEleccion.nivel_aplicacion) {
+    case 'centro':
+      console.log('🏢 Procesando elección a nivel CENTRO...');
+      
+      if (tipoEleccion.nombre_tipo === 'REPRESENTANTE_CENTRO') {
+        // ✅ CORREGIDO: Para Representante de Centro, TODOS los aprendices activos pueden votar
+        console.log('🌍 REPRESENTANTE_CENTRO: Habilitando TODOS los aprendices activos del sistema');
+        
+        personas = await this.personaRepository.find({
+          where: {
+            estado: 'activo',
+            // 🚫 NO filtrar por centro ni jornada - todos los aprendices pueden votar
+          },
+          relations: ['ficha', 'sede', 'centro']
+        });
+        
+        console.log('✅ Total de aprendices activos encontrados:', personas.length);
+      } else {
+        // Para otros tipos de elección de centro, aplicar filtros específicos
+        console.log('🏢 Otras elecciones de centro: aplicando filtros específicos');
+        
         personas = await this.personaRepository.find({
           where: {
             id_centro: eleccion.id_centro,
             jornada: eleccion.jornada,
             estado: 'activo',
           },
+          relations: ['ficha', 'sede', 'centro']
         });
-        break;
+      }
+      break;
 
-      case 'sede':
-        // Todos los aprendices de la sede
-        personas = await this.personaRepository.find({
-          where: {
-            id_sede: eleccion.id_sede,
-            estado: 'activo',
-          },
-        });
-        break;
+    case 'sede':
+      console.log('🏛️ Procesando elección a nivel SEDE...');
+      // Todos los aprendices de la sede
+      personas = await this.personaRepository.find({
+        where: {
+          id_sede: eleccion.id_sede,
+          estado: 'activo',
+        },
+        relations: ['ficha', 'sede', 'centro']
+      });
+      break;
 
-      case 'ficha':
-        // Todos los aprendices de la ficha
-        personas = await this.personaRepository.find({
-          where: {
-            id_ficha: eleccion.id_ficha,
-            estado: 'activo',
-          },
-        });
-        break;
-    }
+    case 'ficha':
+      console.log('🎓 Procesando elección a nivel FICHA...');
+      // Todos los aprendices de la ficha
+      personas = await this.personaRepository.find({
+        where: {
+          id_ficha: eleccion.id_ficha,
+          estado: 'activo',
+        },
+        relations: ['ficha', 'sede', 'centro']
+      });
+      break;
 
-    // Crear registros de votantes habilitados
-    const votantesHabilitados = personas.map(persona => 
-      this.votanteHabilitadoRepository.create({
-        id_eleccion: eleccion.id_eleccion,
-        id_persona: persona.id_persona,
-      })
-    );
-
-    await this.votanteHabilitadoRepository.save(votantesHabilitados);
-
-    // Actualizar total de votantes habilitados
-    await this.eleccionRepository.update(eleccion.id_eleccion, {
-      total_votantes_habilitados: personas.length,
-    });
+    default:
+      console.log('⚠️ Nivel de aplicación no reconocido:', tipoEleccion.nivel_aplicacion);
   }
+
+  console.log('📋 Total de personas encontradas para habilitar:', personas.length);
+
+  if (personas.length === 0) {
+    console.log('⚠️ No se encontraron aprendices para habilitar');
+    return;
+  }
+
+  // Crear registros de votantes habilitados
+  const votantesHabilitados = personas.map(persona => 
+    this.votanteHabilitadoRepository.create({
+      id_eleccion: eleccion.id_eleccion,
+      id_persona: persona.id_persona,
+    })
+  );
+
+  await this.votanteHabilitadoRepository.save(votantesHabilitados);
+
+  // Actualizar total de votantes habilitados
+  await this.eleccionRepository.update(eleccion.id_eleccion, {
+    total_votantes_habilitados: personas.length,
+  });
+
+  console.log('✅ Votantes habilitados creados exitosamente');
+  console.log(`📊 Total: ${personas.length} votantes habilitados para la elección "${eleccion.titulo}"`);
+}
 
   async getActiveElections() {
     const ahora = new Date();
@@ -543,4 +587,47 @@ export class ElectionsService {
       votos_totales: votosTotalesReales 
     };
   }
+  async regenerateEligibleVoters(electionId: number) {
+  console.log('🔄 === REGENERANDO VOTANTES HABILITADOS ===');
+  console.log('ID de elección:', electionId);
+
+  const eleccion = await this.eleccionRepository.findOne({
+    where: { id_eleccion: electionId },
+    relations: ['tipoEleccion', 'candidatos', 'votantesHabilitados']
+  });
+
+  if (!eleccion) {
+    throw new NotFoundException(`Elección con ID ${electionId} no encontrada`);
+  }
+
+  // Verificar que la elección esté en estado 'borrador' o 'activa'
+  if (!['borrador', 'activa'].includes(eleccion.estado)) {
+    throw new BadRequestException('Solo se pueden regenerar votantes para elecciones en borrador o activas');
+  }
+
+  // Limpiar votantes habilitados existentes
+  console.log('🧹 Limpiando votantes habilitados existentes...');
+  await this.votanteHabilitadoRepository.delete({ id_eleccion: electionId });
+
+  // Regenerar votantes habilitados
+  console.log('🎯 Regenerando votantes habilitados...');
+  await this.generateEligibleVoters(eleccion);
+
+  // Obtener el nuevo conteo
+  const nuevoTotal = await this.votanteHabilitadoRepository.count({
+    where: { id_eleccion: electionId }
+  });
+
+  console.log('✅ Votantes habilitados regenerados exitosamente');
+  console.log('📊 Nuevo total:', nuevoTotal);
+
+  return {
+    message: 'Votantes habilitados regenerados exitosamente',
+    eleccion_id: electionId,
+    titulo: eleccion.titulo,
+    total_votantes_anterior: eleccion.total_votantes_habilitados,
+    total_votantes_nuevo: nuevoTotal,
+    diferencia: nuevoTotal - eleccion.total_votantes_habilitados
+  };
+}
 }
