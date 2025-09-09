@@ -6,8 +6,6 @@ import {
   HomeIcon,
   QueueListIcon,
   UsersIcon,
-  ChartBarIcon,
-  Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   BellIcon,
   Bars3Icon,

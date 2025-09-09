@@ -1,5 +1,4 @@
-// 📁 src/fichas/fichas.module.ts
-// ====================================================================
+// 📁 backend/src/fichas/fichas.module.ts - VERSIÓN COMPLETA
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FichasService } from './fichas.service';
@@ -12,6 +11,6 @@ import { Ficha } from '../users/entities/ficha.entity';
   ],
   controllers: [FichasController],
   providers: [FichasService],
-  exports: [FichasService],
+  exports: [FichasService], // ✅ IMPORTANTE: Exportar para usar en otros módulos
 })
 export class FichasModule {}

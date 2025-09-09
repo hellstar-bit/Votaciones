@@ -1,4 +1,4 @@
-// 📁 backend/src/personas/personas.controller.ts - VERSIÓN ACTUALIZADA
+// 📁 backend/src/personas/personas.controller.ts - VERSIÓN COMPLETA ACTUALIZADA
 import { 
   Controller, 
   Get, 
@@ -112,6 +112,107 @@ export class PersonasController {
     );
   }
 
+  // ✅ NUEVO PARA VOTACIÓN - Validar documento en ficha específica
+  @Post('validate-in-ficha')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'MESA_VOTACION')
+  async validateDocumentInFicha(@Body() validationData: {
+    numero_ficha: string;
+    numero_documento: string;
+  }) {
+    console.log('🏛️ === VALIDANDO DOCUMENTO EN FICHA ===');
+    console.log('Ficha:', validationData.numero_ficha);
+    console.log('Documento:', validationData.numero_documento);
+
+    try {
+      const persona = await this.personasService.findByDocumentInFicha(
+        validationData.numero_documento,
+        validationData.numero_ficha
+      );
+
+      if (persona) {
+        return {
+          exists: true,
+          persona: {
+            id_persona: persona.id_persona,
+            nombres: persona.nombres,
+            apellidos: persona.apellidos,
+            numero_documento: persona.numero_documento,
+            tipo_documento: persona.tipo_documento,
+            email: persona.email,
+            telefono: persona.telefono,
+            nombreCompleto: persona.nombreCompleto
+          }
+        };
+      } else {
+        return {
+          exists: false,
+          message: `El documento ${validationData.numero_documento} no existe en la ficha ${validationData.numero_ficha}`
+        };
+      }
+    } catch (error) {
+      console.error('❌ Error validando documento en ficha:', error);
+      return {
+        exists: false,
+        message: 'Error validando el documento en la ficha'
+      };
+    }
+  }
+
+  // ✅ NUEVO PARA VOTACIÓN - Verificar si ya votó en una elección
+  @Post('check-voting-status')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'MESA_VOTACION')
+  async checkVotingStatus(@Body() checkData: {
+    numero_documento: string;
+    electionId: number;
+  }) {
+    console.log('🗳️ === VERIFICANDO ESTADO DE VOTACIÓN ===');
+    console.log('Documento:', checkData.numero_documento);
+    console.log('Elección ID:', checkData.electionId);
+
+    try {
+      const result = await this.personasService.hasVotedInElection(
+        checkData.numero_documento,
+        checkData.electionId
+      );
+      return result;
+    } catch (error) {
+      console.error('❌ Error verificando estado de votación:', error);
+      return {
+        hasVoted: false,
+        error: 'Error verificando estado de votación'
+      };
+    }
+  }
+
+  // ✅ NUEVO PARA VOTACIÓN - Verificar voto cruzado en Representante de Centro
+  @Post('check-cross-vote')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'MESA_VOTACION')
+  async checkCrossVote(@Body() checkData: {
+    numero_documento: string;
+    electionId: number;
+  }) {
+    console.log('🔄 === VERIFICANDO VOTO CRUZADO ===');
+    console.log('Documento:', checkData.numero_documento);
+    console.log('Elección ID:', checkData.electionId);
+
+    try {
+      const result = await this.personasService.hasVotedInRepresentanteCentro(
+        checkData.numero_documento,
+        checkData.electionId
+      );
+      return result;
+    } catch (error) {
+      console.error('❌ Error verificando voto cruzado:', error);
+      return {
+        hasVotedInOtherJornada: false,
+        error: 'Error verificando voto cruzado'
+      };
+    }
+  }
+
   // 🚀 NUEVO ENDPOINT - Obtener estadísticas de aprendices
   @Get('aprendices/stats')
   @UseGuards(RolesGuard)
@@ -188,7 +289,35 @@ export class PersonasController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'MESA_VOTACION', 'INSTRUCTOR')
   async getByDocumento(@Param('documento') documento: string) {
+    console.log('🔍 === BUSCANDO POR DOCUMENTO ===');
+    console.log('Documento:', documento);
+    
     return this.personasService.findByDocumento(documento);
+  }
+
+  // ✅ NUEVO PARA VOTACIÓN - Buscar aprendices en ficha específica
+  @Get('ficha/:numeroFicha/aprendices')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'MESA_VOTACION')
+  async getAprendicesByFicha(
+    @Param('numeroFicha') numeroFicha: string,
+    @Query('search') search?: string
+  ) {
+    console.log('🎓 === OBTENIENDO APRENDICES POR FICHA ===');
+    console.log('Número de ficha:', numeroFicha);
+    console.log('Búsqueda:', search);
+
+    return this.personasService.getAprendicesByFicha(numeroFicha, search);
+  }
+
+  // ✅ NUEVO PARA VOTACIÓN - Obtener todos los aprendices activos (para Representante de Centro)
+  @Get('all-active-aprendices')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DASHBOARD')
+  async getAllActiveAprendices() {
+    console.log('🌐 === OBTENIENDO TODOS LOS APRENDICES ACTIVOS ===');
+    
+    return this.personasService.getAllActiveAprendices();
   }
 
   // 🚀 NUEVO ENDPOINT - Obtener aprendiz por ID (para el modal de edición)

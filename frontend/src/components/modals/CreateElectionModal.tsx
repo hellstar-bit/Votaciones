@@ -5,7 +5,6 @@ import {
   XMarkIcon, 
   ClipboardDocumentListIcon,
   UserGroupIcon,
-  BuildingOfficeIcon,
   AcademicCapIcon,
   CalendarIcon,
   ClockIcon,
@@ -102,14 +101,6 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
       features: ['Enfoque específico', 'Comunidad cerrada', 'Representación directa']
     },
     { 
-      value: 'LIDER_SEDE', 
-      label: 'Líder de Sede', 
-      nivel: 'SEDE',
-      icon: BuildingOfficeIcon,
-      description: 'Liderazgo a nivel de sede',
-      features: ['Alcance amplio', 'Coordinación inter-fichas', 'Gestión sede']
-    },
-    { 
       value: 'REPRESENTANTE_CENTRO', 
       label: 'Representante de Centro', 
       nivel: 'CENTRO',
@@ -119,10 +110,10 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
     }
   ]
 
+  // ✅ JORNADAS ACTUALIZADAS - SOLO 2 JORNADAS PARA REPRESENTANTE_CENTRO
   const jornadas = [
-    { value: 'mixta', label: 'Jornada Mixta', color: 'bg-blue-100 text-blue-800' },
     { value: 'nocturna', label: 'Jornada Nocturna', color: 'bg-purple-100 text-purple-800' },
-    { value: 'madrugada', label: 'Jornada Madrugada', color: 'bg-indigo-100 text-indigo-800' },
+    { value: '24_horas', label: 'Jornada 24 Horas', color: 'bg-orange-100 text-orange-800' },
   ]
 
   // Determinar si mostrar campos específicos
@@ -174,44 +165,34 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
       newErrors.tipo_eleccion = 'Debe seleccionar un tipo de elección'
     }
 
-    // Validar número de ficha para VOCERO_FICHA
-    if (shouldShowFichaInput) {
+    // Validación específica para cada tipo
+    if (formData.tipo_eleccion === 'VOCERO_FICHA') {
       if (!formData.numero_ficha.trim()) {
-        newErrors.numero_ficha = 'El número de ficha es requerido para este tipo de elección'
-      } else if (!/^\d+$/.test(formData.numero_ficha.trim())) {
-        newErrors.numero_ficha = 'El número de ficha debe contener solo números'
-      } else if (!validateFichaExists(formData.numero_ficha.trim())) {
-        // El error ya se establece en validateFichaExists
+        newErrors.numero_ficha = 'El número de ficha es requerido para Vocero de Ficha'
       }
     }
 
-    if (!formData.fecha_inicio) {
-      newErrors.fecha_inicio = 'La fecha de inicio es requerida'
+    if (formData.tipo_eleccion === 'REPRESENTANTE_CENTRO') {
+      if (formData.jornadas.length === 0) {
+        newErrors.jornadas = 'Debe seleccionar al menos una jornada para Representante de Centro'
+      }
     }
 
-    if (!formData.hora_inicio) {
-      newErrors.hora_inicio = 'La hora de inicio es requerida'
+    // Validaciones de fecha y hora...
+    if (!formData.fecha_inicio) {
+      newErrors.fecha_inicio = 'La fecha de inicio es requerida'
     }
 
     if (!formData.fecha_fin) {
       newErrors.fecha_fin = 'La fecha de fin es requerida'
     }
 
+    if (!formData.hora_inicio) {
+      newErrors.hora_inicio = 'La hora de inicio es requerida'
+    }
+
     if (!formData.hora_fin) {
       newErrors.hora_fin = 'La hora de fin es requerida'
-    }
-
-    if (shouldShowJornadas && formData.jornadas.length === 0) {
-      newErrors.jornadas = 'Debe seleccionar al menos una jornada'
-    }
-
-    if (formData.fecha_inicio && formData.fecha_fin) {
-      const fechaInicio = new Date(`${formData.fecha_inicio}T${formData.hora_inicio}`)
-      const fechaFin = new Date(`${formData.fecha_fin}T${formData.hora_fin}`)
-
-      if (fechaFin <= fechaInicio) {
-        newErrors.fecha_fin = 'La fecha de fin debe ser posterior a la fecha de inicio'
-      }
     }
 
     setErrors(newErrors)

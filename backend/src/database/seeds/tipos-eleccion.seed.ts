@@ -15,13 +15,6 @@ export async function seedTiposEleccion(dataSource: DataSource) {
       requiere_jornada: true,
     },
     {
-      nombre_tipo: 'LIDER_SEDE',
-      descripcion: 'Líder de Sede (1 líder por sede)',
-      nivel_aplicacion: 'sede',
-      max_candidatos_por_jornada: 1,
-      requiere_jornada: false,
-    },
-    {
       nombre_tipo: 'VOCERO_FICHA',
       descripcion: 'Vocero de Ficha (1 vocero por ficha/grupo)',
       nivel_aplicacion: 'ficha',

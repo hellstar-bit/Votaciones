@@ -11,6 +11,10 @@ import { Persona } from '../users/entities/persona.entity';
 import { Ficha } from '../users/entities/ficha.entity';
 import { CreateAprendizDto } from './dto/create-aprendiz.dto';
 import { UpdateAprendizDto } from './dto/update-aprendiz.dto';
+import { Eleccion } from '../elections/entities/eleccion.entity';
+import { Voto } from 'src/votes/entities/voto.entity';
+import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
+
 
 interface GetAprendicesFilters {
   fichaId?: number;
@@ -23,11 +27,18 @@ interface GetAprendicesFilters {
 @Injectable()
 export class PersonasService {
   constructor(
-    @InjectRepository(Persona)
-    private personaRepository: Repository<Persona>,
-    @InjectRepository(Ficha)
-    private fichaRepository: Repository<Ficha>,
-  ) {}
+  @InjectRepository(Persona)
+  private personaRepository: Repository<Persona>,
+  @InjectRepository(Ficha)
+  private fichaRepository: Repository<Ficha>,
+  // ✅ AGREGAR ESTAS LÍNEAS:
+  @InjectRepository(Voto)
+  private votoRepository: Repository<Voto>,
+  @InjectRepository(VotanteHabilitado)
+  private votanteHabilitadoRepository: Repository<VotanteHabilitado>,
+  @InjectRepository(Eleccion)
+  private eleccionRepository: Repository<Eleccion>,
+) {}
 
   // 🔧 MÉTODO EXISTENTE - Mantener tal como está
   async getAprendices(filters: GetAprendicesFilters = {}) {
@@ -580,5 +591,307 @@ export class PersonasService {
         nombre_centro: persona.centro.nombre_centro
       } : null
     };
+  }
+   async findByDocumentInFicha(numeroDocumento: string, numeroFicha: string) {
+    console.log('🔍 Buscando documento en ficha específica...');
+    console.log('Documento:', numeroDocumento);
+    console.log('Ficha:', numeroFicha);
+
+    // Primero obtener el ID de la ficha
+    const ficha = await this.fichaRepository.findOne({
+      where: { numero_ficha: numeroFicha }
+    });
+
+    if (!ficha) {
+      console.log('❌ Ficha no encontrada:', numeroFicha);
+      return null;
+    }
+
+    // Buscar persona en esa ficha específica
+    const persona = await this.personaRepository.findOne({
+      where: {
+        numero_documento: numeroDocumento,
+        id_ficha: ficha.id_ficha,
+        estado: 'activo'
+      },
+      relations: ['ficha', 'sede', 'centro']
+    });
+
+    if (!persona) {
+      console.log('❌ Documento no encontrado en la ficha:', numeroDocumento);
+      return null;
+    }
+
+    console.log('✅ Persona encontrada:', persona.nombreCompleto);
+    return persona;
+  }
+
+  // ✅ VERIFICAR SI YA VOTÓ EN UNA ELECCIÓN
+  async hasVotedInElection(numeroDocumento: string, electionId: number) {
+    console.log('🗳️ Verificando si ya votó...');
+    console.log('Documento:', numeroDocumento);
+    console.log('Elección ID:', electionId);
+
+    const persona = await this.personaRepository.findOne({
+      where: { numero_documento: numeroDocumento }
+    });
+
+    if (!persona) {
+      console.log('❌ Persona no encontrada');
+      return { hasVoted: false };
+    }
+
+    // ✅ VERIFICAR EN TABLA VOTANTES_HABILITADOS:
+    const votanteHabilitado = await this.votanteHabilitadoRepository.findOne({
+      where: { 
+        id_persona: persona.id_persona, 
+        id_eleccion: electionId 
+      },
+      relations: ['eleccion']
+    });
+
+    if (votanteHabilitado && votanteHabilitado.ha_votado) {
+      console.log('⚠️ La persona ya votó');
+      return {
+        hasVoted: true,
+        fechaVoto: votanteHabilitado.fecha_voto,
+        eleccionTitulo: votanteHabilitado.eleccion.titulo,
+        jornada: votanteHabilitado.eleccion.jornada
+      };
+    }
+
+    console.log('✅ La persona no ha votado');
+    return { hasVoted: false };
+  }
+
+  // ✅ VERIFICAR VOTO CRUZADO EN REPRESENTANTE DE CENTRO
+   async hasVotedInRepresentanteCentro(numeroDocumento: string, currentElectionId: number) {
+    console.log('🔄 Verificando voto cruzado...');
+    console.log('Documento:', numeroDocumento);
+    console.log('Elección actual:', currentElectionId);
+
+    // Obtener información de la elección actual
+    const currentElection = await this.eleccionRepository.findOne({
+      where: { id_eleccion: currentElectionId },
+      relations: ['tipoEleccion']
+    });
+
+    if (!currentElection || currentElection.tipoEleccion.nombre_tipo !== 'REPRESENTANTE_CENTRO') {
+      return { hasVotedInOtherJornada: false };
+    }
+
+    const persona = await this.personaRepository.findOne({
+      where: { numero_documento: numeroDocumento }
+    });
+
+    if (!persona) {
+      return { hasVotedInOtherJornada: false };
+    }
+
+    // ✅ BUSCAR EN VOTANTES_HABILITADOS CON QUERY RAW:
+    const query = `
+      SELECT vh.*, e.titulo, e.jornada, e.tipo_eleccion, e.fecha_inicio
+      FROM votantes_habilitados vh
+      JOIN elecciones e ON e.id_eleccion = vh.id_eleccion
+      JOIN tipos_eleccion te ON te.id_tipo_eleccion = e.id_tipo_eleccion
+      WHERE vh.id_persona = $1 
+        AND te.nombre_tipo = 'REPRESENTANTE_CENTRO'
+        AND vh.id_eleccion != $2
+        AND vh.ha_votado = true
+        AND DATE(e.fecha_inicio) = DATE($3)
+    `;
+
+    const result = await this.votanteHabilitadoRepository.query(query, [
+      persona.id_persona, 
+      currentElectionId,
+      currentElection.fecha_inicio
+    ]);
+
+    if (result.length > 0) {
+      console.log('⚠️ Ya votó en otra jornada de Representante de Centro');
+      return {
+        hasVotedInOtherJornada: true,
+        previousVote: {
+          eleccionTitulo: result[0].titulo,
+          jornada: result[0].jornada,
+          fechaVoto: result[0].fecha_voto
+        }
+      };
+    }
+
+    console.log('✅ No hay voto cruzado');
+    return { hasVotedInOtherJornada: false };
+  }
+
+  // ✅ OBTENER APRENDICES POR FICHA ESPECÍFICA
+  async getAprendicesByFicha(numeroFicha: string, search?: string) {
+    console.log('🎓 Obteniendo aprendices por ficha...');
+    console.log('Ficha:', numeroFicha);
+    console.log('Búsqueda:', search);
+
+    // Obtener la ficha
+    const ficha = await this.fichaRepository.findOne({
+      where: { numero_ficha: numeroFicha }
+    });
+
+    if (!ficha) {
+      throw new NotFoundException(`Ficha ${numeroFicha} no encontrada`);
+    }
+
+    // Query builder para los aprendices
+    let queryBuilder = this.personaRepository.createQueryBuilder('persona')
+      .leftJoinAndSelect('persona.ficha', 'ficha')
+      .leftJoinAndSelect('persona.sede', 'sede')
+      .leftJoinAndSelect('persona.centro', 'centro')
+      .where('persona.id_ficha = :fichaId', { fichaId: ficha.id_ficha })
+      .andWhere('persona.estado = :estado', { estado: 'activo' });
+
+    // Filtro de búsqueda si se proporciona
+    if (search && search.trim()) {
+      queryBuilder = queryBuilder.andWhere(
+        '(persona.nombres LIKE :search OR persona.apellidos LIKE :search OR persona.numero_documento LIKE :search)',
+        { search: `%${search.trim()}%` }
+      );
+    }
+
+    const aprendices = await queryBuilder
+      .orderBy('persona.apellidos', 'ASC')
+      .addOrderBy('persona.nombres', 'ASC')
+      .getMany();
+
+    console.log('✅ Encontrados', aprendices.length, 'aprendices en la ficha');
+
+    return aprendices.map(persona => ({
+      id_persona: persona.id_persona,
+      numero_documento: persona.numero_documento,
+      tipo_documento: persona.tipo_documento,
+      nombres: persona.nombres,
+      apellidos: persona.apellidos,
+      nombreCompleto: persona.nombreCompleto,
+      email: persona.email,
+      telefono: persona.telefono,
+      estado: persona.estado,
+      jornada: persona.jornada,
+      ficha: {
+        id_ficha: persona.ficha.id_ficha,
+        numero_ficha: persona.ficha.numero_ficha,
+        nombre_programa: persona.ficha.nombre_programa,
+        jornada: persona.ficha.jornada
+      }
+    }));
+  }
+
+  // ✅ OBTENER TODOS LOS APRENDICES ACTIVOS (para Representante de Centro)
+  async getAllActiveAprendices() {
+    console.log('🌐 Obteniendo todos los aprendices activos...');
+
+    const aprendices = await this.personaRepository.find({
+      where: { 
+        estado: 'activo'
+        // 🔧 AJUSTAR SEGÚN EL CAMPO QUE IDENTIFIQUE APRENDICES EN TU SISTEMA:
+        // rol: 'APRENDIZ' // Si tienes campo rol
+        // tipo_persona: 'APRENDIZ' // Si tienes campo tipo_persona
+        // O el criterio que uses para identificar aprendices
+      },
+      relations: ['ficha', 'sede', 'centro'],
+      order: {
+        apellidos: 'ASC',
+        nombres: 'ASC'
+      }
+    });
+
+    console.log('✅ Encontrados', aprendices.length, 'aprendices activos');
+
+    return aprendices.map(persona => ({
+      id_persona: persona.id_persona,
+      numero_documento: persona.numero_documento,
+      tipo_documento: persona.tipo_documento,
+      nombres: persona.nombres,
+      apellidos: persona.apellidos,
+      nombreCompleto: persona.nombreCompleto,
+      email: persona.email,
+      telefono: persona.telefono,
+      estado: persona.estado,
+      jornada: persona.jornada,
+      ficha: persona.ficha ? {
+        id_ficha: persona.ficha.id_ficha,
+        numero_ficha: persona.ficha.numero_ficha,
+        nombre_programa: persona.ficha.nombre_programa,
+        jornada: persona.ficha.jornada
+      } : null,
+      sede: persona.sede ? {
+        id_sede: persona.sede.id_sede,
+        nombre_sede: persona.sede.nombre_sede
+      } : null,
+      centro: persona.centro ? {
+        id_centro: persona.centro.id_centro,
+        nombre_centro: persona.centro.nombre_centro
+      } : null
+    }));
+  }
+
+  // ✅ CONTAR APRENDICES HABILITADOS PARA UNA ELECCIÓN
+  async countEligibleVoters(electionType: string) {
+    console.log('📊 Contando votantes habilitados para tipo:', electionType);
+
+    if (electionType === 'REPRESENTANTE_CENTRO') {
+      // Para Representante de Centro: todos los aprendices activos
+      const count = await this.personaRepository.count({
+        where: { 
+          estado: 'activo'
+          // 🔧 AJUSTAR SEGÚN TU CRITERIO DE APRENDICES
+        }
+      });
+
+      console.log('✅ Votantes habilitados para Representante de Centro:', count);
+      return count;
+    }
+
+    return 0;
+  }
+
+  // ✅ OBTENER ESTADÍSTICAS DE PARTICIPACIÓN POR FICHA
+   async getParticipationStatsByFicha(electionId: number) {
+    console.log('📊 Obteniendo estadísticas de participación por ficha...');
+
+    const query = `
+      SELECT 
+        f.numero_ficha,
+        f.nombre_programa,
+        f.jornada as ficha_jornada,
+        COUNT(DISTINCT p.id_persona) as total_aprendices_ficha,
+        COUNT(DISTINCT CASE WHEN vh.ha_votado = true THEN vh.id_persona END) as votos_emitidos_ficha,
+        ROUND(
+          CASE 
+            WHEN COUNT(DISTINCT p.id_persona) > 0 
+            THEN (COUNT(DISTINCT CASE WHEN vh.ha_votado = true THEN vh.id_persona END)::decimal / COUNT(DISTINCT p.id_persona)) * 100 
+            ELSE 0 
+          END, 2
+        ) as participacion_porcentaje
+      FROM fichas f
+      LEFT JOIN personas p ON p.id_ficha = f.id_ficha AND p.estado = 'activo'
+      LEFT JOIN votantes_habilitados vh ON vh.id_persona = p.id_persona AND vh.id_eleccion = $1
+      WHERE f.estado = 'activa'
+      GROUP BY f.id_ficha, f.numero_ficha, f.nombre_programa, f.jornada
+      HAVING COUNT(DISTINCT p.id_persona) > 0
+      ORDER BY participacion_porcentaje DESC, f.numero_ficha ASC
+    `;
+
+    const results = await this.personaRepository.query(query, [electionId]);
+
+    console.log('✅ Estadísticas calculadas para', results.length, 'fichas');
+
+    return results.map(row => ({
+      ficha: {
+        numero_ficha: row.numero_ficha,
+        nombre_programa: row.nombre_programa,
+        jornada: row.ficha_jornada
+      },
+      estadisticas: {
+        total_aprendices: parseInt(row.total_aprendices_ficha),
+        votos_emitidos: parseInt(row.votos_emitidos_ficha),
+        participacion_porcentaje: parseFloat(row.participacion_porcentaje)
+      }
+    }));
   }
 }

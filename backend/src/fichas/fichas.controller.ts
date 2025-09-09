@@ -1,27 +1,39 @@
-// 📁 src/fichas/fichas.controller.ts
-// ====================================================================
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
+// 📁 backend/src/fichas/fichas.controller.ts
+import { Controller, Get, Param } from '@nestjs/common';
 import { FichasService } from './fichas.service';
 
 @Controller('fichas')
-@UseGuards(JwtAuthGuard)
 export class FichasController {
   constructor(private readonly fichasService: FichasService) {}
 
-  @Get()
-  @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'INSTRUCTOR')
-  async getFichas() {
-    return this.fichasService.findAll();
-  }
-
-  @Get('active')
-  @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'INSTRUCTOR', 'MESA_VOTACION')
-  async getActiveFichas() {
-    return this.fichasService.findActive();
+  // ✅ ENDPOINT PARA VALIDAR FICHA (mismo que usa gestión de aprendices)
+  @Get('validate/:numeroFicha')
+  async validateFicha(@Param('numeroFicha') numeroFicha: string) {
+    try {
+      const ficha = await this.fichasService.findByNumeroFicha(numeroFicha);
+      
+      if (ficha) {
+        return {
+          exists: true,
+          ficha: {
+            id_ficha: ficha.id_ficha,
+            numero_ficha: ficha.numero_ficha,
+            nombre_programa: ficha.nombre_programa,
+            jornada: ficha.jornada,
+            estado: ficha.estado
+          }
+        };
+      } else {
+        return {
+          exists: false,
+          message: `La ficha ${numeroFicha} no existe en el sistema`
+        };
+      }
+    } catch (error) {
+      return {
+        exists: false,
+        message: 'Error validando la ficha'
+      };
+    }
   }
 }

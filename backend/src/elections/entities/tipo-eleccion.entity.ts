@@ -5,6 +5,9 @@ import { Eleccion } from './eleccion.entity';
 
 @Entity('tipos_eleccion')
 export class TipoEleccion {
+  id(id: any, arg1: { descripcion: string; }) {
+    throw new Error('Method not implemented.');
+  }
   @PrimaryGeneratedColumn()
   id_tipo_eleccion: number;
 
