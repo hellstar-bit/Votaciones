@@ -961,6 +961,18 @@ export const candidatesApi = {
 
 // Personas API
 export const personasApi = {
+  validateInFicha: async (data: { numero_ficha: string; numero_documento: string }) => {
+    const response = await api.post('/personas/validate-in-ficha', data)
+    return response.data
+  },
+  checkVotingStatus: async (data: { numero_documento: string; electionId: number }) => {
+    const response = await api.post('/personas/check-voting-status', data)
+    return response.data
+  },
+  checkCrossVote: async (data: { numero_documento: string; electionId: number }) => {
+    const response = await api.post('/personas/check-cross-vote', data)
+    return response.data
+  },
   // Obtener todos los aprendices con filtros
   getAprendices: async (filters?: {
     ficha?: string;
@@ -1101,6 +1113,11 @@ export const fichasApi = {
   // Obtener todas las fichas
   getAll: async (): Promise<Ficha[]> => {
     const response = await api.get('/fichas')
+    return response.data
+  },
+
+  validate: async (numeroFicha: string) => {
+    const response = await api.get(`/fichas/validate/${numeroFicha}`)
     return response.data
   },
 
