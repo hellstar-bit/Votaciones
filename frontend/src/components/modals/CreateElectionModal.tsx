@@ -56,7 +56,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
     hora_inicio: '06:00',
     fecha_fin: '',
     hora_fin: '23:59',
-    jornadas: ['mixta', 'nocturna', 'madrugada'],
+    jornadas: [], // ✅ CORREGIDO: Vacío por defecto
     numero_ficha: ''
   })
 
@@ -123,10 +123,20 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
   // Manejar cambios en inputs
   const handleInputChange = (field: keyof FormData, value: string | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    // Limpiar error del campo cuando el usuario empiece a escribir, asegurando que 'field' es una clave válida en 'errors'
+    // Limpiar error del campo cuando el usuario empiece a escribir
     if (field in errors) {
       setErrors(prev => ({ ...prev, [field]: undefined }))
     }
+  }
+
+  // ✅ NUEVA FUNCIÓN: Manejar cambio de tipo de elección
+  const handleTipoEleccionChange = (tipo: string) => {
+    setFormData(prev => ({
+      ...prev,
+      tipo_eleccion: tipo,
+      // Si es Representante de Centro, limpiar jornadas para que el usuario elija
+      jornadas: tipo === 'REPRESENTANTE_CENTRO' ? [] : prev.jornadas
+    }))
   }
 
   // Manejar selección de jornadas
@@ -153,8 +163,8 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
     return true
   }
 
-  // Validar formulario
-  const validateForm = (): boolean => {
+  // ✅ VALIDACIÓN MEJORADA
+  const validateForm = (): FormErrors => {
     const newErrors: FormErrors = {}
 
     if (!formData.titulo.trim()) {
@@ -174,7 +184,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
 
     if (formData.tipo_eleccion === 'REPRESENTANTE_CENTRO') {
       if (formData.jornadas.length === 0) {
-        newErrors.jornadas = 'Debe seleccionar al menos una jornada para Representante de Centro'
+        newErrors.jornadas = 'Debe seleccionar al menos una jornada (Nocturna o 24 Horas)'
       }
     }
 
@@ -195,8 +205,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
       newErrors.hora_fin = 'La hora de fin es requerida'
     }
 
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    return newErrors
   }
 
   // Función helper para obtener ID de ficha por número
@@ -205,12 +214,14 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
     return ficha?.id_ficha
   }
 
-  // Manejar envío del formulario
+  // ✅ FUNCIÓN HANDLESUBMIT CORREGIDA
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validateForm()) {
-      toast.error('Por favor corrige los errores en el formulario')
+    // Validar formulario
+    const newErrors = validateForm()
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
       return
     }
 
@@ -227,12 +238,15 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
         }
       }
 
-      // Para Representante de Centro, crear una elección por cada jornada
+      // ✅ CORRECCIÓN: Para Representante de Centro
       if (formData.tipo_eleccion === 'REPRESENTANTE_CENTRO') {
-        for (const jornada of formData.jornadas) {
+        
+        // Si solo hay una jornada seleccionada, crear una sola elección
+        if (formData.jornadas.length === 1) {
+          const jornada = formData.jornadas[0]
           const electionData: CreateElectionData = {
-            titulo: `${formData.titulo} - ${jornada.charAt(0).toUpperCase() + jornada.slice(1)}`,
-            descripcion: formData.descripcion || `Elección de ${formData.titulo} para jornada ${jornada}`,
+            titulo: formData.titulo, // ✅ Sin sufijo de jornada cuando es solo una
+            descripcion: formData.descripcion || `Elección de ${formData.titulo}`,
             tipo_eleccion: formData.tipo_eleccion,
             fecha_inicio: `${formData.fecha_inicio}T${formData.hora_inicio}:00`,
             fecha_fin: `${formData.fecha_fin}T${formData.hora_fin}:00`,
@@ -240,9 +254,26 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
           }
           
           await electionsApi.create(electionData)
+          toast.success(`Elección creada exitosamente para jornada ${jornada === '24_horas' ? '24 Horas' : 'Nocturna'}`)
+          
+        } else {
+          // Si hay múltiples jornadas, crear una elección por cada una
+          for (const jornada of formData.jornadas) {
+            const electionData: CreateElectionData = {
+              titulo: `${formData.titulo} - ${jornada === '24_horas' ? '24 Horas' : jornada.charAt(0).toUpperCase() + jornada.slice(1)}`,
+              descripcion: formData.descripcion || `Elección de ${formData.titulo} para jornada ${jornada}`,
+              tipo_eleccion: formData.tipo_eleccion,
+              fecha_inicio: `${formData.fecha_inicio}T${formData.hora_inicio}:00`,
+              fecha_fin: `${formData.fecha_fin}T${formData.hora_fin}:00`,
+              jornada,
+            }
+            
+            await electionsApi.create(electionData)
+          }
+          
+          toast.success(`Elecciones creadas exitosamente para ${formData.jornadas.length} jornadas`)
         }
         
-        toast.success(`Elecciones creadas exitosamente para ${formData.jornadas.length} jornadas`)
       } else {
         // Para otros tipos, crear una sola elección
         const electionData: CreateElectionData = {
@@ -251,31 +282,29 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
           tipo_eleccion: formData.tipo_eleccion,
           fecha_inicio: `${formData.fecha_inicio}T${formData.hora_inicio}:00`,
           fecha_fin: `${formData.fecha_fin}T${formData.hora_fin}:00`,
-          // ✅ CORRECCIÓN: Enviar id_ficha en lugar de numero_ficha
           ...(shouldShowFichaInput && { 
             id_ficha: getFichaIdFromNumero(formData.numero_ficha.trim()) 
           })
         }
         
-        console.log('📤 Enviando datos de elección:', electionData)
         await electionsApi.create(electionData)
         toast.success('Elección creada exitosamente')
       }
 
-      onElectionCreated()
-      onClose()
+      // Limpiar formulario y cerrar modal
       resetForm()
+      onClose()
+      onElectionCreated?.()
       
     } catch (error) {
-      const errorMessage = handleApiError(error)
-      setErrors({ general: errorMessage })
-      toast.error(`Error creando elección: ${errorMessage}`)
+      console.error('❌ Error creando elección:', error)
+      handleApiError(error, 'Error creando elección')
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  // Resetear formulario
+  // ✅ RESETEAR FORMULARIO CORREGIDO
   const resetForm = () => {
     setFormData({
       titulo: '',
@@ -285,7 +314,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
       hora_inicio: '06:00',
       fecha_fin: '',
       hora_fin: '23:59',
-      jornadas: ['mixta', 'nocturna', 'madrugada'],
+      jornadas: [], // ✅ Vacío por defecto
       numero_ficha: ''
     })
     setErrors({})
@@ -330,7 +359,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
             </button>
           </div>
         </div>
-
+        
         {/* Contenido con scroll */}
         <div className="max-h-[calc(90vh-120px)] overflow-y-auto">
           <form onSubmit={handleSubmit} className="p-8 space-y-8">
@@ -404,7 +433,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                           ? 'border-sena-500 bg-sena-50'
                           : 'border-gray-200 hover:border-gray-300'
                       }`}
-                      onClick={() => handleInputChange('tipo_eleccion', tipo.value)}
+                      onClick={() => handleTipoEleccionChange(tipo.value)} 
                     >
                       <div className="flex flex-col items-center text-center">
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-3 ${
@@ -524,7 +553,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                 </motion.div>
               )}
 
-              {/* Selector de jornadas para REPRESENTANTE_CENTRO */}
+              {/* ✅ SELECTOR DE JORNADAS MEJORADO PARA REPRESENTANTE_CENTRO */}
               {shouldShowJornadas && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
@@ -538,18 +567,31 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                   </div>
                   
                   <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border border-blue-200">
-                    <p className="text-sm text-gray-700 mb-4">
-                      Selecciona las jornadas para las cuales se creará la elección:
-                    </p>
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-sm text-gray-700">
+                        Selecciona las jornadas para las cuales se creará la elección:
+                      </p>
+                      
+                      {/* ✅ INDICADOR: Cuántas elecciones se van a crear */}
+                      {formData.jornadas.length > 0 && (
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          formData.jornadas.length === 1 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-orange-100 text-orange-800'
+                        }`}>
+                          {formData.jornadas.length === 1 ? '1 elección' : `${formData.jornadas.length} elecciones`}
+                        </span>
+                      )}
+                    </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {jornadas.map((jornada) => (
                         <motion.button
                           key={jornada.value}
                           type="button"
                           onClick={() => handleJornadaToggle(jornada.value)}
                           disabled={isSubmitting}
-                          className={`p-4 rounded-xl border-2 transition-all ${
+                          className={`p-4 rounded-xl border-2 transition-all relative ${
                             formData.jornadas.includes(jornada.value)
                               ? 'border-sena-500 bg-sena-50'
                               : 'border-gray-200 hover:border-gray-300'
@@ -557,10 +599,20 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                         >
-                          <div className="flex items-center justify-center">
-                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${jornada.color}`}>
+                          <div className="text-center">
+                            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${jornada.color} mb-2`}>
                               {jornada.label}
                             </span>
+                            
+                            {formData.jornadas.includes(jornada.value) && (
+                              <motion.div
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="absolute -top-2 -right-2 w-6 h-6 bg-sena-500 rounded-full flex items-center justify-center"
+                              >
+                                <CheckCircleIcon className="w-4 h-4 text-white" />
+                              </motion.div>
+                            )}
                           </div>
                         </motion.button>
                       ))}
