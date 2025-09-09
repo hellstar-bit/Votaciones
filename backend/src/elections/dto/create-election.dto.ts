@@ -1,6 +1,4 @@
-// PASO 1: Actualizar el DTO del backend
-// En backend/src/elections/dto/create-election.dto.ts
-
+// backend/src/elections/dto/create-election.dto.ts
 import { IsString, IsNotEmpty, IsOptional, IsDateString, IsEnum, IsBoolean, IsNumber } from 'class-validator';
 
 export class CreateElectionDto {
@@ -28,8 +26,8 @@ export class CreateElectionDto {
   @IsOptional()
   id_ficha?: number;
 
-  // ✅ CORREGIR: Actualizar enum con los valores correctos
-  @IsEnum(['nocturna', '24_horas'])  // ✅ Solo estos 2 valores
+  // ✅ ACTUALIZADO: Agregar 'mixta' al enum
+  @IsEnum(['nocturna', '24_horas', 'mixta'])
   @IsOptional()
   jornada?: string;
 
@@ -43,4 +41,3 @@ export class CreateElectionDto {
   @IsOptional()
   permite_voto_blanco?: boolean = true;
 }
-

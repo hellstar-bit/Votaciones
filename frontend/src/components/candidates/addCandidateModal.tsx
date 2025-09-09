@@ -325,31 +325,36 @@ const AddCandidateModal = ({ isOpen, onClose, electionId, onCandidateAdded }: Ad
 
   // Filtrar aprendices
   const filteredAprendices = aprendices.filter(aprendiz => {
+  // ✅ VERIFICAR QUE LOS VALORES NO SEAN NULL/UNDEFINED ANTES DE USAR toLowerCase()
+  const nombreCompleto = aprendiz.nombreCompleto || '';
+  const numeroDocumento = aprendiz.numero_documento || '';
+  const email = aprendiz.email || '';
+  
   const matchesSearch = 
-    aprendiz.nombreCompleto.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    aprendiz.numero_documento.includes(searchTerm) ||
-    aprendiz.email.toLowerCase().includes(searchTerm.toLowerCase())
+    nombreCompleto.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    numeroDocumento.includes(searchTerm) ||
+    email.toLowerCase().includes(searchTerm.toLowerCase());
 
   // ✅ NUEVO: Filtro por ficha según el tipo de elección
-  let matchesFicha = true
+  let matchesFicha = true;
   
   // Si es una elección de vocero de ficha, solo mostrar aprendices de esa ficha
   if (electionInfo?.tipoEleccion?.nombre_tipo === 'VOCERO_FICHA' && electionInfo?.id_ficha) {
-    matchesFicha = aprendiz.ficha?.id_ficha === electionInfo.id_ficha
+    matchesFicha = aprendiz.ficha?.id_ficha === electionInfo.id_ficha;
     console.log(`🔍 Filtro VOCERO_FICHA activo:`, {
-      aprendiz: aprendiz.nombreCompleto,
+      aprendiz: nombreCompleto,
       aprendizFicha: aprendiz.ficha?.id_ficha,
       electionFicha: electionInfo.id_ficha,
       matches: matchesFicha
-    })
+    });
   } else {
     // Para otros tipos de elección, usar el filtro normal de ficha
     matchesFicha = selectedFicha === 'all' || 
-      aprendiz.ficha?.numero_ficha === selectedFicha
+      aprendiz.ficha?.numero_ficha === selectedFicha;
   }
 
-  return matchesSearch && matchesFicha
-})
+  return matchesSearch && matchesFicha;
+});
 
 
   const validateForm = () => {

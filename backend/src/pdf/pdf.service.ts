@@ -1,4 +1,4 @@
-// 📁 backend/src/pdf/pdf.service.ts
+// 📁 backend/src/pdf/pdf.service.ts - SERVICIO COMPLETO UNIFICADO
 // ====================================================================
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,7 +10,7 @@ import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// ✅ USAR @sparticuz/chromium-min en lugar de puppeteer regular
+// Usar las mismas importaciones que funcionan
 const chromium = require('@sparticuz/chromium-min');
 const puppeteer = require('puppeteer-core');
 
@@ -40,43 +40,34 @@ export class PdfService {
 
   private async getSenaLogoBase64(): Promise<string> {
     try {
-      // Ruta al archivo SVG en la carpeta public
       const svgPath = path.join(process.cwd(), 'public', 'sena.svg');
       
-      // Verificar si el archivo existe
       if (!fs.existsSync(svgPath)) {
-        console.warn('❌ No se encontró el archivo sena.svg en public/, usando logo por defecto');
-        // SVG por defecto si no existe el archivo
+        console.warn('No se encontró el archivo sena.svg en public/, usando logo por defecto');
         return this.getDefaultSenaLogo();
       }
       
-      // Leer el archivo SVG
       const svgContent = fs.readFileSync(svgPath, 'utf8');
-      
-      // Convertir a base64
       const base64 = Buffer.from(svgContent).toString('base64');
       
-      console.log('✅ Logo SENA cargado desde public/sena.svg');
+      console.log('Logo SENA cargado desde public/sena.svg');
       return base64;
       
     } catch (error) {
-      console.error('❌ Error cargando logo SENA:', error);
-      // Fallback al logo por defecto
+      console.error('Error cargando logo SENA:', error);
       return this.getDefaultSenaLogo();
     }
   }
 
-  // ✅ FUNCIÓN PARA OBTENER BROWSER CON CHROMIUM REMOTO
+  // Usar el mismo método getBrowser que funciona
   private async getBrowser() {
-    console.log('🚀 Iniciando browser con Chromium remoto...');
+    console.log('Iniciando browser con Chromium remoto...');
     
     try {
-      // Determinar si estamos en producción (Render) o desarrollo
       const isProduction = process.env.NODE_ENV === 'production';
       
       if (isProduction) {
-        // ✅ PRODUCCIÓN: Usar Chromium remoto desde GitHub
-        console.log('🌐 Modo producción: usando Chromium remoto');
+        console.log('Modo producción: usando Chromium remoto');
         
         return puppeteer.launch({
           args: [
@@ -94,7 +85,6 @@ export class PdfService {
             '--memory-pressure-off',
           ],
           defaultViewport: chromium.defaultViewport,
-          // ✅ CHROMIUM DESDE GITHUB CDN (GRATIS)
           executablePath: await chromium.executablePath(
             'https://github.com/Sparticuz/chromium/releases/download/v131.0.0/chromium-v131.0.0-pack.tar'
           ),
@@ -102,8 +92,7 @@ export class PdfService {
           ignoreHTTPSErrors: true,
         });
       } else {
-        // ✅ DESARROLLO: Usar puppeteer local
-        console.log('🛠️ Modo desarrollo: usando Puppeteer local');
+        console.log('Modo desarrollo: usando Puppeteer local');
         const puppeteerLocal = require('puppeteer');
         
         return puppeteerLocal.launch({
@@ -116,13 +105,14 @@ export class PdfService {
         });
       }
     } catch (error) {
-      console.error('❌ Error lanzando browser:', error);
+      console.error('Error lanzando browser:', error);
       throw new Error(`Error iniciando browser: ${error.message}`);
     }
   }
 
+  // MÉTODO PRINCIPAL - DETECTA EL TIPO DE ELECCIÓN Y GENERA EL ACTA CORRESPONDIENTE
   async generateActaEleccion(electionId: number, instructorName: string): Promise<Buffer> {
-    console.log('🎯 === GENERANDO ACTA DE ELECCIÓN ===');
+    console.log('=== GENERANDO ACTA DE ELECCIÓN ===');
     console.log('Election ID:', electionId);
     console.log('Instructor:', instructorName);
 
@@ -140,18 +130,29 @@ export class PdfService {
       throw new NotFoundException('Solo se pueden generar actas de elecciones finalizadas');
     }
 
-    // 2. Obtener estadísticas de la elección
+    console.log('Tipo de elección:', eleccion.tipoEleccion?.nombre_tipo);
+
+    // 2. Obtener estadísticas mejoradas (incluye segundo lugar para representantes)
     const stats = await this.getElectionStatsForActa(electionId);
 
-    // 3. Generar HTML del acta (ahora es async)
-    const htmlContent = await this.generateActaHTML(eleccion, stats, instructorName);
+    // 3. Generar HTML según el tipo de elección
+    let htmlContent: string;
+    
+    if (eleccion.tipoEleccion?.nombre_tipo === 'REPRESENTANTE_CENTRO') {
+      console.log('Generando acta para REPRESENTANTE DE CENTRO');
+      htmlContent = await this.generateActaRepresentanteCentroHTML(eleccion, stats, instructorName);
+    } else {
+      console.log('Generando acta para VOCERO DE FICHA (formato original)');
+      htmlContent = await this.generateActaVoceroFichaHTML(eleccion, stats, instructorName);
+    }
 
-    // 4. Convertir HTML a PDF
+    // 4. Convertir HTML a PDF usando el método que funciona
     const pdfBuffer = await this.convertHtmlToPdf(htmlContent);
 
     return pdfBuffer;
   }
 
+  // ESTADÍSTICAS MEJORADAS - INCLUYE SEGUNDO LUGAR
   private async getElectionStatsForActa(electionId: number) {
     const totalVotantes = await this.votanteHabilitadoRepository.count({
       where: { id_eleccion: electionId },
@@ -165,7 +166,7 @@ export class PdfService {
       where: { id_eleccion: electionId, id_candidato: null },
     });
 
-    // Obtener candidato ganador
+    // Obtener TODOS los candidatos ordenados por votos
     const candidatosConVotos = await this.candidatoRepository.find({
       where: { id_eleccion: electionId, estado: 'validado' },
       relations: ['persona'],
@@ -173,18 +174,34 @@ export class PdfService {
     });
 
     const ganador = candidatosConVotos[0] || null;
+    const segundoLugar = candidatosConVotos[1] || null; // NUEVO
+
+    // Array detallado de candidatos con sus votos
+    const candidatosDetallados = candidatosConVotos.map((candidato, index) => ({
+      posicion: index + 1,
+      nombre: `${candidato.persona.nombres} ${candidato.persona.apellidos}`,
+      documento: candidato.persona.numero_documento,
+      email: candidato.persona.email,
+      telefono: candidato.persona.telefono,
+      numeroLista: candidato.numero_lista,
+      votosRecibidos: candidato.votos_recibidos,
+      porcentajeVotos: totalVotos > 0 ? ((candidato.votos_recibidos / totalVotos) * 100).toFixed(2) : '0.00'
+    }));
 
     return {
       totalVotantes,
       totalVotos,
       votosBlanco,
       ganador,
+      segundoLugar, // NUEVO
+      candidatosDetallados, // NUEVO
       porcentajeParticipacion: totalVotantes > 0 ? (totalVotos / totalVotantes) * 100 : 0,
     };
   }
 
-  async generateActaHTML(eleccion: any, stats: any, instructorName: string): Promise<string> {
-    // Formatear fechas
+  // TEMPLATE ORIGINAL PARA VOCERO DE FICHA (BASADO EN TU CÓDIGO QUE FUNCIONA)
+  async generateActaVoceroFichaHTML(eleccion: any, stats: any, instructorName: string): Promise<string> {
+    // Formatear fechas (igual que tu código original)
     const fechaActual = new Date().toLocaleDateString('es-CO', {
       day: 'numeric',
       month: 'long',
@@ -203,20 +220,16 @@ export class PdfService {
       year: 'numeric'
     });
 
-    // ✅ Hora actual en formato HH:MM
     const horaActual = new Date().toLocaleTimeString('es-CO', {
       hour: '2-digit',
       minute: '2-digit',
-      hour12: false // Formato 24 horas
+      hour12: false
     });
 
-    // ✅ Lugar siempre fijo
     const lugar = 'Centro Nacional Colombo Alemán; Bienestar al aprendiz';
-
-    // ✅ Tema siempre "ELECCIÓN DE LÍDER"
     const tema = 'ELECCIÓN DE LÍDER';
 
-    // ✅ Obtener nombre del programa de formación
+    // Obtener nombre del programa (igual que tu código)
     let nombrePrograma = 'Programa de Formación';
     if (eleccion.ficha?.nombre_programa) {
       nombrePrograma = eleccion.ficha.nombre_programa.toUpperCase();
@@ -226,13 +239,14 @@ export class PdfService {
       nombrePrograma = eleccion.centro.nombre_centro.toUpperCase();
     }
 
-    // Información del ganador
+    // Información del ganador (igual que tu código)
     const ganador = stats.ganador;
     const nombreGanador = ganador ? `${ganador.persona.nombres} ${ganador.persona.apellidos}` : '';
     const documentoGanador = ganador ? ganador.persona.numero_documento : '';
     const emailGanador = ganador ? ganador.persona.email : '';
     const telefonoGanador = ganador ? ganador.persona.telefono : '';
 
+    // USAR TU HTML EXACTO (que funciona) con pequeñas mejoras
     return `
 <!DOCTYPE html>
 <html lang="es">
@@ -417,6 +431,31 @@ export class PdfService {
         .page-break {
             page-break-before: always;
         }
+
+        /* NUEVOS ESTILOS PARA RESULTADOS */
+        .resultados-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        .resultados-table th,
+        .resultados-table td {
+            border: 1px solid black;
+            padding: 6px;
+            text-align: center;
+            font-size: 10px;
+        }
+        .resultados-table th {
+            background: #f0f0f0;
+            font-weight: bold;
+        }
+        .ganador-row {
+            background: #d4edda;
+            font-weight: bold;
+        }
+        .segundo-lugar-row {
+            background: #fff3cd;
+        }
     </style>
 </head>
 <body>
@@ -432,7 +471,7 @@ export class PdfService {
                     CONTINUA INSTITUCIONAL
                 </div>
             </div>
-            <div class="acta-numero">ACTA N° </div>
+            <div class="acta-numero">ACTA N° ${eleccion.id_eleccion}</div>
         </div>
 
         <!-- ELECCIÓN DE LÍDER -->
@@ -477,6 +516,42 @@ export class PdfService {
                 <div class="desarrollo-text">
                     Siendo las <span class="filled-field">${horaActual}</span> del día <span class="filled-field">${fechaActual}</span>, se reunieron el Instructor <span class="filled-field">${instructorName}</span> y los (<span class="filled-field">${stats.totalVotantes}</span>) Aprendices del Programa <span class="filled-field">${nombrePrograma}</span> de la ficha <span class="filled-field">${eleccion.ficha?.numero_ficha || 'N/A'}</span> para realizar la elección de líder (X) o la ratificación del líder ( ).
                 </div>
+                
+                <!-- NUEVA SECCIÓN: RESULTADOS DE VOTACIÓN -->
+                <div style="margin-top: 15px;">
+                    <strong>RESULTADOS DE LA VOTACIÓN:</strong>
+                    <table class="resultados-table">
+                        <thead>
+                            <tr>
+                                <th>N° Lista</th>
+                                <th>Candidato</th>
+                                <th>Documento</th>
+                                <th>Votos</th>
+                                <th>Porcentaje</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${stats.candidatosDetallados.map((candidato, index) => `
+                            <tr class="${index === 0 ? 'ganador-row' : index === 1 ? 'segundo-lugar-row' : ''}">
+                                <td>${candidato.numeroLista}</td>
+                                <td>${candidato.nombre}</td>
+                                <td>${candidato.documento}</td>
+                                <td>${candidato.votosRecibidos}</td>
+                                <td>${candidato.porcentajeVotos}%</td>
+                            </tr>
+                            `).join('')}
+                            <tr style="background: #f8f9fa;">
+                                <td colspan="3"><strong>Votos en Blanco</strong></td>
+                                <td><strong>${stats.votosBlanco}</strong></td>
+                                <td><strong>${stats.totalVotos > 0 ? ((stats.votosBlanco / stats.totalVotos) * 100).toFixed(2) : '0.00'}%</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div style="margin-top: 10px;">
+                        <strong>Resumen:</strong> Total votantes: ${stats.totalVotantes} | Total votos: ${stats.totalVotos} | Participación: ${stats.porcentajeParticipacion.toFixed(2)}%
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -500,8 +575,16 @@ export class PdfService {
             <div class="section-title">CONCLUSIONES</div>
             <div class="section-content">
                 <div style="margin: 25px 0; line-height: 1.5; text-align: justify;">
+                    <strong>VOCERO ELEGIDO:</strong><br>
                     Fue elegido el aprendiz <strong>${nombreGanador}</strong> con el D.I <strong>${documentoGanador}</strong> correo electrónico <strong>${emailGanador}</strong> número de teléfono <strong>${telefonoGanador}</strong>
                 </div>
+                
+                ${stats.segundoLugar ? `
+                <div style="margin: 15px 0; line-height: 1.5; text-align: justify;">
+                    <strong>SEGUNDO LUGAR:</strong><br>
+                    El segundo lugar fue para el aprendiz <strong>${stats.segundoLugar.persona.nombres} ${stats.segundoLugar.persona.apellidos}</strong> con <strong>${stats.segundoLugar.votos_recibidos} votos</strong>.
+                </div>
+                ` : ''}
             </div>
         </div>
     </div>
@@ -523,7 +606,7 @@ export class PdfService {
                     CONTINUA INSTITUCIONAL
                 </div>
             </div>
-            <div class="acta-numero">ACTA N° </div>
+            <div class="acta-numero">ACTA N° ${eleccion.id_eleccion}</div>
         </div>
 
         <!-- TABLA DE ASISTENTES -->
@@ -568,19 +651,331 @@ export class PdfService {
         Página 2 de 2
     </div>
 </body>
-</html>
-    `;
+</html>`;
   }
 
+  // NUEVO TEMPLATE PARA REPRESENTANTE DE CENTRO
+  async generateActaRepresentanteCentroHTML(eleccion: any, stats: any, instructorName: string): Promise<string> {
+    const fechaActual = new Date().toLocaleDateString('es-CO', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const fechaInicio = new Date(eleccion.fecha_inicio).toLocaleDateString('es-CO', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const fechaFin = new Date(eleccion.fecha_fin).toLocaleDateString('es-CO', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const horaActual = new Date().toLocaleTimeString('es-CO', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+
+    const lugar = 'Centro Nacional Colombo Alemán; Bienestar al aprendiz';
+    const tema = 'ELECCIÓN DE REPRESENTANTE DE CENTRO';
+    const nombreCentro = eleccion.centro?.nombre_centro || 'Centro Nacional Colombo Alemán';
+    const jornada = eleccion.jornada || 'Todas las jornadas';
+
+    const ganador = stats.ganador;
+    const segundoLugar = stats.segundoLugar;
+    
+    const nombreGanador = ganador ? `${ganador.persona.nombres} ${ganador.persona.apellidos}` : 'Sin ganador';
+    const documentoGanador = ganador ? ganador.persona.numero_documento : '';
+    const votosGanador = ganador ? ganador.votos_recibidos : 0;
+
+    const nombreSegundoLugar = segundoLugar ? `${segundoLugar.persona.nombres} ${segundoLugar.persona.apellidos}` : 'No aplica';
+    const documentoSegundoLugar = segundoLugar ? segundoLugar.persona.numero_documento : '';
+    const votosSegundoLugar = segundoLugar ? segundoLugar.votos_recibidos : 0;
+
+    // Usar la misma estructura base que el template de voceros pero con contenido específico
+    return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acta de Elección Representante de Centro - SENA</title>
+    <style>
+        /* Usar los mismos estilos que el template de voceros */
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            line-height: 1.1;
+            margin: 0;
+            padding: 15px;
+            background: white;
+        }
+        .container {
+            max-width: 210mm;
+            margin: 0 auto;
+            border: 2px solid black;
+        }
+        .header {
+            border-bottom: 2px solid black;
+            padding: 8px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            height: 70px;
+        }
+        .sena-logo {
+            width: 100px;
+            height: 60px;
+            border: 2px solid black;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 8px;
+            text-align: center;
+            line-height: 1;
+            padding: 4px;
+        }
+        .sena-svg {
+            width: 50px;
+            height: 35px;
+            margin-bottom: 2px;
+        }
+        .sena-subtitle {
+            font-size: 6px;
+            line-height: 0.9;
+            margin-top: 3px;
+        }
+        .acta-numero {
+            font-weight: bold;
+            font-size: 14px;
+            align-self: center;
+        }
+        .section {
+            border-bottom: 2px solid black;
+        }
+        .section-title {
+            background: black;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+            padding: 6px;
+            font-size: 11px;
+        }
+        .section-content {
+            padding: 8px;
+        }
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .info-table td {
+            border: 1px solid black;
+            padding: 4px;
+            font-size: 10px;
+            vertical-align: top;
+        }
+        .info-label {
+            font-weight: bold;
+            background: #f0f0f0;
+            width: 120px;
+        }
+        .objetivo-text {
+            text-align: justify;
+            line-height: 1.2;
+            margin: 8px 0;
+        }
+        .desarrollo-text {
+            margin: 8px 0;
+            line-height: 1.3;
+        }
+        .filled-field {
+            border-bottom: 1px solid black;
+            display: inline-block;
+            min-width: 80px;
+            height: 12px;
+            margin: 0 3px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .resultados-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        .resultados-table th,
+        .resultados-table td {
+            border: 1px solid black;
+            padding: 6px;
+            text-align: center;
+            font-size: 10px;
+        }
+        .resultados-table th {
+            background: #f0f0f0;
+            font-weight: bold;
+        }
+        .ganador-row {
+            background: #d4edda;
+            font-weight: bold;
+        }
+        .segundo-lugar-row {
+            background: #fff3cd;
+        }
+        .page-footer {
+            text-align: right;
+            margin-top: 15px;
+            font-size: 9px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- ENCABEZADO -->
+        <div class="header">
+            <div class="sena-logo">
+                <img src="data:image/svg+xml;base64,${await this.getSenaLogoBase64()}" class="sena-svg" alt="SENA Logo" />
+                <div class="sena-subtitle">
+                    SISTEMA INTEGRADO DE MEJORA<br>
+                    CONTINUA INSTITUCIONAL
+                </div>
+            </div>
+            <div class="acta-numero">ACTA N° ${eleccion.id_eleccion}</div>
+        </div>
+
+        <!-- ELECCIÓN DE REPRESENTANTE DE CENTRO -->
+        <div class="section">
+            <div class="section-title">ELECCIÓN DE REPRESENTANTE DE CENTRO</div>
+            <div class="section-content">
+                <table class="info-table">
+                    <tr>
+                        <td class="info-label">CIUDAD Y FECHA:</td>
+                        <td style="width: 300px;">Barranquilla, ${fechaActual}</td>
+                        <td class="info-label">FECHA DE INICIO:</td>
+                        <td style="width: 120px;">${fechaInicio}</td>
+                        <td class="info-label">FECHA DE TERMINACIÓN:</td>
+                        <td style="width: 120px;">${fechaFin}</td>
+                    </tr>
+                    <tr>
+                        <td class="info-label">LUGAR:</td>
+                        <td colspan="5">${lugar}</td>
+                    </tr>
+                    <tr>
+                        <td class="info-label">TEMA:</td>
+                        <td colspan="5">${tema}</td>
+                    </tr>
+                    <tr>
+                        <td class="info-label">CENTRO:</td>
+                        <td colspan="2">${nombreCentro}</td>
+                        <td class="info-label">JORNADA:</td>
+                        <td colspan="2">${jornada}</td>
+                    </tr>
+                </table>
+                
+                <div style="margin-top: 12px;">
+                    <strong>OBJETIVO DE LA REUNIÓN:</strong>
+                    <div class="objetivo-text">
+                        Aplicar el artículo correspondiente del Reglamento del Aprendiz SENA para la elección del Representante de Centro, 
+                        teniendo en cuenta la capacidad de liderazgo, trabajo en equipo, manejo de la información, iniciativa y actitudes 
+                        que beneficien el desarrollo de la Comunidad Educativa del ${nombreCentro}.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DESARROLLO DE LA REUNIÓN -->
+        <div class="section">
+            <div class="section-title">DESARROLLO DE LA REUNIÓN</div>
+            <div class="section-content">
+                <div style="margin-bottom: 8px;">
+                    <strong>VERIFICACIÓN DE QUÓRUM:</strong>
+                </div>
+                <div class="desarrollo-text">
+                    Siendo las <span class="filled-field">${horaActual}</span> del día <span class="filled-field">${fechaActual}</span>, 
+                    se reunieron los aprendices del ${nombreCentro} 
+                    para realizar la elección de Representante de Centro en la jornada ${jornada}.
+                </div>
+                
+                <!-- RESULTADOS DE VOTACIÓN -->
+                <div style="margin-top: 15px;">
+                    <strong>RESULTADOS DE LA VOTACIÓN:</strong>
+                    <table class="resultados-table">
+                        <thead>
+                            <tr>
+                                <th>N° Lista</th>
+                                <th>Candidato</th>
+                                <th>Numero de lista</th>
+                                <th>Votos</th>
+                                <th>Porcentaje</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${stats.candidatosDetallados.map((candidato, index) => `
+                            <tr class="${index === 0 ? 'ganador-row' : index === 1 ? 'segundo-lugar-row' : ''}">
+                                <td>${candidato.numeroLista}</td>
+                                <td>${candidato.nombre}</td>
+                                <td>${candidato.documento}</td>
+                                <td>${candidato.votosRecibidos}</td>
+                                <td>${candidato.porcentajeVotos}%</td>
+                            </tr>
+                            `).join('')}
+                            <tr style="background: #f8f9fa;">
+                                <td colspan="3"><strong>Votos en Blanco</strong></td>
+                                <td><strong>${stats.votosBlanco}</strong></td>
+                                <td><strong>${stats.totalVotos > 0 ? ((stats.votosBlanco / stats.totalVotos) * 100).toFixed(2) : '0.00'}%</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div style="margin-top: 10px;">
+                        <strong>Resumen:</strong> Total votantes: ${stats.totalVotantes} | Total votos: ${stats.totalVotos} | Participación: ${stats.porcentajeParticipacion.toFixed(2)}%
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONCLUSIONES -->
+        <div class="section" style="border-bottom: none;">
+            <div class="section-title">CONCLUSIONES</div>
+            <div class="section-content">
+                <div style="margin: 25px 0; line-height: 1.5; text-align: justify;">
+                    <strong>REPRESENTANTE ELEGIDO:</strong><br>
+                    Fue elegido como Representante de Centro el aprendiz <strong>${nombreGanador}</strong> 
+                    con el D.I <strong>${documentoGanador}</strong>, quien obtuvo <strong>${votosGanador} votos</strong>.
+                </div>
+                
+                ${segundoLugar ? `
+                <div style="margin: 15px 0; line-height: 1.5; text-align: justify;">
+                    <strong>SEGUNDO LUGAR:</strong><br>
+                    El segundo lugar fue para el aprendiz <strong>${nombreSegundoLugar}</strong> 
+                    con el D.I <strong>${documentoSegundoLugar}</strong>, quien obtuvo <strong>${votosSegundoLugar} votos</strong>.
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    </div>
+    
+    <div class="page-footer">
+        Página 1 de 1
+    </div>
+</body>
+</html>`;
+  }
+
+  // MÉTODO convertHtmlToPdf - USAR EL QUE FUNCIONA SIN MODIFICACIONES
   private async convertHtmlToPdf(htmlContent: string): Promise<Buffer> {
-    console.log('🔄 Iniciando conversión HTML a PDF con Chromium remoto...');
+    console.log('Iniciando conversión HTML a PDF con Chromium remoto...');
     
     let browser = null;
     
     try {
-      // ✅ USAR EL NUEVO MÉTODO getBrowser()
       browser = await this.getBrowser();
-      console.log('✅ Browser lanzado exitosamente');
+      console.log('Browser lanzado exitosamente');
       
       const page = await browser.newPage();
       await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
@@ -596,22 +991,21 @@ export class PdfService {
         },
       });
 
-      // ✅ CONVERSIÓN DE Uint8Array A Buffer
       const pdfBuffer = Buffer.from(pdfUint8Array);
-      console.log('✅ PDF generado exitosamente, tamaño:', pdfBuffer.length, 'bytes');
+      console.log('PDF generado exitosamente, tamaño:', pdfBuffer.length, 'bytes');
       
       return pdfBuffer;
 
     } catch (error) {
-      console.error('❌ Error en la conversión HTML a PDF:', error);
+      console.error('Error en la conversión HTML a PDF:', error);
       throw new Error(`Error generando PDF: ${error.message}`);
     } finally {
       if (browser) {
         try {
           await browser.close();
-          console.log('🔒 Browser cerrado');
+          console.log('Browser cerrado');
         } catch (closeError) {
-          console.error('⚠️ Error cerrando browser:', closeError);
+          console.error('Error cerrando browser:', closeError);
         }
       }
     }

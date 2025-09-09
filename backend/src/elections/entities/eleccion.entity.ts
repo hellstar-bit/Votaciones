@@ -35,7 +35,7 @@ export class Eleccion {
   @Column({ nullable: true })
   id_ficha: number;
 
-  @Column({ type: 'enum', enum: ['mixta', 'nocturna', 'madrugada'], nullable: true })
+  @Column({ type: 'enum', enum: ['nocturna', '24_horas', 'mixta'], nullable: true })
   jornada: string;
 
   @Column({ type: 'timestamp' })

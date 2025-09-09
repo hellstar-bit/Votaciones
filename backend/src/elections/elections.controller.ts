@@ -1,5 +1,6 @@
-// 📁 backend/src/elections/elections.controller.ts
+// 📁 backend/src/elections/elections.controller.ts - Controlador Actualizado
 // ====================================================================
+
 import { 
   Controller, 
   Get, 
@@ -51,7 +52,7 @@ export class ElectionsController {
     return this.electionsService.getActiveElections();
   }
 
-  // ✅ ENDPOINT ACTA PDF - ANTES DE LAS RUTAS GENÉRICAS
+  // ✅ ENDPOINT UNIFICADO PARA GENERAR ACTA PDF (VOCEROS Y REPRESENTANTES)
   @Get(':id/acta-pdf')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
@@ -60,13 +61,13 @@ export class ElectionsController {
     @Query('instructor') instructor: string,
     @Res() res: Response,
   ) {
-    console.log('🎯 === BACKEND: Generando acta PDF ===')
-    console.log('Election ID:', id)
-    console.log('Instructor:', instructor)
-    console.log('URL matcheada: /elections/:id/acta-pdf')
+    console.log('🎯 === BACKEND: Generando acta PDF UNIFICADA ===');
+    console.log('Election ID:', id);
+    console.log('Instructor:', instructor);
+    console.log('URL matcheada: /elections/:id/acta-pdf');
     
     if (!instructor || instructor.trim() === '') {
-      console.log('❌ Instructor requerido')
+      console.log('❌ Instructor requerido');
       return res.status(400).json({ 
         message: 'El nombre del instructor es requerido',
         error: 'Bad Request' 
@@ -74,17 +75,19 @@ export class ElectionsController {
     }
 
     try {
-      console.log('🔄 Llamando al servicio PDF...')
+      console.log('🔄 Llamando al servicio PDF unificado...');
+      
+      // ✅ EL SERVICIO DETECTA AUTOMÁTICAMENTE EL TIPO DE ELECCIÓN
       const pdfBuffer = await this.pdfService.generateActaEleccion(+id, instructor.trim());
       
-      console.log('✅ PDF generado, tamaño:', pdfBuffer.length, 'bytes')
+      console.log('✅ PDF generado, tamaño:', pdfBuffer.length, 'bytes');
       
       // Verificar que el buffer contiene un PDF válido
       const pdfHeader = pdfBuffer.slice(0, 5).toString();
-      console.log('🔍 PDF Header:', pdfHeader)
+      console.log('🔍 PDF Header:', pdfHeader);
       
       if (!pdfHeader.startsWith('%PDF')) {
-        console.error('❌ Buffer no es un PDF válido!')
+        console.error('❌ Buffer no es un PDF válido!');
         return res.status(500).json({
           message: 'Error: el archivo generado no es un PDF válido'
         });
@@ -92,21 +95,48 @@ export class ElectionsController {
       
       // Obtener información de la elección para el nombre del archivo
       const eleccion = await this.electionsService.findOne(+id);
-      const fileName = `acta_eleccion_${eleccion.titulo.replace(/\s+/g, '_')}_${id}.pdf`;
       
-      console.log('📁 Nombre del archivo:', fileName)
+      // ✅ NOMBRE DE ARCHIVO SEGÚN EL TIPO DE ELECCIÓN
+      let fileName: string;
+      if (eleccion.tipoEleccion.nombre_tipo === 'REPRESENTANTE_CENTRO') {
+        fileName = `acta_representante_centro_${eleccion.jornada || 'general'}_${id}.pdf`;
+      } else if (eleccion.tipoEleccion.nombre_tipo === 'VOCERO_FICHA') {
+        fileName = `acta_vocero_ficha_${eleccion.ficha?.numero_ficha || 'N/A'}_${id}.pdf`;
+      } else {
+        fileName = `acta_eleccion_${eleccion.titulo.replace(/\s+/g, '_')}_${id}.pdf`;
+      }
+      
+      console.log('📁 Nombre del archivo:', fileName);
       
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${fileName}"`,
         'Content-Length': pdfBuffer.length.toString(),
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
       });
 
-      console.log('📤 Enviando PDF al cliente...')
+      console.log('📤 Enviando PDF al cliente...');
       res.end(pdfBuffer);
       
     } catch (error) {
       console.error('❌ Error generando acta PDF:', error);
+      
+      // ✅ MANEJO DE ERRORES ESPECÍFICOS
+      if (error.message.includes('Tipo de elección no soportado')) {
+        return res.status(400).json({
+          message: 'Tipo de elección no soportado para generar acta PDF',
+          error: error.message
+        });
+      }
+      
+      if (error.message.includes('Solo se pueden generar actas de elecciones finalizadas')) {
+        return res.status(400).json({
+          message: 'Solo se pueden generar actas de elecciones finalizadas',
+          error: 'Election not finalized'
+        });
+      }
+      
       return res.status(500).json({
         message: 'Error generando el acta PDF',
         error: error.message
@@ -127,9 +157,9 @@ export class ElectionsController {
 
   @Get(':id/stats')
   async getStats(@Param('id') id: string) {
-    console.log('📊 === BACKEND: Obteniendo stats ===')
-    console.log('Election ID:', id)
-    console.log('URL matcheada: /elections/:id/stats')
+    console.log('📊 === BACKEND: Obteniendo stats ===');
+    console.log('Election ID:', id);
+    console.log('URL matcheada: /elections/:id/stats');
     return this.electionsService.getElectionStats(+id);
   }
 
@@ -154,7 +184,6 @@ export class ElectionsController {
     return this.electionsService.finalize(+id, userId);
   }
 
-
   @Patch(':id/cancel')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
@@ -178,18 +207,18 @@ export class ElectionsController {
   // ✅ ENDPOINT GENÉRICO AL FINAL
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    console.log('📄 === BACKEND: Obteniendo elección ===')
-    console.log('Election ID:', id)
-    console.log('URL matcheada: /elections/:id')
+    console.log('📄 === BACKEND: Obteniendo elección ===');
+    console.log('Election ID:', id);
+    console.log('URL matcheada: /elections/:id');
     return this.electionsService.findOne(+id);
   }
+
   @Patch(':id/regenerate-voters')
   @UseGuards(RolesGuard)
   @Roles('ADMIN')
   async regenerateEligibleVoters(@Param('id', ParseIntPipe) id: number) {
     console.log('🔄 === REGENERANDO VOTANTES HABILITADOS ===');
     console.log('ID de elección:', id);
-
     return this.electionsService.regenerateEligibleVoters(id);
   }
 }

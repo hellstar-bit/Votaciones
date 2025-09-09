@@ -237,7 +237,12 @@ export interface Election {
   }
   centro?: { nombre_centro: string }
   sede?: { nombre_sede: string }
-  ficha?: { numero_ficha: string }
+  // ✅ CORREGIR ESTA INTERFACE - AGREGAR nombre_programa
+  ficha?: { 
+    numero_ficha: string
+    nombre_programa: string  // ✅ ESTO FALTABA
+    jornada?: string
+  }
 }
 
 export interface ElectionStats {
@@ -645,38 +650,23 @@ export const electionsApi = {
       console.log('📊 Election ID:', electionId)
       console.log('👨‍🏫 Instructor:', instructor)
       
-      // Verificar token de autenticación
-      const authStorage = localStorage.getItem('auth-storage')
-      if (authStorage) {
-        try {
-          const parsed = JSON.parse(authStorage)
-          const token = parsed.state?.token
-          console.log('🔑 Token disponible:', !!token)
-          console.log('🔑 Token preview:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN')
-        } catch (parseError: unknown) {
-          console.error('❌ Error parseando auth storage:', getErrorMessage(parseError))
-        }
-      } else {
-        console.log('❌ No hay auth-storage')
+      if (!instructor || instructor.trim() === '') {
+        throw new Error('El nombre del instructor es requerido')
       }
 
-      // Hacer la petición usando axios (que ya tiene los interceptors de auth)
       console.log('📤 Enviando petición al servidor...')
       const response = await api.get(`/elections/${electionId}/acta-pdf`, {
-        params: { instructor },
-        responseType: 'blob',
+        params: { instructor: instructor.trim() },
+        responseType: 'arraybuffer', // ✅ IMPORTANTE: Para archivos binarios
+        timeout: 60000, // 1 minuto para generación de PDF
       })
 
       console.log('📡 Response recibido:')
       console.log('  - Status:', response.status)
-      console.log('  - Status Text:', response.statusText)
-      console.log('  - Headers:', response.headers)
-      console.log('  - Data type:', typeof response.data)
-      console.log('  - Data size:', response.data?.size || 'N/A')
       console.log('  - Content-Type:', response.headers['content-type'])
 
       // ✅ VERIFICAR QUE EL CONTENIDO NO ESTÁ VACÍO
-      if (!response.data || response.data.size === 0) {
+      if (!response.data || response.data.byteLength === 0) {
         throw new Error('El archivo PDF está vacío')
       }
 
@@ -690,11 +680,11 @@ export const electionsApi = {
         // Si es texto o JSON, leer el contenido para ver el error
         if (contentType.includes('text') || contentType.includes('json')) {
           try {
-            const text = await response.data.text()
+            const text = new TextDecoder().decode(new Uint8Array(response.data))
             console.error('📝 Contenido del error:', text)
             throw new Error(`Error del servidor: ${text}`)
-          } catch (readError: unknown) {
-            console.error('❌ No se pudo leer el contenido de error:', getErrorMessage(readError))
+          } catch (readError) {
+            console.error('❌ No se pudo leer el contenido de error:', readError)
           }
         }
         
@@ -702,64 +692,56 @@ export const electionsApi = {
       }
 
       // ✅ VERIFICAR QUE ES UN PDF VÁLIDO LEYENDO EL HEADER
-      try {
-        const arrayBuffer = await response.data.arrayBuffer()
-        const uint8Array = new Uint8Array(arrayBuffer)
-        const header = Array.from(uint8Array.slice(0, 5)).map(b => String.fromCharCode(b)).join('')
+      const uint8Array = new Uint8Array(response.data)
+      const header = Array.from(uint8Array.slice(0, 5)).map(b => String.fromCharCode(b)).join('')
+      
+      console.log('🔍 Header del archivo:', header)
+      
+      if (!header.startsWith('%PDF')) {
+        console.error('❌ Header inválido para PDF:', header)
         
-        console.log('🔍 Header del archivo:', header)
-        console.log('🔍 Primeros 10 bytes:', Array.from(uint8Array.slice(0, 10)))
+        // Intentar leer como texto para ver el error
+        const decoder = new TextDecoder()
+        const text = decoder.decode(uint8Array.slice(0, 200))
+        console.error('📝 Contenido como texto:', text)
         
-        if (!header.startsWith('%PDF')) {
-          console.error('❌ Header inválido para PDF:', header)
-          
-          // Intentar leer como texto para ver el error
-          const decoder = new TextDecoder()
-          const text = decoder.decode(uint8Array.slice(0, 200))
-          console.error('📝 Contenido como texto:', text)
-          
-          throw new Error(`Archivo no es un PDF válido. Header encontrado: "${header}"`)
-        }
-
-        console.log('✅ PDF válido detectado')
-
-        // ✅ CREAR BLOB CORRECTO
-        const blob = new Blob([arrayBuffer], { type: 'application/pdf' })
-        
-        // Extraer nombre del archivo de los headers
-        const contentDisposition = response.headers['content-disposition']
-        let fileName = `acta_eleccion_${electionId}.pdf`
-        
-        if (contentDisposition) {
-          const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
-          if (fileNameMatch && fileNameMatch[1]) {
-            fileName = fileNameMatch[1].replace(/['"]/g, '')
-          }
-        }
-
-        console.log('📁 Nombre del archivo:', fileName)
-
-        // ✅ CREAR DESCARGA
-        const url = window.URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = fileName
-        link.style.display = 'none'
-        
-        // Agregar al DOM temporalmente
-        document.body.appendChild(link)
-        link.click()
-        
-        // Limpiar
-        document.body.removeChild(link)
-        window.URL.revokeObjectURL(url)
-        
-        console.log('✅ PDF descargado exitosamente:', fileName)
-        
-      } catch (processingError: unknown) {
-        console.error('❌ Error procesando el PDF:', processingError)
-        throw new Error(`Error procesando el archivo PDF: ${getErrorMessage(processingError)}`)
+        throw new Error(`Archivo no es un PDF válido. Header encontrado: "${header}"`)
       }
+
+      console.log('✅ PDF válido detectado')
+
+      // ✅ CREAR BLOB Y DESCARGA
+      const blob = new Blob([response.data], { type: 'application/pdf' })
+      
+      // Extraer nombre del archivo de los headers
+      const contentDisposition = response.headers['content-disposition']
+      let fileName = `acta_eleccion_${electionId}.pdf`
+      
+      if (contentDisposition) {
+        const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+        if (fileNameMatch && fileNameMatch[1]) {
+          fileName = fileNameMatch[1].replace(/['"]/g, '')
+        }
+      }
+
+      console.log('📁 Nombre del archivo:', fileName)
+
+      // ✅ CREAR DESCARGA
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      link.style.display = 'none'
+      
+      // Agregar al DOM temporalmente
+      document.body.appendChild(link)
+      link.click()
+      
+      // Limpiar
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+      
+      console.log('✅ PDF descargado exitosamente:', fileName)
       
     } catch (error: unknown) {
       console.error('❌ === ERROR COMPLETO ===')
@@ -770,15 +752,23 @@ export const electionsApi = {
         console.error('Axios error response:', error.response)
         console.error('Response status:', error.response?.status)
         console.error('Response data:', error.response?.data)
-        console.error('Response headers:', error.response?.headers)
         
-        // Si la respuesta es un blob de error, intentar leerlo
-        if (error.response?.data instanceof Blob) {
+        // Si la respuesta es un ArrayBuffer de error, intentar leerlo
+        if (error.response?.data instanceof ArrayBuffer) {
           try {
-            const text = await error.response.data.text()
-            console.error('Error blob content:', text)
-          } catch (readError: unknown) {
-            console.error('No se pudo leer el blob de error:', getErrorMessage(readError))
+            const text = new TextDecoder().decode(new Uint8Array(error.response.data))
+            console.error('Error ArrayBuffer content:', text)
+            
+            // Intentar parsear como JSON
+            try {
+              const errorData = JSON.parse(text)
+              throw new Error(errorData.message || 'Error del servidor')
+            } catch {
+              // Si no es JSON, usar el texto directamente
+              throw new Error(text || 'Error desconocido del servidor')
+            }
+          } catch (readError) {
+            console.error('No se pudo leer el ArrayBuffer de error:', readError)
           }
         }
         
@@ -804,12 +794,30 @@ export const electionsApi = {
         if (error.name === 'NetworkError' || error.message.includes('Network')) {
           throw new Error('Error de conexión. Verifica tu conexión a internet.')
         }
+        if (error.message.includes('timeout')) {
+          throw new Error('Tiempo de espera agotado. El servidor está tardando en responder.')
+        }
         throw new Error(error.message)
       }
       
       // ✅ FALLBACK PARA ERRORES DESCONOCIDOS
       throw new Error(`Error inesperado: ${getErrorMessage(error)}`)
     }
+  },
+
+  // ✅ MÉTODOS ALIAS PARA COMPATIBILIDAD
+  downloadActa: async (electionId: number, instructorName: string): Promise<void> => {
+    return electionsApi.exportActaPdf(electionId, instructorName)
+  },
+
+  downloadVoceroActa: async (electionId: number, instructorName: string): Promise<void> => {
+    console.log('⚠️ Usando método legacy downloadVoceroActa, redirigiendo al unificado')
+    return electionsApi.exportActaPdf(electionId, instructorName)
+  },
+
+  downloadRepresentanteActa: async (electionId: number, instructorName: string): Promise<void> => {
+    console.log('📋 Descargando acta de representante de centro')
+    return electionsApi.exportActaPdf(electionId, instructorName)
   },
 
   // Obtener todas las elecciones

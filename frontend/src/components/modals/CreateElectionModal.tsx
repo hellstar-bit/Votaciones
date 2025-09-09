@@ -112,9 +112,10 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
 
   // ✅ JORNADAS ACTUALIZADAS - SOLO 2 JORNADAS PARA REPRESENTANTE_CENTRO
   const jornadas = [
-    { value: 'nocturna', label: 'Jornada Nocturna', color: 'bg-purple-100 text-purple-800' },
-    { value: '24_horas', label: 'Jornada 24 Horas', color: 'bg-orange-100 text-orange-800' },
-  ]
+  { value: 'nocturna', label: 'Jornada Nocturna', color: 'bg-purple-100 text-purple-800' },
+  { value: '24_horas', label: 'Jornada 24 Horas', color: 'bg-orange-100 text-orange-800' },
+  { value: 'mixta', label: 'Jornada Mixta', color: 'bg-blue-100 text-blue-800' },
+]
 
   // Determinar si mostrar campos específicos
   const shouldShowFichaInput = formData.tipo_eleccion === 'VOCERO_FICHA'
@@ -183,10 +184,10 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
     }
 
     if (formData.tipo_eleccion === 'REPRESENTANTE_CENTRO') {
-      if (formData.jornadas.length === 0) {
-        newErrors.jornadas = 'Debe seleccionar al menos una jornada (Nocturna o 24 Horas)'
-      }
+    if (formData.jornadas.length === 0) {
+      newErrors.jornadas = 'Debe seleccionar al menos una jornada (Nocturna, 24 Horas o Mixta)'
     }
+  }
 
     // Validaciones de fecha y hora...
     if (!formData.fecha_inicio) {
@@ -213,6 +214,16 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
     const ficha = fichasDisponibles.find(f => f.numero_ficha === numeroFicha)
     return ficha?.id_ficha
   }
+  const getJornadaDisplayName = (jornada: string): string => {
+  const mapping = {
+    'nocturna': 'Nocturna',
+    '24_horas': '24 Horas',
+    'mixta': 'Mixta'
+  }
+  return mapping[jornada as keyof typeof mapping] || jornada
+}
+
+
 
   // ✅ FUNCIÓN HANDLESUBMIT CORREGIDA
   const handleSubmit = async (e: React.FormEvent) => {
@@ -240,41 +251,39 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
 
       // ✅ CORRECCIÓN: Para Representante de Centro
       if (formData.tipo_eleccion === 'REPRESENTANTE_CENTRO') {
-        
-        // Si solo hay una jornada seleccionada, crear una sola elección
-        if (formData.jornadas.length === 1) {
-          const jornada = formData.jornadas[0]
-          const electionData: CreateElectionData = {
-            titulo: formData.titulo, // ✅ Sin sufijo de jornada cuando es solo una
-            descripcion: formData.descripcion || `Elección de ${formData.titulo}`,
-            tipo_eleccion: formData.tipo_eleccion,
-            fecha_inicio: `${formData.fecha_inicio}T${formData.hora_inicio}:00`,
-            fecha_fin: `${formData.fecha_fin}T${formData.hora_fin}:00`,
-            jornada,
-          }
-          
-          await electionsApi.create(electionData)
-          toast.success(`Elección creada exitosamente para jornada ${jornada === '24_horas' ? '24 Horas' : 'Nocturna'}`)
-          
-        } else {
-          // Si hay múltiples jornadas, crear una elección por cada una
-          for (const jornada of formData.jornadas) {
-            const electionData: CreateElectionData = {
-              titulo: `${formData.titulo} - ${jornada === '24_horas' ? '24 Horas' : jornada.charAt(0).toUpperCase() + jornada.slice(1)}`,
-              descripcion: formData.descripcion || `Elección de ${formData.titulo} para jornada ${jornada}`,
-              tipo_eleccion: formData.tipo_eleccion,
-              fecha_inicio: `${formData.fecha_inicio}T${formData.hora_inicio}:00`,
-              fecha_fin: `${formData.fecha_fin}T${formData.hora_fin}:00`,
-              jornada,
-            }
-            
-            await electionsApi.create(electionData)
-          }
-          
-          toast.success(`Elecciones creadas exitosamente para ${formData.jornadas.length} jornadas`)
-        }
-        
-      } else {
+  // Si solo hay una jornada seleccionada, crear una sola elección
+  if (formData.jornadas.length === 1) {
+    const jornada = formData.jornadas[0]
+    const electionData: CreateElectionData = {
+      titulo: formData.titulo, // ✅ Sin sufijo de jornada cuando es solo una
+      descripcion: formData.descripcion || `Elección de ${formData.titulo}`,
+      tipo_eleccion: formData.tipo_eleccion,
+      fecha_inicio: `${formData.fecha_inicio}T${formData.hora_inicio}:00`,
+      fecha_fin: `${formData.fecha_fin}T${formData.hora_fin}:00`,
+      jornada,
+    }
+    
+    await electionsApi.create(electionData)
+    toast.success(`Elección creada exitosamente para jornada ${getJornadaDisplayName(jornada)}`)
+    
+  } else {
+    // Si hay múltiples jornadas, crear una elección por cada una
+    for (const jornada of formData.jornadas) {
+      const electionData: CreateElectionData = {
+        titulo: `${formData.titulo} - ${getJornadaDisplayName(jornada)}`,
+        descripcion: formData.descripcion || `Elección de ${formData.titulo} para jornada ${getJornadaDisplayName(jornada)}`,
+        tipo_eleccion: formData.tipo_eleccion,
+        fecha_inicio: `${formData.fecha_inicio}T${formData.hora_inicio}:00`,
+        fecha_fin: `${formData.fecha_fin}T${formData.hora_fin}:00`,
+        jornada,
+      }
+      
+      await electionsApi.create(electionData)
+    }
+    
+    toast.success(`Elecciones creadas exitosamente para ${formData.jornadas.length} jornadas`)
+  }
+} else {
         // Para otros tipos, crear una sola elección
         const electionData: CreateElectionData = {
           titulo: formData.titulo,
@@ -569,7 +578,7 @@ const CreateElectionModal = ({ isOpen, onClose, onElectionCreated }: CreateElect
                   <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border border-blue-200">
                     <div className="flex items-center justify-between mb-4">
                       <p className="text-sm text-gray-700">
-                        Selecciona las jornadas para las cuales se creará la elección:
+                        Selecciona las jornadas para las cuales se creará la elección (Nocturna, 24 Horas y/o Mixta):
                       </p>
                       
                       {/* ✅ INDICADOR: Cuántas elecciones se van a crear */}
