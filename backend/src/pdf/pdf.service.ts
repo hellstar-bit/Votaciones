@@ -9,6 +9,7 @@ import { Voto } from '../votes/entities/voto.entity';
 import { VotanteHabilitado } from '../votes/entities/votante-habilitado.entity';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Not } from 'typeorm';
 
 // Usar las mismas importaciones que funcionan
 const chromium = require('@sparticuz/chromium-min');
@@ -154,50 +155,88 @@ export class PdfService {
 
   // ESTADÍSTICAS MEJORADAS - INCLUYE SEGUNDO LUGAR
   private async getElectionStatsForActa(electionId: number) {
-    const totalVotantes = await this.votanteHabilitadoRepository.count({
-      where: { id_eleccion: electionId },
-    });
+  console.log('📊 === CALCULANDO ESTADÍSTICAS ===');
+  
+  const totalVotantes = await this.votanteHabilitadoRepository.count({
+    where: { id_eleccion: electionId },
+  });
 
-    const totalVotos = await this.votoRepository.count({
-      where: { id_eleccion: electionId },
-    });
+  const totalVotos = await this.votoRepository.count({
+    where: { id_eleccion: electionId },
+  });
 
-    const votosBlanco = await this.votoRepository.count({
-      where: { id_eleccion: electionId, id_candidato: null },
-    });
+  // ❌ PROBLEMA IDENTIFICADO: Esta consulta cuenta TODOS los votos con id_candidato: null
+  // Pero si no hay votos en blanco, podría estar contando incorrectamente
+  const votosBlanco = await this.votoRepository.count({
+    where: { id_eleccion: electionId, id_candidato: null },
+  });
 
-    // Obtener TODOS los candidatos ordenados por votos
-    const candidatosConVotos = await this.candidatoRepository.find({
-      where: { id_eleccion: electionId, estado: 'validado' },
-      relations: ['persona'],
-      order: { votos_recibidos: 'DESC' },
-    });
+  console.log('📊 Debug estadísticas:');
+  console.log('- Total votantes habilitados:', totalVotantes);
+  console.log('- Total votos emitidos:', totalVotos);
+  console.log('- Votos en blanco (id_candidato: null):', votosBlanco);
 
-    const ganador = candidatosConVotos[0] || null;
-    const segundoLugar = candidatosConVotos[1] || null; // NUEVO
+  // ✅ VERIFICACIÓN ADICIONAL: Obtener votos válidos para candidatos
+  const votosValidosParaCandidatos = await this.votoRepository.count({
+    where: { 
+      id_eleccion: electionId, 
+      id_candidato: Not(null) // TypeORM: NOT NULL
+    },
+  });
 
-    // Array detallado de candidatos con sus votos
-    const candidatosDetallados = candidatosConVotos.map((candidato, index) => ({
-      posicion: index + 1,
-      nombre: `${candidato.persona.nombres} ${candidato.persona.apellidos}`,
-      documento: candidato.persona.numero_documento,
-      email: candidato.persona.email,
-      telefono: candidato.persona.telefono,
-      numeroLista: candidato.numero_lista,
-      votosRecibidos: candidato.votos_recibidos,
-      porcentajeVotos: totalVotos > 0 ? ((candidato.votos_recibidos / totalVotos) * 100).toFixed(2) : '0.00'
-    }));
+  console.log('- Votos válidos para candidatos:', votosValidosParaCandidatos);
+  console.log('- Suma verificación (válidos + blancos):', votosValidosParaCandidatos + votosBlanco);
 
-    return {
-      totalVotantes,
-      totalVotos,
-      votosBlanco,
-      ganador,
-      segundoLugar, // NUEVO
-      candidatosDetallados, // NUEVO
-      porcentajeParticipacion: totalVotantes > 0 ? (totalVotos / totalVotantes) * 100 : 0,
-    };
-  }
+  // Obtener TODOS los candidatos ordenados por votos
+  const candidatosConVotos = await this.candidatoRepository.find({
+    where: { id_eleccion: electionId, estado: 'validado' },
+    relations: ['persona'],
+    order: { votos_recibidos: 'DESC' },
+  });
+
+  console.log('📊 Candidatos con votos:');
+  candidatosConVotos.forEach((candidato, index) => {
+    console.log(`  ${index + 1}. ${candidato.persona.nombres} ${candidato.persona.apellidos}: ${candidato.votos_recibidos} votos`);
+  });
+
+  const ganador = candidatosConVotos[0] || null;
+  const segundoLugar = candidatosConVotos[1] || null;
+
+  // Array detallado de candidatos con sus votos
+  const candidatosDetallados = candidatosConVotos.map((candidato, index) => ({
+    posicion: index + 1,
+    nombre: `${candidato.persona.nombres} ${candidato.persona.apellidos}`,
+    documento: candidato.persona.numero_documento,
+    email: candidato.persona.email,
+    telefono: candidato.persona.telefono,
+    numeroLista: candidato.numero_lista,
+    votosRecibidos: candidato.votos_recibidos,
+    porcentajeVotos: totalVotos > 0 ? ((candidato.votos_recibidos / totalVotos) * 100).toFixed(2) : '0.00'
+  }));
+
+  // ✅ CÁLCULO CORREGIDO DE PORCENTAJE DE VOTOS EN BLANCO
+  const porcentajeVotosBlanco = totalVotos > 0 ? ((votosBlanco / totalVotos) * 100).toFixed(2) : '0.00';
+
+  console.log('✅ Estadísticas finales:');
+  console.log('- Porcentaje participación:', totalVotantes > 0 ? (totalVotos / totalVotantes) * 100 : 0);
+  console.log('- Porcentaje votos en blanco:', porcentajeVotosBlanco, '%');
+
+  return {
+    totalVotantes,
+    totalVotos,
+    votosBlanco,
+    ganador,
+    segundoLugar,
+    candidatosDetallados,
+    porcentajeParticipacion: totalVotantes > 0 ? (totalVotos / totalVotantes) * 100 : 0,
+    porcentajeVotosBlanco, // ✅ NUEVO: Agregar porcentaje calculado
+    // ✅ NUEVA VERIFICACIÓN
+    debug: {
+      votosValidosParaCandidatos,
+      sumaVerificacion: votosValidosParaCandidatos + votosBlanco
+    }
+  };
+}
 
   // TEMPLATE ORIGINAL PARA VOCERO DE FICHA (BASADO EN TU CÓDIGO QUE FUNCIONA)
   async generateActaVoceroFichaHTML(eleccion: any, stats: any, instructorName: string): Promise<string> {
@@ -656,48 +695,58 @@ export class PdfService {
 
   // NUEVO TEMPLATE PARA REPRESENTANTE DE CENTRO
   async generateActaRepresentanteCentroHTML(eleccion: any, stats: any, instructorName: string): Promise<string> {
-    const fechaActual = new Date().toLocaleDateString('es-CO', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+  // ✅ SOLUCIÓN: Calcular fecha y hora JUSTO al momento de generar el HTML
+  const ahora = new Date();
+  
+  const fechaActual = ahora.toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 
-    const fechaInicio = new Date(eleccion.fecha_inicio).toLocaleDateString('es-CO', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+  // ✅ HORA REAL AL MOMENTO DE EXPORTAR
+  const horaActual = ahora.toLocaleTimeString('es-CO', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
 
-    const fechaFin = new Date(eleccion.fecha_fin).toLocaleDateString('es-CO', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+  console.log('🕐 Hora actual al generar PDF:', horaActual);
+  console.log('📅 Fecha actual al generar PDF:', fechaActual);
 
-    const horaActual = new Date().toLocaleTimeString('es-CO', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false
-    });
+  // Fechas de la elección (estas sí pueden ser las originales)
+  const fechaInicio = new Date(eleccion.fecha_inicio).toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 
-    const lugar = 'Centro Nacional Colombo Alemán; Bienestar al aprendiz';
-    const tema = 'ELECCIÓN DE REPRESENTANTE DE CENTRO';
-    const nombreCentro = eleccion.centro?.nombre_centro || 'Centro Nacional Colombo Alemán';
-    const jornada = eleccion.jornada || 'Todas las jornadas';
+  const fechaFin = new Date(eleccion.fecha_fin).toLocaleDateString('es-CO', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 
-    const ganador = stats.ganador;
-    const segundoLugar = stats.segundoLugar;
-    
-    const nombreGanador = ganador ? `${ganador.persona.nombres} ${ganador.persona.apellidos}` : 'Sin ganador';
-    const documentoGanador = ganador ? ganador.persona.numero_documento : '';
-    const votosGanador = ganador ? ganador.votos_recibidos : 0;
+  const lugar = 'Centro Nacional Colombo Alemán; Bienestar al aprendiz';
+  const tema = 'ELECCIÓN DE REPRESENTANTE DE CENTRO';
+  const nombreCentro = eleccion.centro?.nombre_centro || 'Centro Nacional Colombo Alemán';
+  const jornada = eleccion.jornada || 'Todas las jornadas';
 
-    const nombreSegundoLugar = segundoLugar ? `${segundoLugar.persona.nombres} ${segundoLugar.persona.apellidos}` : 'No aplica';
-    const documentoSegundoLugar = segundoLugar ? segundoLugar.persona.numero_documento : '';
-    const votosSegundoLugar = segundoLugar ? segundoLugar.votos_recibidos : 0;
+  const ganador = stats.ganador;
+  const segundoLugar = stats.segundoLugar;
+  
+  const nombreGanador = ganador ? `${ganador.persona.nombres} ${ganador.persona.apellidos}` : 'Sin ganador';
+  const documentoGanador = ganador ? ganador.persona.numero_documento : '';
+  const votosGanador = ganador ? ganador.votos_recibidos : 0;
 
-    // Usar la misma estructura base que el template de voceros pero con contenido específico
-    return `
+  const nombreSegundoLugar = segundoLugar ? `${segundoLugar.persona.nombres} ${segundoLugar.persona.apellidos}` : 'No aplica';
+  const documentoSegundoLugar = segundoLugar ? segundoLugar.persona.numero_documento : '';
+  const votosSegundoLugar = segundoLugar ? segundoLugar.votos_recibidos : 0;
+
+  // ✅ USAR EL PORCENTAJE CORREGIDO
+  const porcentajeVotosBlanco = stats.porcentajeVotosBlanco || '0.00';
+
+  return `
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -705,7 +754,7 @@ export class PdfService {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acta de Elección Representante de Centro - SENA</title>
     <style>
-        /* Usar los mismos estilos que el template de voceros */
+        /* Mantener todos los estilos existentes */
         body {
             font-family: Arial, sans-serif;
             font-size: 10px;
@@ -901,7 +950,7 @@ export class PdfService {
                     para realizar la elección de Representante de Centro en la jornada ${jornada}.
                 </div>
                 
-                <!-- RESULTADOS DE VOTACIÓN -->
+                <!-- RESULTADOS DE VOTACIÓN CORREGIDOS -->
                 <div style="margin-top: 15px;">
                     <strong>RESULTADOS DE LA VOTACIÓN:</strong>
                     <table class="resultados-table">
@@ -909,7 +958,7 @@ export class PdfService {
                             <tr>
                                 <th>N° Lista</th>
                                 <th>Candidato</th>
-                                <th>Numero de lista</th>
+                                <th>Documento</th>
                                 <th>Votos</th>
                                 <th>Porcentaje</th>
                             </tr>
@@ -924,11 +973,6 @@ export class PdfService {
                                 <td>${candidato.porcentajeVotos}%</td>
                             </tr>
                             `).join('')}
-                            <tr style="background: #f8f9fa;">
-                                <td colspan="3"><strong>Votos en Blanco</strong></td>
-                                <td><strong>${stats.votosBlanco}</strong></td>
-                                <td><strong>${stats.totalVotos > 0 ? ((stats.votosBlanco / stats.totalVotos) * 100).toFixed(2) : '0.00'}%</strong></td>
-                            </tr>
                         </tbody>
                     </table>
                     
@@ -965,7 +1009,7 @@ export class PdfService {
     </div>
 </body>
 </html>`;
-  }
+}
 
   // MÉTODO convertHtmlToPdf - USAR EL QUE FUNCIONA SIN MODIFICACIONES
   private async convertHtmlToPdf(htmlContent: string): Promise<Buffer> {
