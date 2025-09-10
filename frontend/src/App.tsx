@@ -96,7 +96,7 @@ const Dashboard = () => {
 
 function App() {
   return (
-    <Router>
+    <Router basename='/sena-votaciones'>
       <div className="App">
         <Routes>
           {/* ========================================== */}

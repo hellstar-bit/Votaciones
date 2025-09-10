@@ -78,7 +78,7 @@ async function bootstrap() {
   // 🗜️ Compresión
   app.use(compression());
   
-  // 🌐 CORS configuración dinámica
+  // 🌐 CORS configuración dinámica MEJORADA
   const corsOrigin = configService.get('CORS_ORIGIN');
   let allowedOrigins: string[] = [];
   
@@ -90,24 +90,51 @@ async function bootstrap() {
       .filter(origin => origin.length > 0);
   }
   
-  // Orígenes por defecto
-  const defaultOrigins = isProduction 
-    ? [] // En producción, solo usar los configurados
-    : [ 'https://votaciones-ochre.vercel.app',
-        'http://localhost:3001',
-        'http://localhost:3000',
-        'http://localhost:5173',
-      ];
+  // 🆕 Orígenes por defecto CORREGIDOS
+  const defaultOrigins = [
+    'https://votaciones-ochre.vercel.app',
+    'http://localhost:3001',
+    'http://localhost:3000',
+    'http://localhost:5173',  // 👈 PUERTO CORRECTO DE VITE
+    'http://localhost:4173',  // 👈 PUERTO PREVIEW DE VITE
+    'http://127.0.0.1:5173',  // 👈 ALTERNATIVA LOCALHOST
+    'http://127.0.0.1:4173',
+  ];
   
   const finalOrigins = allowedOrigins.length > 0 ? allowedOrigins : defaultOrigins;
   
   console.log('🌐 CORS configurado para:', finalOrigins);
   
+  // 🆕 CONFIGURACIÓN CORS MEJORADA
   app.enableCors({
-    origin: finalOrigins.length > 0 ? finalOrigins : true,
+    origin: (origin, callback) => {
+      // Permitir requests sin origin (como desde Postman o apps móviles)
+      if (!origin) return callback(null, true);
+      
+      // Verificar si el origin está en la lista permitida
+      if (finalOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn(`🚫 CORS bloqueado para origen: ${origin}`);
+        console.log(`✅ Orígenes permitidos:`, finalOrigins);
+        callback(new Error('Not allowed by CORS'), false);
+      }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization', 
+      'Accept',
+      'Origin',
+      'X-Requested-With',
+      'Access-Control-Allow-Origin',
+      'Access-Control-Allow-Headers',
+      'Access-Control-Allow-Methods'
+    ],
+    exposedHeaders: ['set-cookie'],
+    optionsSuccessStatus: 200,
+    preflightContinue: false,
   });
   
   // ✅ Validación global
